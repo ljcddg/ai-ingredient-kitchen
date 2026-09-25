@@ -1,0 +1,98 @@
+# ============================================================
+# gateway 网关配置（Nacos DataId: gateway.yaml, Group: DEFAULT_GROUP）
+# 这份是项目内的留档副本，真正生效的是 Nacos 上的这份
+# 推送命令见 .workbuddy/memory/MEMORY.md
+#
+# 端口规划：gateway=7000，业务服务从 808x 起
+# 网关与业务服务分开区间，便于一眼区分、也避开 8080 这类易被占用的端口
+# ============================================================
+
+server:
+  port: 7000
+
+spring:
+  cloud:
+    gateway:
+      # 默认过滤器：作用于所有路由
+      #
+      # 为什么需要去重（这个坑非常难查）：网关自己会按下面的 globalcors
+      # 往响应里写一份 Access-Control-Allow-Origin；而被转发的业务服务如果
+      # 也配了 CORS（dish-service 配了，为了支持不经网关的直连调试），
+      # 它会再写一份。于是响应里出现两个同名 CORS 头，浏览器对这个零容忍，
+      # 会直接判定请求失败，报 net::ERR_FAILED。
+      #
+      # 迷惑点：预检（OPTIONS）看起来完全正常，CORS 头一个不少，
+      # 用 curl / Python 看响应也正常（工具会把重复头合并掉）。
+      # DedupeResponseHeader 是官方为这个场景提供的内置过滤器。
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+
+      # 路由规则：把不同前缀的请求转发到对应微服务
+      routes:
+        # 账号服务：/api/account/** 转发到 account-service
+        # lb:// 表示从注册中心按服务名负载均衡，不是写死 IP
+        # StripPrefix=2 会砍掉 /api/account 两级，
+        # 所以前端请求 /api/account/auth/login -> 下游收到 /auth/login
+        - id: account-service-route
+          uri: lb://account-service
+          predicates:
+            - Path=/api/account/**
+          filters:
+            - StripPrefix=2
+
+        # 菜品服务：/api/dish/** 转发到 dish-service
+        # 同样 StripPrefix=2，所以前端请求 /api/dish/search -> 下游收到 /search
+        # 注意：加了这条路由后，JwtAuthGlobalFilter.STRIP_PREFIXES 必须同步加 /api/dish
+        - id: dish-service-route
+          uri: lb://dish-service
+          predicates:
+            - Path=/api/dish/**
+          filters:
+            - StripPrefix=2
+
+        # 商品服务（order-service 放开后可参照上面的写法照抄）
+        # - id: product-service-route
+        #   uri: lb://product-service
+        #   predicates:
+        #     - Path=/api/product/**
+        #   filters:
+        #     - StripPrefix=2
+
+      # 跨域：前端和后端不同端口时必需。
+      # 注意要在网关这一层统一处理，不要在业务服务里再配一遍，
+      # 否则会出现「响应头里 Access-Control-Allow-Origin 重复」的报错
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+# ---------- 网关认证白名单 ----------
+gateway:
+  auth:
+    # 总开关：本地调试想一次性放行所有请求时改成 false（生产必须 true）
+    enabled: true
+    white-list:
+      # 登录、注册本身就是为了拿 token，不能要求先有 token
+      - /auth/**
+      # Spring Boot Actuator 健康检查，K8s / 运维探活要用
+      - /actuator/**
+      # 静态资源（如果网关要直接提供的话）
+      - /favicon.ico
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    # 打开网关自身的调试日志，能看到路由匹配过程
+    org.springframework.cloud.gateway: info
+    # 自己的过滤器开 debug，能看到「认证通过：userId=xx」这类关键信息
+    com.apesource.gateway: debug

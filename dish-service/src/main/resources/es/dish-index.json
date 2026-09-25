@@ -1,0 +1,40 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "refresh_interval": "1s"
+  },
+  "mappings": {
+    "properties": {
+      "dishId":            { "type": "long" },
+      "name":              { "type": "text",
+                             "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } } },
+      "nameKey":           { "type": "keyword" },
+      "status":            { "type": "byte" },
+      "deleted":           { "type": "byte" },
+      "source":            { "type": "byte" },
+      "creatorId":         { "type": "long" },
+
+      "ingredientIds":     { "type": "long" },
+      "mainIngredientIds": { "type": "long" },
+      "ingredientNames":   { "type": "keyword" },
+      "ingredientCount":   { "type": "integer" },
+
+      "tasteTags":         { "type": "keyword" },
+      "tagIds":            { "type": "long" },
+
+      "baseServing":       { "type": "integer" },
+      "difficulty":        { "type": "byte" },
+      "cookTimeMin":       { "type": "integer" },
+
+      "ratingAvg":         { "type": "double" },
+      "ratingWilson":      { "type": "double" },
+      "ratingCount":       { "type": "integer" },
+      "collectCount":      { "type": "integer" },
+      "viewCount":         { "type": "integer" },
+
+      "energyKcal":        { "type": "double" },
+      "publishTime":       { "type": "date" }
+    }
+  }
+}

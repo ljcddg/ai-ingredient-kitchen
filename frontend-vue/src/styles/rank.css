@@ -1,0 +1,155 @@
+/* ============================================================
+   榜单页专属样式
+   ------------------------------------------------------------
+   令牌、顶栏、按钮、卡片、空态、骨架、Toast 都在 css/app.css，
+   流动背景在 css/fx-bg.css。本文件只放这一页独有的东西。
+   ============================================================ */
+
+/* ---------- 榜单类型切换 ---------- */
+/* 用分段控件而不是页签：三个选项是"同一份列表的三种排序"，
+   本质是一件事，做成页签会显得像三个不同页面。
+   （顺带避免和 profile 页的 .tab 样式重复定义。） */
+.page-rank .rank-seg{
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--glass-2);
+}
+
+.page-rank .rank-seg-btn{
+    flex: 1 1 0;
+    padding: 9px 6px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .16s var(--ease), color .16s var(--ease);
+}
+
+.page-rank .rank-seg-btn:hover{ color: var(--ink); }
+
+.page-rank .rank-seg-btn[aria-selected="true"]{
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(34, 32, 30, .08);
+}
+
+/* ---------- 榜单列表 ---------- */
+.page-rank .rank-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+}
+
+/* 用 grid + gap 而不是"相邻兄弟加 margin"：
+   条目外面包了一层 <li>，相邻选择器匹配不到里面的 <a>，间距会整体丢掉 */
+.page-rank .rank-item{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .16s var(--ease), box-shadow .16s var(--ease),
+                transform .1s var(--ease);
+}
+
+.page-rank .rank-item:hover{
+    border-color: var(--ink-3);
+    box-shadow: var(--shadow-pop);
+}
+
+.page-rank .rank-item:active{ transform: scale(.995); }
+
+/* 名次徽章。前三名用品牌红实心 —— 这是全页唯一的强调色用法，
+   再多就会到处都在"喊"，反而不突出。 */
+.page-rank .rank-no{
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-rank .rank-no.is-top{
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.page-rank .rank-main{ min-width: 0; flex: 1 1 auto; }
+
+.page-rank .rank-name{
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.page-rank .rank-summary{
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-rank .rank-meta{
+    margin-top: 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.page-rank .rank-score{
+    flex: none;
+    text-align: right;
+    min-width: 76px;
+}
+
+.page-rank .rank-score-num{
+    font-size: 16px;
+    font-weight: 650;
+    color: var(--star);
+    font-variant-numeric: tabular-nums;
+}
+
+.page-rank .rank-score-label{
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+/* 窄屏把右侧分数藏掉：菜名和标签更重要，先让位 */
+@media (max-width: 560px){
+    .page-rank .rank-item{ padding: 12px 14px; gap: 10px; }
+    .page-rank .rank-score{ display: none; }
+}
+
+/* ---------- 分页 ---------- */
+.page-rank .rank-more{
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+}

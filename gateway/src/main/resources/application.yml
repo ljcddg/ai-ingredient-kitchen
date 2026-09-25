@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: gateway
+
+  # ---------- Nacos 配置中心 ----------
+  # Boot 3 + SCA 2023 不需要 bootstrap.yml，用 spring.config.import 在启动早期导入配置
+  config:
+    import:
+      - optional:nacos:gateway.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+
+  cloud:
+    nacos:
+      # 鸡生蛋问题：连不上 Nacos 就拉不到配置，所以地址只能写本地
+      server-addr: 127.0.0.1:8848
+      config:
+        file-extension: yaml
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:8848
+        group: DEFAULT_GROUP
+
+# ---------- JWT ----------
+jwt:
+  # 【必须与 account-service 完全一致】
+  # 网关用它验签、account-service 用它签发，两边只要差一个字符，
+  # 现象就是「登录明明成功，但所有业务接口都返回 401」。
+  #
+  # ⚠️ 这里是占位值，请自行生成并同步到两边（或用环境变量注入）：
+  #   openssl rand -base64 32
+  # 真实密钥严禁提交到版本库。
+  secret: ${JWT_SECRET:REPLACE_WITH_YOUR_OWN_BASE64_SECRET_AT_LEAST_32_BYTES}
+
+# ---------- 网关认证开关 ----------
+# 路由规则、white-list 这些放 Nacos（见 nacos-config/gateway.yaml），
+# 这里只放「改了必须重启」的密钥类配置

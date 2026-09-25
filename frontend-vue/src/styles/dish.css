@@ -1,0 +1,412 @@
+/* ============================================================
+   菜品详情页
+   ------------------------------------------------------------
+   令牌、顶栏、卡片、按钮、空态、骨架都在 css/app.css。
+   本文件只放详情页专属的布局与组件。
+   ============================================================ */
+
+/* ---------- 页头 ---------- */
+.page-dish .detail-head{
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.page-dish .detail-head-main{ min-width: 0; }
+
+.page-dish .detail-title{
+    margin: 0;
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -.02em;
+    line-height: 1.25;
+}
+
+.page-dish .detail-summary{
+    margin: 8px 0 0;
+    font-size: 14px;
+    color: var(--ink-2);
+    max-width: 62ch;
+}
+
+.page-dish .detail-tags{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.page-dish .detail-actions{
+    display: flex;
+    gap: 8px;
+    flex: none;
+}
+
+@media (max-width: 620px) {
+    .page-dish .detail-head{ flex-direction: column; }
+    .page-dish .detail-actions{ width: 100%; }
+    .page-dish .detail-actions .secondary-btn{ flex: 1; }
+}
+
+/* ---------- 主体两栏 ---------- */
+.page-dish .detail-grid{
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+/* 评论卡片是 .detail-grid 的兄弟（不在网格里，整页宽），
+   而 `.card + .card` 的 16px 只对同一父元素下的相邻兄弟生效 ——
+   它前面那个兄弟是 .detail-grid 而不是 .card，所以拿不到间距，
+   会紧贴左列最后一张卡（实测间距 0）。这里显式补上，与列内卡片保持一致。 */
+.page-dish .detail-grid + .card { margin-top: 16px; }
+
+@media (max-width: 900px) {
+    .page-dish .detail-grid{ grid-template-columns: minmax(0, 1fr); }
+}
+
+.page-dish .detail-col{ min-width: 0; }
+
+/* ---------- 食材清单 ---------- */
+.page-dish .ing-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-dish .ing-row{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+}
+
+.page-dish .ing-row:last-child{ border-bottom: 0; padding-bottom: 0; }
+
+.page-dish .ing-row-name{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+/* 主料加粗，辅料常规 —— 一眼能看出哪几样是主角 */
+.page-dish .ing-row.is-main .ing-row-name{ font-weight: 600; }
+
+.page-dish .ing-row-amount{
+    flex: none;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 不在食材主数据里的（用户自填、AI 补的）：标出来，说明它不参与营养核算 */
+.page-dish .ing-row.is-free .ing-row-amount::after{
+    content: ' · 估算';
+    color: var(--warn);
+    font-size: 11.5px;
+}
+
+.page-dish .serving-note{
+    margin: 12px 0 0;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 调料 / 厨具 / 替代 ---------- */
+.page-dish .pill-row{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-dish .pill{
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    color: var(--ink);
+}
+
+.page-dish .sub-list{
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.page-dish .sub-list li + li{ margin-top: 5px; }
+
+/* ---------- 制作步骤 ---------- */
+.page-dish .step-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+}
+
+.page-dish .step{
+    display: flex;
+    gap: 14px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.page-dish .step:last-child{ border-bottom: 0; padding-bottom: 0; }
+.page-dish .step:first-child{ padding-top: 0; }
+
+/* 步骤序号用序号圆点，而不是把数字塞进正文里 ——
+   正文里带序号的话，复制粘贴出去是一串脏字符 */
+.page-dish .step-no{
+    flex: none;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-dish .step-text{
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.7;
+    padding-top: 1px;
+}
+
+/* ---------- 大厨建议 ---------- */
+.page-dish .tip-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-dish .tip{
+    position: relative;
+    padding: 0 0 0 18px;
+    font-size: 13.5px;
+    line-height: 1.7;
+}
+
+.page-dish .tip + .tip{ margin-top: 10px; }
+
+/* 用一条短竖线当项目符号，比圆点更安静，也不会和正文的数字混淆 */
+.page-dish .tip::before{
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 7px;
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+    background: var(--accent-bright);
+}
+
+/* ---------- 营养 ---------- */
+.page-dish .nutri-source{
+    flex: none;
+    font-size: 11.5px;
+}
+
+.page-dish .nutri-grid{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 12px;
+}
+
+@media (max-width: 420px) {
+    .page-dish .nutri-grid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.page-dish .nutri-val{
+    display: block;
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-dish .nutri-unit{
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+    margin-left: 2px;
+}
+
+.page-dish .nutri-label{
+    display: block;
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* 营养值源头不可信时的提示条。做成浅色警示而不是红色报错：
+   它是「请谨慎参考」，不是「出错了」 */
+.page-dish .nutri-caveat{
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+
+/* ---------- 评分 ---------- */
+.page-dish .rating-box{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.page-dish .rating-score{
+    font-size: 34px;
+    font-weight: 650;
+    letter-spacing: -.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-dish .rating-meta{
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+.page-dish .rating-none{
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.page-dish .stars{
+    display: flex;
+    gap: 2px;
+    margin-top: 14px;
+}
+
+/* 星星：未选中是描边、选中是实心。
+   用 fill/stroke 切换而不是换图标，省掉一半 SVG */
+.page-dish .star{
+    width: 32px;
+    height: 32px;
+    padding: 2px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: transform .1s var(--ease);
+}
+
+.page-dish .star svg{
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: var(--line-2);
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    transition: fill .16s var(--ease), stroke .16s var(--ease);
+}
+
+.page-dish .star:hover svg{ stroke: var(--star); }
+.page-dish .star:active{ transform: scale(.92); }
+
+.page-dish .star.is-on svg,
+.page-dish .star.is-hover svg{
+    fill: var(--star);
+    stroke: var(--star);
+}
+
+.page-dish .stars:disabled{ opacity: .6; }
+
+.page-dish .stars-note{
+    margin: 10px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+/* ---------- 评论区 ---------- */
+.page-dish .comment-form{ margin-bottom: 20px; }
+
+.page-dish .comment-actions{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.page-dish .char-count{
+    font-size: 12px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.page-dish .char-count.is-over{ color: var(--danger); }
+
+.page-dish .comment-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-dish .comment{
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+}
+
+.page-dish .comment-head{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.page-dish .comment-who{
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.page-dish .comment-time{
+    font-size: 12px;
+    color: var(--ink-2);
+    flex: none;
+}
+
+.page-dish .comment-body{
+    margin: 6px 0 0;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    /* 评论是用户输入，可能出现超长无空格的串，必须允许断词，
+       否则会把卡片撑出横向滚动 */
+    word-break: break-word;
+}
+
+/* 评论里的星级：用和评分控件同一套星形路径，只是小一号、纯填充。
+   之前用的是 ★ 字符，问题有两个 —— 不同字体下胖瘦不一，
+   而且 U+2605 落在 emoji 检测区间里，会被「页面不出现 emoji」的检查误伤。 */
+.page-dish .comment-stars{
+    display: flex;
+    gap: 1px;
+    margin-top: 5px;
+}
+
+.page-dish .comment-stars svg{
+    width: 13px;
+    height: 13px;
+    fill: var(--star);
+    stroke: none;
+}

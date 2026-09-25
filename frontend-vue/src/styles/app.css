@@ -1,0 +1,648 @@
+/* ============================================================
+   应用级样式：设计令牌 + 基础排版 + 顶栏 + 通用组件
+   ------------------------------------------------------------
+   【分层说明】改样式前先看这里，避免同一个东西定义两遍：
+     fx-bg.css     流光背景层（三个内页共用）
+     app.css       全局层：令牌、body、顶栏、按钮、卡片、空态、骨架、Toast
+     kitchen.css   找菜工作台专属
+     dish.css      菜品详情页专属
+     profile.css   「我的」页专属
+
+   页面共用的东西一律放本文件。同一个选择器不要在两处定义 ——
+   后加载的文件会覆盖前面的，到时候「改了怎么没生效」会非常难查。
+   ============================================================ */
+
+/* ---------- 设计令牌 ---------- */
+:root {
+    /* 中性基底。
+       这里刻意避开了「奶油纸底 + 黄铜色点缀」那套暖色组合：美食类项目一上来
+       就很容易默认成 beige/cream + brass，结果同类产品视觉全长一样。
+       改成中性暖灰，让品牌红成为页面上唯一的色彩信号。 */
+    --page:      #f4f4f2;
+    --surface:   #ffffff;
+    --surface-2: #fafaf9;
+    --ink:       #22201e;
+    --ink-2:     #5c5651;
+    /* ink-3 是第三级灰，用于 placeholder 和次要说明。
+       原值 #8d8781 在纯白上是 3.55:1；页面背景改成半透明玻璃之后底色不再是纯白，
+       它会掉到 3.26:1。往下压一档把损失补回来（玻璃底上约 3.73:1）。
+       注意它仍然达不到正文要求的 4.5:1，所以只用在辅助文字上 ——
+       别拿它承载需要读清楚的内容。 */
+    --ink-3:     #837d76;
+    --line:      #e4e2de;
+    --line-2:    #d5d2cd;
+
+    /* 唯一强调色：品牌番茄红。
+       之所以分三个明度，是为了满足 WCAG AA 对比度：
+         #e2564a 配白字只有 3.7:1，达不到正文要求的 4.5:1，所以它只能用于
+         装饰、图标和 24px 以上的大字号；
+         真正承载文字的底面一律用 #c8443a（实测 4.83:1，达标）。 */
+    --accent:        #c8443a;
+    --accent-hover:  #b23a31;
+    --accent-bright: #e2564a;
+    --accent-soft:   #fbeeec;
+
+    /* 语义色（每个都配一个浅底，浅底上的文字色单独调过对比度） */
+    --ok:          #2f7d55;
+    --ok-soft:     #eef6f1;
+    --warn:        #8a6116;
+    --warn-soft:   #fdf6e7;
+    --danger:      #b4342f;
+    --danger-soft: #fdeeed;
+    /* 星级用的金色：只用于纯装饰的星形图标，不承载文字，所以不受对比度约束 */
+    --star:        #d99a2b;
+
+    /* 圆角只留两档，配一条明确规则：
+         容器类（面板、卡片）  -> --r-lg
+         交互控件（按钮、输入、选项） -> --r-sm
+         标签 chip             -> pill
+       三档之外不要新增，混用之前先看这条注释。 */
+    --r-lg: 14px;
+    --r-sm: 10px;
+
+    --shadow-1:   0 1px 2px rgba(34, 32, 30, .04), 0 6px 18px -6px rgba(34, 32, 30, .10);
+    --shadow-pop: 0 6px 24px -6px rgba(34, 32, 30, .18);
+    --ease: cubic-bezier(.22, .61, .36, 1);
+
+    /* 玻璃面。
+       内页背景是 fx-bg.css 里流动的色团，如果卡片还是纯白不透明，
+       那层背景等于白做了 —— 只有把承载内容的面做成半透明才透得出来。
+
+       80% 是权衡后的取值，不是随手填的：
+         · 只透出 20%，但色团本身的有效强度约 30% ——
+           两者相乘才是"看得见的颜色"，84% 时这个值不到 5%，面板基本还是白的；
+         · 再往下（如 72%）流光更明显，但卡片会和背景糊在一起，
+           长时间看列表容易累，产品界面不该为了好看牺牲可读性。
+       在 80% 玻璃 + 最深色团这个最坏组合下实算：
+         --ink   约 14.5:1  （正文，要求 4.5:1，余量很大）
+         --ink-2 约  6.5:1  （次要文字，达标）
+         --ink-3 约  3.6:1  （辅助文字，低但比原来在纯白上的 3.55 略好）
+       --glass-2 给浮层用（下拉、悬浮提示），比 --glass 更透一点，
+       靠 --shadow-pop 拉开层次，而不是靠底色。 */
+    --glass:      color-mix(in srgb, var(--surface) 80%, transparent);
+    --glass-2:    color-mix(in srgb, var(--surface) 68%, transparent);
+    --glass-blur: 18px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page:      #1a1918;
+        --surface:   #232221;
+        --surface-2: #2a2928;
+        --ink:       #f2f0ee;
+        --ink-2:     #b3ada7;
+        --ink-3:     #857f7a;
+        --line:      #353331;
+        --line-2:    #454240;
+
+        /* 按钮底色两种模式保持一致（保证白字对比度）。
+           深色模式下只有装饰色和文字强调色调亮。 */
+        --accent-bright: #e8736a;
+        --accent-soft:   #33211f;
+
+        --ok:          #6fbf94;
+        --ok-soft:     #1f2a25;
+        --warn:        #e0b366;
+        --warn-soft:   #2e2718;
+        --danger:      #e88a84;
+        --danger-soft: #33201f;
+        --star:        #e5b45c;
+
+        --shadow-1:   0 1px 2px rgba(0, 0, 0, .30), 0 6px 18px -6px rgba(0, 0, 0, .45);
+        --shadow-pop: 0 6px 24px -6px rgba(0, 0, 0, .55);
+
+        /* 深色下玻璃要比浅色更暗：深色底上的半透明会被底下色团提亮，
+           84% 会让卡片泛灰、和背景分不开。 */
+        --glass:   color-mix(in srgb, var(--surface) 74%, transparent);
+        --glass-2: color-mix(in srgb, var(--surface) 58%, transparent);
+    }
+}
+
+/* ---------- 基础 ---------- */
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 焦点环：所有可交互元素共用，键盘操作时必须看得见 */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+}
+
+a { color: var(--accent); }
+
+/* ---------- 顶栏（三个页面共用） ---------- */
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 20px;
+    /* 74% 比卡片更透：顶栏是贴在视口最上沿的一条，
+       内容从它下面滚过去时透出来一点，"浮在页面上"的感觉更明确。
+       模糊值也要比卡片大，否则透过来的文字会变成可辨认的糊状。 */
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 0;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+}
+
+/* 品牌名在窄屏藏起来：导航比它重要，先让位 */
+@media (max-width: 620px) {
+    .brand span { display: none; }
+}
+
+.brand-mark {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    color: var(--accent-bright);
+}
+
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+.who {
+    color: var(--ink-2);
+    font-size: 13px;
+    max-width: 14ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+    .who { display: none; }
+}
+
+/* ---------- 顶栏导航 ---------- */
+.nav {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+}
+
+.nav-link {
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    color: var(--ink-2);
+    font-size: 13.5px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color .16s var(--ease), background .16s var(--ease);
+}
+
+.nav-link:hover {
+    color: var(--ink);
+    background: var(--surface-2);
+}
+
+/* 当前页用「文字加深 + 底部色条」标记，而不是"红底红字" ——
+   后者在浅色底上对比度只有 4.27:1，卡在 AA 门槛下方。
+   色条用 inset box-shadow 实现，不占布局空间，不会让导航跳动。 */
+.nav-link[aria-current="page"] {
+    color: var(--ink);
+    font-weight: 600;
+    /* 色条之外再拖一点极淡的辉光。背景本身是流动的光，
+       导航条停留在一个死平的红线上会显得和整体脱节。
+       阴影用负扩散半径（-6px），只在下边缘外溢一点点，不会糊到文字。 */
+    box-shadow: inset 0 -2px 0 var(--accent-bright),
+                0 3px 14px -6px var(--accent-bright);
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+
+/* ---------- 按钮 ---------- */
+.ghost-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: color .16s var(--ease), border-color .16s var(--ease);
+}
+
+.ghost-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+.ghost-btn:active { transform: scale(.98); }
+
+/* 按钮样式同时给 <button> 和 <a> 用（比如空态里的「去挑食材」是链接）——
+   所以要用 inline-flex 而不是依赖 button 的默认盒模型，
+   否则 <a> 上的垂直内边距会溢出到父元素外面，还会多出一条下划线。 */
+.primary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 20px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background .16s var(--ease), transform .1s var(--ease);
+}
+
+.primary-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.primary-btn:active:not(:disabled) { transform: scale(.98); }
+.primary-btn:disabled {
+    background: var(--line-2);
+    color: var(--ink-3);
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 18px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 550;
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), transform .1s var(--ease);
+}
+
+.secondary-btn:hover:not(:disabled) { border-color: var(--ink-3); }
+.secondary-btn:active:not(:disabled) { transform: scale(.98); }
+.secondary-btn:disabled { color: var(--ink-3); cursor: not-allowed; }
+
+/* 收藏按钮的「已收藏」态：描边变实心色。用文字一起表达状态，
+   不单靠颜色（色盲用户也要能分辨）。 */
+.secondary-btn.is-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ---------- 页面容器 ---------- */
+/*
+ * position + z-index 这两行不是装饰，删了整页会变成空白。
+ * .fx-bg 是 fixed + z-index:0（定位元素），而本元素默认是 static ——
+ * CSS 的绘制顺序里「定位元素」画在「非定位块级元素」之上，
+ * 所以不抬起来的话，流动背景会盖住整个页面内容。
+ * （登录页是靠 .page 的 position:relative 解决的，这里同理。）
+ */
+.page-wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 24px 20px 72px;
+    /* 入场：从下方轻微浮起。0.42s 足够短，不会让用户觉得在等。 */
+    animation: fxRise .42s var(--ease) both;
+}
+
+@keyframes fxRise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.page-title {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -.02em;
+}
+
+.page-sub {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+/* 返回上一层的链接：用箭头 + 文字，不用「<」字符（中文排版里很丑） */
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 14px;
+    color: var(--ink-2);
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.back-link:hover { color: var(--ink); }
+.back-link svg { width: 14px; height: 14px; }
+
+/* ---------- 卡片 ---------- */
+.card {
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+    padding: 20px;
+}
+
+.card + .card { margin-top: 16px; }
+
+.card-title {
+    margin: 0 0 14px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.card-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.card-title-row .card-title { margin: 0; }
+
+/* ---------- 小标签 ---------- */
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 11.5px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.tag.accent {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+    color: var(--accent);
+}
+
+.tag.warn {
+    background: var(--warn-soft);
+    border-color: color-mix(in srgb, var(--warn) 26%, transparent);
+    color: var(--warn);
+}
+
+.tag.ok {
+    background: var(--ok-soft);
+    border-color: color-mix(in srgb, var(--ok) 26%, transparent);
+    color: var(--ok);
+}
+
+/* ---------- 输入控件 ---------- */
+.input {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+    transition: border-color .16s var(--ease);
+}
+
+.input::placeholder { color: var(--ink-3); }
+.input:focus { outline: none; border-color: var(--accent); }
+.input:disabled { background: var(--surface-2); color: var(--ink-3); }
+
+textarea.input { resize: vertical; min-height: 76px; line-height: 1.6; }
+
+/* ---------- 状态条（直出 / 需生成 / 引擎不可用 / 提示） ---------- */
+.banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 15px;
+    border-radius: var(--r-lg);
+    border: 1px solid transparent;
+    margin-bottom: 14px;
+}
+
+.banner-title { font-weight: 600; font-size: 13.5px; }
+.banner-text { margin: 3px 0 0; font-size: 13px; }
+
+.banner.ok { background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 26%, transparent); }
+.banner.ok .banner-title, .banner.ok .banner-text { color: var(--ok); }
+
+.banner.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+.banner.warn .banner-title, .banner.warn .banner-text { color: var(--warn); }
+
+.banner.danger { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 26%, transparent); }
+.banner.danger .banner-title, .banner.danger .banner-text { color: var(--danger); }
+
+/* ---------- 空态 ---------- */
+.empty {
+    padding: 56px 28px;
+    text-align: center;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+}
+
+.empty-title {
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.empty-text {
+    margin: 0 auto;
+    max-width: 44ch;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.empty-actions { margin-top: 16px; }
+
+/* ---------- 加载骨架（形状对齐最终布局，而不是转圈） ---------- */
+.skeleton {
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+}
+
+.sk-line {
+    height: 13px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--line) 25%, var(--surface-2) 37%, var(--line) 63%);
+    background-size: 400% 100%;
+    animation: sk 1.4s ease infinite;
+}
+
+.sk-line + .sk-line { margin-top: 10px; }
+.sk-title { height: 24px; width: 42%; margin-bottom: 16px; }
+.sk-short { width: 28%; }
+.sk-stats { display: flex; gap: 32px; margin-top: 20px; }
+.sk-stat { height: 32px; width: 72px; border-radius: 6px; background: var(--line); }
+
+@keyframes sk {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+/* ---------- 错误 ---------- */
+.err-box {
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: var(--r-lg);
+    background: var(--danger-soft);
+}
+
+.err-title {
+    margin: 0 0 4px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--danger);
+}
+
+.err-text {
+    margin: 0;
+    font-size: 13px;
+    color: var(--danger);
+    word-break: break-word;
+}
+
+.err-box .secondary-btn { margin-top: 14px; }
+
+/* ---------- Toast（三个页面共用，所以容器元素也要有） ---------- */
+/* 提示条固定右下角，不要放顶部居中 ——
+   那个位置在厨房页会把「我的 AI 做菜任务」标题盖住，
+   而用户刚提交完最想看的就是任务状态。
+   右下角不遮挡任何常驻元素，也是移动端通行的位置。 */
+.toast-wrap {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9999;
+    display: grid;
+    gap: 10px;
+    justify-items: end;
+    pointer-events: none;
+}
+
+/* 窄屏时铺满底部一行，避免长文案被挤成细长条 */
+@media (max-width: 520px) {
+    .toast-wrap {
+        left: 16px;
+        right: 16px;
+        justify-items: stretch;
+    }
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 17px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    box-shadow: var(--shadow-pop);
+    font-size: 13.5px;
+    color: var(--ink);
+    animation: toastIn .3s var(--ease) both;
+    max-width: 380px;
+}
+
+.toast.is-out { animation: toastOut .25s var(--ease) both; }
+
+@keyframes toastIn {
+    from { opacity: 0; transform: translateY(14px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toastOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(10px); }
+}
+
+.toast-icon {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.toast.success .toast-icon { background: var(--ok); }
+.toast.error   .toast-icon { background: var(--danger); }
+.toast.info    .toast-icon { background: var(--accent); }
+
+/* ---------- 无障碍 ---------- */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+    }
+}

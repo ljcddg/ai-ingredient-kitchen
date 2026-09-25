@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: dish-service
+
+  # ---------- Spring AI（Ollama 本地模型）----------
+  # 这是【兼容性实验】的配置，故意写在本地而不是 Nacos：
+  # 万一实验失败，删掉这两段就干净了，不会在配置中心留下垃圾。
+  ai:
+    ollama:
+      base-url: http://127.0.0.1:11434
+      chat:
+        options:
+          model: gemma4:e2b
+          temperature: 0.7
+
+  # ---------- Nacos 配置中心 ----------
+  # Boot 3 + SCA 2023 用 spring.config.import 导入 Nacos 配置，不需要 bootstrap.yml。
+  # optional: 前缀表示 Nacos 上暂时没有这份配置也能启动，便于本地先跑起来。
+  config:
+    import:
+      # 【顺序就是优先级】后导入的会覆盖先导入的。
+      # 所以公共配置（数据源 / MyBatis-Plus）必须放在第一个，
+      # 本服务专属配置放后面 —— 这样单个服务想覆盖某个公共项时才覆盖得掉。
+      - optional:nacos:common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      # 本服务专属配置。
+      # optional: 前缀表示 Nacos 上暂时没有这份配置也能启动，便于本地先跑起来。
+      - optional:nacos:dish-service.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+
+  cloud:
+    nacos:
+      # 「连不上 Nacos 就拉不到配置」是鸡生蛋问题，地址只能放本地
+      server-addr: 127.0.0.1:8848
+      config:
+        file-extension: yaml
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:8848
+        group: DEFAULT_GROUP
+        # 本机多网卡时可能注册成虚拟网卡 IP 导致调不通，
+        # 需要时打开下面这行并填真实网卡 IP（本机 WLAN 为 192.168.251.101）
+        # ip: 192.168.251.101
+
+# 说明：
+# - 数据源 / MyBatis-Plus 在 Nacos 的 common.yaml（全项目共用）
+# - server.port、es.* 在 Nacos 的 dish-service.yaml（本服务专属）
+# - 如果 Nacos 上的配置拉不到，EsProperties 里的字段默认值会兜底
+#   （默认连 http://127.0.0.1:9200），本地仍可启动

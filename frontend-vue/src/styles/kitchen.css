@@ -1,0 +1,1039 @@
+/* ============================================================
+   AI 灵感厨房 - 找菜工作台
+   ------------------------------------------------------------
+   设计令牌、基础排版、顶栏、按钮、卡片、空态、骨架、Toast
+   都已移到 css/app.css（三个页面共用），本文件只保留本页专属部分。
+   流动背景层在 css/fx-bg.css。
+
+   别把共用样式往这里加，也别在这里重定义令牌 ——
+   同一个选择器在两个文件里各写一份时，后加载的会静默覆盖前面的，
+   到时候「改了怎么没生效」会非常难查。
+   ============================================================ */
+
+/* ---------- 工作台两栏 ---------- */
+/*
+ * position + z-index 不能删：.fx-bg 是 fixed + z-index:0（定位元素），
+ * 本元素默认 static，而绘制顺序里定位元素在上 —— 不抬起来会被背景盖住。
+ */
+.page-kitchen .workbench{
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 392px minmax(0, 1fr);
+    gap: 20px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 24px 20px 72px;
+    align-items: start;
+    animation: fxRise .42s var(--ease) both;
+}
+
+@media (max-width: 980px) {
+    .page-kitchen .workbench{
+        grid-template-columns: minmax(0, 1fr);
+        padding: 16px 14px 64px;
+    }
+}
+
+/* ---------- 面板 ---------- */
+.page-kitchen .panel{
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+}
+
+.page-kitchen .picker{
+    position: sticky;
+    top: 84px;
+    /* 左栏内容比视口高时，单纯的 sticky 会让它的底部永远滚不到：
+       元素顶部粘住之后，超出视口的那部分既不随页面滚上来、也不在视口里，
+       结果就是「开始找菜」按钮一直看不见。
+       所以把面板拆成「字段区内部滚动 + 按钮固定在底部」两段。 */
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 104px);
+    padding: 18px 18px 16px;
+    /* 【必须】阻止左栏的滚动内容把整页撑高。
+       .picker-scroll 里的内容（88 种食材，约 1900px）虽然被它自己的
+       overflow-y:auto 裁掉了，但浏览器仍会把这部分高度算进祖先的滚动范围，
+       于是文档 scrollHeight 虚高约 790px —— 症状就是「鼠标能一直往下滚，
+       底下却什么都没有」。实测修复后 1742px -> 952px。
+       用 clip 而不是 hidden：clip 只裁剪、不创建新的滚动容器，
+       不会影响 .picker 自身 sticky 的参照，也不会在内部元素获得焦点时
+       让面板自己滚动。下面一行是给不支持 clip 的浏览器兜底。 */
+    overflow: hidden;
+    overflow: clip;
+}
+
+.page-kitchen .picker-scroll{
+    flex: 1 1 auto;
+    /* flex 子项默认不收缩，少了这行内部滚动不会生效 */
+    min-height: 0;
+    overflow-y: auto;
+    /* 负边距让滚动条贴到面板边缘，不占内容宽度 */
+    margin: 0 -18px;
+    padding: 0 18px;
+}
+
+/* 细一点、中性色的滚动条，别在面板里太抢眼 */
+.page-kitchen .picker-scroll::-webkit-scrollbar{ width: 8px; }
+.page-kitchen .picker-scroll::-webkit-scrollbar-track{ background: transparent; }
+.page-kitchen .picker-scroll::-webkit-scrollbar-thumb{
+    background: var(--line-2);
+    border: 2px solid var(--surface);
+    border-radius: 999px;
+}
+
+.page-kitchen .picker-actions{
+    flex: none;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+@media (max-width: 980px) {
+    .page-kitchen .picker{
+        position: static;
+        max-height: none;
+        display: block;
+    }
+    .page-kitchen .picker-scroll{
+        overflow-y: visible;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+/* ---------- 字段块 ---------- */
+.page-kitchen .field + .field{
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+}
+
+.page-kitchen .field-head{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.page-kitchen .field-label{
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.page-kitchen .field-hint{
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 食材选择 ---------- */
+.page-kitchen .ing-group + .ing-group{ margin-top: 14px; }
+
+/*
+ * 分组标题：色点 + 名称 + 数量。
+ * 食材有 88 种，不可能一屏放下 —— 色点让眼睛能直接跳到「我要找蔬菜」，
+ * 数量则在搜索过滤后显示「这一组还剩几条」，避免用户以为食材丢了。
+ */
+.page-kitchen .ing-group-name{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .group-tone{
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    /* 色点只是分类标识，不参与强调，所以压一点不透明度 */
+    opacity: .85;
+}
+
+/* ---------- 食材搜索 ---------- */
+/* 88 个食材平铺时用户只能一路滚，所以必须能过滤。
+   输入即过滤（不需要点按钮），清空即还原。 */
+.page-kitchen .ing-search{
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.page-kitchen .ing-search-icon{
+    position: absolute;
+    left: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--ink-3);
+    pointer-events: none;
+}
+
+.page-kitchen .ing-search-input{
+    width: 100%;
+    padding: 8px 32px 8px 31px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--glass-2);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    transition: border-color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-kitchen .ing-search-input::placeholder{ color: var(--ink-3); }
+.page-kitchen .ing-search-input:focus{
+    outline: none;
+    border-color: var(--accent);
+    /* 聚焦时给不透明底：正在输入的时候不希望背景的光斑干扰视线 */
+    background: var(--surface);
+}
+
+/* type="search" 在 WebKit 下自带一个清除叉，样式不受控，
+   和右侧自绘的那个会并排出现两个。关掉它。 */
+.page-kitchen .ing-search-input::-webkit-search-cancel-button{
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.page-kitchen .ing-search-clear{
+    position: absolute;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-kitchen .ing-search-clear:hover{ color: var(--ink); background: var(--line); }
+.page-kitchen .ing-search-clear svg{ width: 10px; height: 10px; }
+
+.page-kitchen .ing-search-miss{
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .ing-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    gap: 7px;
+}
+
+.page-kitchen .ing{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 38px;
+    padding: 7px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-kitchen .ing:hover{ border-color: var(--ink-3); }
+.page-kitchen .ing:active{ transform: scale(.97); }
+
+.page-kitchen .ing[aria-pressed="true"]{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    /* 选中态只换底色的话，在流光背景上不够"跳"。
+       补一圈柔和外发光 —— 用 box-shadow 而不是 outline，
+       因为 outline 不占布局但会被相邻按钮压住，视觉上像缺了口。 */
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+    /* 选中瞬间轻微回弹。只动 transform，不参与布局，
+       所以相邻按钮不会被挤动。prefers-reduced-motion 下
+       app.css 会把 animation-duration 压到 0.001ms，自动失效。 */
+    animation: ingPop .22s var(--ease);
+}
+
+@keyframes ingPop {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.055); }
+    100% { transform: scale(1); }
+}
+
+.page-kitchen .ing-tick{
+    width: 12px;
+    height: 12px;
+    flex: none;
+    display: none;
+}
+
+.page-kitchen .ing[aria-pressed="true"] .ing-tick{ display: block; }
+
+/* 已选食材摘要 */
+.page-kitchen .picked{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+}
+
+.page-kitchen .picked:empty{ display: none; }
+
+.page-kitchen .picked-chip{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 12px;
+}
+
+.page-kitchen .picked-empty{
+    color: var(--ink-2);
+    font-size: 12px;
+}
+
+/* ---------- 口味 chips ---------- */
+.page-kitchen .chips{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.page-kitchen .chip{
+    padding: 6px 14px;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-kitchen .chip:hover{ border-color: var(--ink-3); }
+.page-kitchen .chip:active{ transform: scale(.97); }
+
+.page-kitchen .chip[aria-pressed="true"]{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ---------- 人数分段 ---------- */
+.page-kitchen .segments{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    /* 槽体用最浅的一档玻璃：它是"凹槽"，而选中的那一格是"凸起"，
+       两者靠明度差区分，槽体跟着面板一起半透明才不会像贴了块补丁。 */
+    background: var(--glass-2);
+}
+
+.page-kitchen .seg{
+    padding: 7px 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .seg[aria-pressed="true"]{
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(34, 32, 30, .08);
+}
+
+/* ---------- 主按钮 ---------- */
+.page-kitchen .submit{
+    width: 100%;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-kitchen .submit:hover:not(:disabled){ background: var(--accent-hover); }
+.page-kitchen .submit:active:not(:disabled){ transform: scale(.98); }
+
+.page-kitchen .submit:disabled{
+    background: var(--line-2);
+    color: var(--ink-3);
+    cursor: not-allowed;
+}
+
+.page-kitchen .submit-note{
+    margin: 9px 0 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* 表外食材的状态说明：用中性色而不是警告色 ——
+   它不是在报错，只是说明"这些食材还没收录"，语气要留余地 */
+.page-kitchen .picker-note{
+    margin: 10px 0 0;
+    padding: 8px 11px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font-size: 12px;
+    line-height: 1.55;
+    text-align: left;
+}
+
+/* ---------- 结果区 ---------- */
+.page-kitchen .results{ min-width: 0; }
+
+.page-kitchen .result-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.page-kitchen .result-title{
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.page-kitchen .result-meta{
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+/* 状态条：直出 / 需生成 / 引擎不可用 */
+.page-kitchen .banner{
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 15px;
+    border-radius: var(--r-lg);
+    border: 1px solid transparent;
+    margin-bottom: 14px;
+}
+
+.page-kitchen .banner-title{ font-weight: 600; font-size: 13.5px; }
+.page-kitchen .banner-text{ margin: 3px 0 0; font-size: 13px; }
+
+.page-kitchen .banner.ok{ background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 26%, transparent); }
+.page-kitchen .banner.ok .banner-title, .page-kitchen .banner.ok .banner-text{ color: var(--ok); }
+
+.page-kitchen .banner.warn{ background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 26%, transparent); }
+.page-kitchen .banner.warn .banner-title, .page-kitchen .banner.warn .banner-text{ color: var(--warn); }
+
+.page-kitchen .banner.danger{ background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 26%, transparent); }
+.page-kitchen .banner.danger .banner-title, .page-kitchen .banner.danger .banner-text{ color: var(--danger); }
+
+/* ---------- 主推荐 ---------- */
+.page-kitchen .dish-main{
+    padding: 20px;
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+    transition: box-shadow .18s var(--ease);
+}
+
+/* 主推荐是结果区里唯一"重量级"的卡片（下面挂着直出/生成两条动作），
+   hover 时抬一层阴影把它的优先级再点明一次。 */
+.page-kitchen .dish-main:hover{ box-shadow: var(--shadow-pop); }
+
+.page-kitchen .dish-name{
+    margin: 0 0 10px;
+    font-size: 24px;
+    font-weight: 650;
+    letter-spacing: -.02em;
+    line-height: 1.25;
+}
+
+/* 命中度：用「每样所选食材一个刻度」表达，不用带背景轨道的进度条。
+   每格都对应一样真实食材，所以这个视觉元素是有语义的。 */
+.page-kitchen .hit-row{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.page-kitchen .hit-label{
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .hit-meter{
+    display: flex;
+    gap: 3px;
+}
+
+.page-kitchen .hit-seg{
+    width: 16px;
+    height: 6px;
+    border-radius: 2px;
+    background: var(--line-2);
+}
+
+.page-kitchen .hit-seg.is-hit{ background: var(--accent-bright); }
+
+/* 指标行：不用卡片，靠间距和一条细分隔线分组 */
+.page-kitchen .dish-stats{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px 32px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.page-kitchen .stat-value{
+    display: block;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.page-kitchen .stat-label{
+    display: block;
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 其他候选：列表行而不是等宽卡片 ---------- */
+.page-kitchen .subhead{
+    margin: 26px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.page-kitchen .cand-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-kitchen .cand{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 13px 2px;
+    border-bottom: 1px solid var(--line);
+}
+
+.page-kitchen .cand:last-child{ border-bottom: 0; }
+
+.page-kitchen .cand-name{ font-size: 14.5px; font-weight: 550; }
+
+.page-kitchen .cand-sub{
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .cand-right{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: none;
+    text-align: right;
+}
+
+.page-kitchen .cand-score{
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.page-kitchen .cand-flags{
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 次级动作 ---------- */
+.page-kitchen .alt-action{
+    margin-top: 22px;
+    padding: 16px 18px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+    background: var(--surface-2);
+}
+
+.page-kitchen .alt-action p{
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .secondary-btn{
+    padding: 9px 18px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 550;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-kitchen .secondary-btn:hover:not(:disabled){ border-color: var(--ink-3); }
+.page-kitchen .secondary-btn:active:not(:disabled){ transform: scale(.98); }
+.page-kitchen .secondary-btn:disabled{ color: var(--ink-3); cursor: not-allowed; }
+
+/* ---------- 空态 ---------- */
+.page-kitchen .empty{
+    padding: 56px 28px;
+    text-align: center;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-lg);
+}
+
+.page-kitchen .empty-title{
+    margin: 0 0 6px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.page-kitchen .empty-text{
+    margin: 0 auto;
+    max-width: 42ch;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+/* ---------- 加载骨架（形状对齐最终布局，而不是转圈） ---------- */
+.page-kitchen .skeleton{
+    padding: 20px;
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+}
+
+.page-kitchen .sk-line{
+    height: 13px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--line) 25%, var(--surface-2) 37%, var(--line) 63%);
+    background-size: 400% 100%;
+    animation: sk 1.4s ease infinite;
+}
+
+.page-kitchen .sk-line + .sk-line{ margin-top: 10px; }
+.page-kitchen .sk-title{ height: 24px; width: 42%; margin-bottom: 16px; }
+.page-kitchen .sk-short{ width: 28%; }
+.page-kitchen .sk-stats{ display: flex; gap: 32px; margin-top: 20px; }
+.page-kitchen .sk-stat{ height: 32px; width: 72px; border-radius: 6px; background: var(--line); }
+
+@keyframes sk {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+/* 骨架也禁止无限循环时可以用静态占位替代，这里保留但受 reduced-motion 约束 */
+
+/* ---------- 错误 ---------- */
+.page-kitchen .err-box{
+    padding: 18px;
+    border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+    border-radius: var(--r-lg);
+    background: var(--danger-soft);
+}
+
+.page-kitchen .err-title{
+    margin: 0 0 4px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--danger);
+}
+
+.page-kitchen .err-text{
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--danger);
+    word-break: break-word;
+}
+
+/* ============================================================
+   右栏容器
+   ============================================================ */
+/* grid 子项默认 min-width:auto，内容偏宽时会把整列撑破，
+   所以这里必须显式压成 0。少了这行在窄屏上会出现横向滚动。 */
+.page-kitchen .right-col{ min-width: 0; }
+
+/* ============================================================
+   自由输入食材
+   ============================================================ */
+.page-kitchen .free-ing{ margin-top: 12px; }
+
+.page-kitchen .free-ing-row{
+    display: flex;
+    gap: 7px;
+}
+
+.page-kitchen .free-ing-row .input{ flex: 1 1 auto; min-width: 0; }
+.page-kitchen .free-ing-row .secondary-btn{ flex: none; padding: 9px 14px; }
+
+/* 联想下拉：只在输入时出现，所以用浮层阴影把它和面板区分开。
+   底色刻意比卡片更实（94%）—— 它是临时盖在内容上的浮层，
+   太透会让底下的文字透过来，候选词反而看不清。
+   区分层次靠阴影，不靠透明度。 */
+.page-kitchen .suggest{
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-pop);
+    overflow: hidden;
+}
+
+.page-kitchen .suggest-item{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13.5px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.page-kitchen .suggest-item:hover,
+.page-kitchen .suggest-item.is-active{ background: var(--accent-soft); }
+
+.page-kitchen .suggest-item + .suggest-item{ border-top: 1px solid var(--line); }
+
+.page-kitchen .suggest-group{
+    flex: none;
+    font-size: 11.5px;
+    color: var(--ink-2);
+}
+
+/* ============================================================
+   已选食材 chips（点击可移除）
+   ============================================================ */
+.page-kitchen .picked-chip{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+/* 悬停变红提示「点了就删」。用颜色 + 鼠标指针双重提示，
+   不单靠颜色 —— 色觉障碍用户靠指针形状也能判断。 */
+.page-kitchen .picked-chip:hover{
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.page-kitchen .picked-chip svg{
+    width: 10px;
+    height: 10px;
+    flex: none;
+    opacity: .7;
+}
+
+/* 自填的食材用虚线边 + 「自填」小标：它不在食材主数据里，
+   不参与营养核算，让用户心里有数 */
+.page-kitchen .picked-chip.is-free{
+    border-style: dashed;
+    border-color: var(--line-2);
+}
+
+.page-kitchen .picked-tag{
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10.5px;
+    font-weight: 600;
+}
+
+/* ============================================================
+   左栏次级入口：跳过召回，直接交给 AI
+   ============================================================ */
+.page-kitchen .picker-secondary{
+    width: 100%;
+    margin-top: 8px;
+    padding: 9px 18px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .picker-secondary:hover:not(:disabled){
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.page-kitchen .picker-secondary:disabled{
+    color: var(--ink-3);
+    border-color: var(--line);
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   任务队列区
+   ============================================================ */
+.page-kitchen #taskSection{ margin-bottom: 20px; }
+
+.page-kitchen .task-hint{
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
+.page-kitchen .task-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+/* 已结束那一段的折叠行。它本身是个 <li>，夹在任务行之间，
+   所以做成「分组分隔」的样式，而不是又一条任务 */
+.page-kitchen .task-group-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 4px;
+    padding: 11px 0 4px;
+    border-top: 1px solid var(--line);
+}
+
+/* 没有进行中任务时它会排在最前面，这时顶上不要那条分隔线 */
+.page-kitchen .task-group-head:first-child{
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.page-kitchen .task-group-toggle{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: color .16s var(--ease);
+}
+
+.page-kitchen .task-group-toggle:hover{ color: var(--ink); }
+
+/* 没有可折叠的项、只剩清空入口时，左边用一句说明占位 */
+.page-kitchen .task-group-note{
+    color: var(--ink-2);
+    font-size: 12.5px;
+}
+
+/* 收起时朝右，展开时转 90 度朝下 —— 只动 transform，不参与布局 */
+.page-kitchen .task-group-arrow{
+    width: 11px;
+    height: 11px;
+    flex: none;
+    transition: transform .18s var(--ease);
+}
+
+.page-kitchen .task-group-arrow.is-open{ transform: rotate(90deg); }
+
+.page-kitchen .task-group-clear{
+    flex: none;
+    padding: 3px 11px;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .task-group-clear:hover:not(:disabled){
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.page-kitchen .task-group-clear:disabled{ color: var(--ink-3); cursor: not-allowed; }
+
+
+.page-kitchen .task{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.page-kitchen .task:first-child{ padding-top: 0; }
+.page-kitchen .task:last-child{ border-bottom: 0; padding-bottom: 0; }
+
+.page-kitchen .task-main{ min-width: 0; }
+
+.page-kitchen .task-name{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.page-kitchen .task-title{
+    font-size: 14px;
+    font-weight: 550;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-kitchen .task-sub{
+    margin-top: 3px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-kitchen .task-right{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+/* 排队位置用等宽数字，位置在跳动时整行不会左右抖 */
+.page-kitchen .task-pos{
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--warn);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.page-kitchen .task-pos.is-running{ color: var(--accent); }
+
+.page-kitchen .task-order{ display: flex; gap: 2px; }
+
+.page-kitchen .icon-btn{
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .icon-btn svg{ width: 12px; height: 12px; }
+.page-kitchen .icon-btn:hover:not(:disabled){ border-color: var(--ink-3); color: var(--ink); }
+.page-kitchen .icon-btn:disabled{ opacity: .4; cursor: not-allowed; }
+
+/* 任务行在窄屏下换行：按钮区掉到第二行，而不是把标题挤没 */
+@media (max-width: 620px){
+    .page-kitchen .task{
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .page-kitchen .task-right{ width: 100%; justify-content: flex-end; }
+}
+
+/* ============================================================
+   召回结果里新增的两个交互
+   ============================================================ */
+/* 主推荐底部的「看看做法和营养」入口 */
+.page-kitchen .dish-main-foot{
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+/* 候选行整行可点。a 撑满 li，把 hover 反馈交给里面的名字，
+   避免整行变色显得过重 */
+.page-kitchen .cand-link{
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.page-kitchen .cand-link:hover .cand-name{ color: var(--accent); }

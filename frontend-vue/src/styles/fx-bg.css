@@ -1,0 +1,219 @@
+/* ============================================================
+   流光背景层 fx-bg
+   ------------------------------------------------------------
+   登录页（index）本来就有一版流动色团，但它是和营销版的布局写死在一起的。
+   这个文件把它抽出来做成通用背景，给找菜 / 详情 / 我的三个内页共用。
+
+   【和登录页那版的区别，以及为什么】
+   登录页是「看一眼就走」的营销页，用大色团 + 漂浮食物插画制造热闹；
+   内页是长时间盯着用的工具界面，装饰必须更克制：
+     · 色团不透明度整体压低，色相多留一点冷色做层次（全暖色容易糊成一团）
+     · 不加漂浮插画，避免在表单和列表之间出现会动的干扰物
+     · 多一层极淡的噪点，消掉大面积渐变在 8bit 屏上的色带
+
+   【用法】页面里放这个结构即可，其余全靠本文件：
+       <div class="fx-bg" aria-hidden="true">
+           <span class="fx-blob fx-1"></span>
+           ... fx-2 ~ fx-5
+           <span class="fx-sheen"></span>
+           <span class="fx-grain"></span>
+       </div>
+
+   【两个必须注意的层叠问题】
+   1. .fx-bg 是 position:fixed + z-index:0，而页面内容容器默认是 static ——
+      CSS 的绘制顺序里「定位元素」会画在「非定位块级元素」之上，
+      所以内容容器必须自己抬起来（app.css 的 .page-wrap / kitchen.css 的 .workbench
+      都有 position:relative + z-index:1）。少了这一步的表现是：
+      整个页面被背景盖住，什么都不显示。
+   2. 底色仍然写在 body 上（--page），不要挪到这里 ——
+      万一这个文件加载慢或动效被系统关掉，页面至少还有一层干净的底色。
+   ============================================================ */
+
+.fx-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* 整层轻微降饱和：色团原样怼上来会显得廉价，压一点更像"底光" */
+    filter: saturate(.9);
+}
+
+/* ---------- 色团 ---------- */
+
+.fx-blob {
+    position: absolute;
+    border-radius: 50%;
+    /* 大半径模糊把实心圆糊成没有边界的光斑，不会露出"圆圈"的轮廓 */
+    filter: blur(84px);
+    opacity: .5;
+    will-change: transform;
+}
+
+/* 五个色团刻意用质数秒周期（27/31/37/41/43），
+   它们不会同时回到原位，所以整屏看起来是永不重复的流动，
+   而不是几个色块一起挪动。 */
+
+.fx-1 {
+    width: 52vw;
+    height: 52vw;
+    top: -16vw;
+    left: -12vw;
+    background: radial-gradient(circle, rgba(226, 86, 74, .60), rgba(226, 86, 74, 0) 68%);
+    animation: fxDrift1 27s ease-in-out infinite;
+}
+
+.fx-2 {
+    width: 46vw;
+    height: 46vw;
+    top: 8vh;
+    right: -14vw;
+    background: radial-gradient(circle, rgba(242, 147, 60, .56), rgba(242, 147, 60, 0) 68%);
+    animation: fxDrift2 31s ease-in-out infinite;
+}
+
+.fx-3 {
+    width: 40vw;
+    height: 40vw;
+    bottom: -16vw;
+    left: 14vw;
+    background: radial-gradient(circle, rgba(248, 183, 107, .54), rgba(248, 183, 107, 0) 70%);
+    animation: fxDrift3 37s ease-in-out infinite;
+}
+
+/* fx-4 / fx-5 是冷色对比，不透明度刻意给得比暖色低一档 ——
+   它们的作用只是把满屏暖色"劈开"，给画面一点纵深，
+   一旦拉到跟暖色同档，整页就会变成花花绿绿。 */
+.fx-4 {
+    width: 34vw;
+    height: 34vw;
+    top: 32vh;
+    left: 32vw;
+    background: radial-gradient(circle, rgba(118, 188, 198, .30), rgba(118, 188, 198, 0) 70%);
+    animation: fxDrift4 41s ease-in-out infinite;
+}
+
+.fx-5 {
+    width: 30vw;
+    height: 30vw;
+    bottom: 2vh;
+    right: 4vw;
+    background: radial-gradient(circle, rgba(168, 148, 226, .27), rgba(168, 148, 226, 0) 70%);
+    animation: fxDrift5 43s ease-in-out infinite;
+}
+
+@keyframes fxDrift1 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    33%  { transform: translate3d(22vw, 16vh, 0) scale(1.16); }
+    66%  { transform: translate3d(8vw, 32vh, 0) scale(.9); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes fxDrift2 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    30%  { transform: translate3d(-20vw, 20vh, 0) scale(.86); }
+    65%  { transform: translate3d(-32vw, -10vh, 0) scale(1.2); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes fxDrift3 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    35%  { transform: translate3d(-26vw, -18vh, 0) scale(1.14); }
+    70%  { transform: translate3d(16vw, -24vh, 0) scale(.92); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes fxDrift4 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    40%  { transform: translate3d(-16vw, 30vh, 0) scale(1.22); }
+    75%  { transform: translate3d(14vw, 10vh, 0) scale(.88); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes fxDrift5 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    45%  { transform: translate3d(-24vw, -14vh, 0) scale(1.18); }
+    80%  { transform: translate3d(10vw, 8vh, 0) scale(.9); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* ---------- 光带 ---------- */
+
+/* 两层方向相反、颜色不同的柔光缓慢横移。
+   有了它，上面的色团才像"流动的光"而不是几个静止的色斑。 */
+.fx-sheen {
+    position: absolute;
+    inset: -40%;
+    background:
+        linear-gradient(102deg,
+            rgba(255, 255, 255, 0) 32%,
+            rgba(255, 240, 214, .38) 45%,
+            rgba(255, 255, 255, 0) 58%),
+        linear-gradient(258deg,
+            rgba(255, 255, 255, 0) 36%,
+            rgba(214, 234, 248, .28) 49%,
+            rgba(255, 255, 255, 0) 62%);
+    animation: fxSheen 29s ease-in-out infinite;
+}
+
+@keyframes fxSheen {
+    0%   { transform: translate3d(-14%, -8%, 0) rotate(0deg); }
+    50%  { transform: translate3d(14%, 8%, 0) rotate(3.5deg); }
+    100% { transform: translate3d(-14%, -8%, 0) rotate(0deg); }
+}
+
+/* ---------- 噪点 ---------- */
+
+/* 大面积渐变在 8bit 屏上会出现一条条"色带"（banding）。
+   叠一层 3.8% 的噪点能把它打散 —— 这是消除塑料感最便宜的一招。
+   用内联 SVG 生成，不需要额外的图片文件。 */
+.fx-grain {
+    position: absolute;
+    inset: 0;
+    opacity: .038;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- 深色模式 ---------- */
+
+@media (prefers-color-scheme: dark) {
+    /* 深色下暖色团要更暗、更克制：
+       同一组颜色放到深底上，观感强度会明显高于浅底。 */
+    .fx-blob { opacity: .38; }
+    .fx-1 { background: radial-gradient(circle, rgba(198, 66, 54, .52), rgba(198, 66, 54, 0) 68%); }
+    .fx-2 { background: radial-gradient(circle, rgba(206, 116, 40, .46), rgba(206, 116, 40, 0) 68%); }
+    .fx-3 { background: radial-gradient(circle, rgba(198, 142, 74, .40), rgba(198, 142, 74, 0) 70%); }
+    .fx-4 { background: radial-gradient(circle, rgba(88, 150, 162, .26), rgba(88, 150, 162, 0) 70%); }
+    .fx-5 { background: radial-gradient(circle, rgba(132, 114, 190, .24), rgba(132, 114, 190, 0) 70%); }
+
+    /* 光带在深色下改成冷色微光，白色会显得像蒙了层雾 */
+    .fx-sheen {
+        opacity: .5;
+        background:
+            linear-gradient(102deg,
+                rgba(255, 255, 255, 0) 32%,
+                rgba(255, 226, 190, .16) 45%,
+                rgba(255, 255, 255, 0) 58%),
+            linear-gradient(258deg,
+                rgba(255, 255, 255, 0) 36%,
+                rgba(170, 205, 235, .14) 49%,
+                rgba(255, 255, 255, 0) 62%);
+    }
+
+    /* 噪点在深色下会泛白，压到一半 */
+    .fx-grain { opacity: .02; }
+}
+
+/* ---------- 动效敏感人群 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    /* 全部停住，但保留静态色团 —— 直接 display:none 会让页面退回一片纯色，
+       反而比"有装饰但不动"更难看。 */
+    .fx-blob,
+    .fx-sheen {
+        animation: none !important;
+    }
+
+    .fx-blob { opacity: .34; }
+    .fx-sheen { opacity: .4; }
+}

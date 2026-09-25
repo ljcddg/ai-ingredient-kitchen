@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>project0914 · AI灵感厨房 · 项目架构文档</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>window.addEventListener('DOMContentLoaded',function(){if(window.mermaid)mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{fontSize:'14px'}});});</script>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2733; --muted:#5b6675;
+    --line:#e3e8ef; --accent:#e4572e; --accent2:#2f6f8f; --soft:#eef3f7;
+    --code-bg:#f1f3f5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.65;font-size:15px}
+  header.top{background:linear-gradient(135deg,#e4572e,#c33b1a);color:#fff;padding:28px 40px}
+  header.top h1{margin:0 0 6px;font-size:26px}
+  header.top p{margin:0;opacity:.92;font-size:14px}
+  .wrap{display:flex;max-width:1280px;margin:0 auto}
+  nav.toc{position:sticky;top:0;align-self:flex-start;width:248px;flex:0 0 248px;
+    height:100vh;overflow:auto;padding:22px 16px;background:#fff;border-right:1px solid var(--line)}
+  nav.toc h4{margin:14px 0 6px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  nav.toc a{display:block;color:var(--ink);text-decoration:none;padding:5px 8px;border-radius:6px;font-size:13.5px}
+  nav.toc a:hover{background:var(--soft)}
+  nav.toc a.sub{padding-left:20px;color:var(--muted);font-size:13px}
+  main{flex:1;padding:26px 34px 80px;min-width:0}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:22px 26px;margin-bottom:24px;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  h2{margin:0 0 4px;font-size:21px;border-left:5px solid var(--accent);padding-left:12px}
+  h3{margin:22px 0 8px;font-size:16.5px;color:var(--accent2);border-bottom:1px dashed var(--line);padding-bottom:4px}
+  .lead{color:var(--muted);margin:2px 0 14px;font-size:14px}
+  .tag{display:inline-block;background:var(--soft);color:var(--accent2);border:1px solid #d4e2ea;
+    border-radius:999px;padding:1px 10px;font-size:12px;margin:0 4px 4px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0 6px;font-size:13.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--soft);color:var(--muted);font-weight:600;font-size:12.5px;white-space:nowrap}
+  tr:hover td{background:#fafbfc}
+  code{background:var(--code-bg);padding:1px 6px;border-radius:5px;font-size:12.5px;font-family:"Cascadia Code",Consolas,monospace}
+  .mermaid{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin:12px 0;overflow:auto}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;margin:10px 0;font-size:14px}
+  .kv b{color:var(--muted);font-weight:600}
+  .note{background:#fff8f3;border:1px solid #f3d9c8;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13.5px;color:#8a4a2b}
+  ul.tight{margin:6px 0 6px 0;padding-left:20px}
+  ul.tight li{margin:3px 0}
+  .pill{font-size:11.5px;color:#fff;background:var(--accent2);border-radius:5px;padding:1px 7px;margin-right:6px;white-space:nowrap}
+  .pill.warn{background:#b9892f}
+  .pill.ok{background:#3a8f5b}
+  footer{text-align:center;color:var(--muted);font-size:12.5px;padding:20px}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>project0914 · AI 灵感厨房 — 项目架构文档</h1>
+  <p>模块 → 文件清单（名称 + 作用）→ 类图 / 关系。覆盖 common / gateway / account / dish 后端、Vue 前端、SQL、Nacos 配置、ES 脚本与运维脚本。</p>
+</header>
+<div class="wrap">
+<nav class="toc">
+  <h4>总览</h4>
+  <a href="#overview">1. 项目总览</a>
+  <a href="#topo">· 拓扑与启动</a>
+  <h4>后端模块</h4>
+  <a href="#common">2. common-service</a>
+  <a href="#gateway">3. gateway 网关</a>
+  <a href="#account">4. account-service</a>
+  <h4>菜品服务（大模块）</h4>
+  <a href="#dish">5. dish-service 总览</a>
+  <a href="#dish-ctl" class="sub">· Controller 层</a>
+  <a href="#dish-svc" class="sub">· Service 层</a>
+  <a href="#dish-ai" class="sub">· ai 异步生成</a>
+  <a href="#dish-es" class="sub">· es 同步子系统</a>
+  <a href="#dish-data" class="sub">· entity/dto/mapper</a>
+  <a href="#dish-cfg" class="sub">· config/resources</a>
+  <h4>前端</h4>
+  <a href="#frontend">6. frontend-vue</a>
+  <h4>工程与数据</h4>
+  <a href="#infra">7. 工程配置/SQL/配置中心</a>
+  <a href="#scripts">8. ES 与运维脚本</a>
+  <a href="#db">9. 数据库核心表关系</a>
+</nav>
+<main>
+
+<!-- ============ 1 总览 ============ -->
+<section id="overview">
+<h2>1. 项目总览</h2>
+<p class="lead">一个 Spring Cloud 微服务 + Vue 前端的「AI 做菜」应用：用户选食材 → 先检索菜库命中高质量直接返回，否则 AI 生成 → 校验发布进公共菜库 → 被搜索 / 排行 / 收藏 / 评分，形成「用户既是消费者也是生产者」的闭环。</p>
+
+<div class="kv">
+  <b>业务名</b><span>AI 灵感厨房（project0914）</span>
+  <b>根包</b><span><code>com.apesource</code>；父 pom <code>project0914:1.0.0</code>（packaging=pom，自建父 pom 不继承 spring-boot-starter-parent）</span>
+  <b>技术栈</b><span><span class="tag">Boot 3.2.4</span><span class="tag">Cloud 2023.0.1</span><span class="tag">SCA 2023.0.1.0</span><span class="tag">JDK 17</span><span class="tag">MyBatis-Plus 3.5.5</span><span class="tag">jjwt 0.12.5</span><span class="tag">Redisson 3.26.1</span><span class="tag">Elasticsearch 7.16.2</span><span class="tag">Ollama gemma4:e2b</span></span>
+  <b>统一约定</b><span>一律 <code>jakarta.*</code>；所有 <code>Long</code> 序列化为字符串（防前端 JS 精度丢失）；主键雪花 ID（<code>IdType.ASSIGN_ID</code>）；逻辑删除 <code>@TableLogic</code></span>
+  <b>前端</b><span>两套并存：原生 <code>frontend/</code>（无构建）与 Vue 版 <code>frontend-vue/</code>（Vite+Vue3，当前主用）</span>
+</div>
+
+<h3 id="topo">拓扑与启动顺序</h3>
+<div class="mermaid">
+graph LR
+  U[浏览器 / 前端 5500·5600] -->|同源 /api 反代| GW[Gateway :7000]
+  GW -->|/api/account| AC[account-service :8081]
+  GW -->|/api/dish| DI[dish-service :8082]
+  AC --> MY[(MySQL project0914)]
+  AC --> RD[(Redis / Redisson 布隆)]
+  DI --> MY
+  DI --> ES[(Elasticsearch 9200)]
+  DI --> OL[(Ollama 11434 本地模型)]
+  AC -.Nacos 服务发现/配置.-> NC[(Nacos 8848)]
+  DI -.Nacos.-> NC
+  GW -.Nacos.-> NC
+</div>
+<div class="kv">
+  <b>中间件</b><span>MySQL 3306（库 <code>project0914</code>）/ Redis 6379 / Nacos 8848·9848 / Elasticsearch 9200 / Ollama 11434</span>
+  <b>启动顺序</b><span>MySQL → Redis → Nacos → ES → Ollama → gateway(7000) → account(8081) → dish(8082) → 前端</span>
+  <b>两条命令行铁律</b><span><span class="pill warn">必做</span>显式 <code>--server.port=xxxx</code>（防 <code>SERVER__PORT</code> 环境变量抢端口）；<span class="pill warn">必做</span>加 <code>-Dfile.encoding=UTF-8</code>（防 Windows GBK 解码 Nacos 中文注释炸）</span>
+</div>
+</section>
+
+<!-- ============ 2 common ============ -->
+<section id="common">
+<h2>2. common-service（公共模块）</h2>
+<p class="lead">被所有微服务（含网关）依赖的公共 jar，提供 JWT 工具、统一响应、业务异常、认证常量与 Jackson 序列化约定。自身不含业务实体。</p>
+<table>
+<thead><tr><th>文件</th><th>类型</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>config/JsonAutoConfiguration.java</code></td><td>配置类</td><td><code>@AutoConfiguration</code>：把 Jackson 的 <code>Long</code>/<code>long</code> 统一序列化为字符串，避免前端丢失雪花 ID 精度。</td></tr>
+<tr><td><code>constant/AuthConstants.java</code></td><td>常量类</td><td>认证「契约中心」：jwt 配置键名、claim key（userId/username）、请求头名（<code>X-User-Id</code>/<code>X-Username</code>）、<code>Bearer </code> 前缀。</td></tr>
+<tr><td><code>exception/BusinessException.java</code></td><td>异常</td><td>业务异常基类（带 <code>code</code>），校验失败时抛出，由 <code>@RestControllerAdvice</code> 转成 <code>Result.fail</code>。</td></tr>
+<tr><td><code>result/Result.java</code></td><td>响应体</td><td>统一响应包装 <code>Result&lt;T&gt;</code>（code/message/data），含 success/fail/unauthorized(401)/forbidden(403) 静态工厂。</td></tr>
+<tr><td><code>util/JwtUtil.java</code></td><td>工具类</td><td>jjwt 0.12.x 纯静态 JWT 工具：生成/解析/校验 token、剥离 <code>Bearer</code> 前缀；由使用方 <code>@Bean</code> 自行实例化（非 Spring Bean）。</td></tr>
+<tr><td><code>resources/META-INF/spring/...AutoConfiguration.imports</code></td><td>自动配置清单</td><td>声明 <code>JsonAutoConfiguration</code> 自动生效，依赖方无需 <code>@ComponentScan</code>。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+classDiagram
+  class Result~T~{ +Integer code +String message +T data +success() +fail() +unauthorized() }
+  class BusinessException{ +Integer code }
+  class JwtUtil{ +generateToken() +parseToken() +resolveToken() }
+  class AuthConstants{ <<constant>> JWT_SECRET_PROPERTY CLAIM_USER_ID HEADER_USER_ID TOKEN_PREFIX }
+  class JsonAutoConfiguration{ +longToStringCustomizer() }
+  JwtUtil ..> AuthConstants : 引用键名
+</div>
+<p class="note"><b>设计点：</b>凡是同时出现在两个服务的字符串（头名 / claim key / 密钥键名）都提到 <code>AuthConstants</code>，避免「登录成功却全接口 401」；<code>JwtUtil</code> 不标 <code>@Component</code>，由 account 与 gateway 各自 <code>@Bean</code> new，靠共享 <code>jwt.secret</code> 保证验签一致。</p>
+</section>
+
+<!-- ============ 3 gateway ============ -->
+<section id="gateway">
+<h2>3. gateway（网关）</h2>
+<p class="lead">Spring Cloud Gateway（WebFlux 响应式）。统一做 JWT 校验与身份透传，下游业务服务无需各自写拦截器。路由 / 白名单在 Nacos <code>gateway.yaml</code>，密钥类在本地 <code>application.yml</code>。</p>
+<table>
+<thead><tr><th>文件</th><th>类型</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>GatewayApplication.java</code></td><td>启动类</td><td>网关入口 <code>@SpringBootApplication</code>，启动扫描加载其余组件。</td></tr>
+<tr><td><code>GatewayStartupChecker.java</code></td><td>自检</td><td><code>ApplicationRunner</code>：启动后调 <code>AuthProperties.validate()</code> 打印白名单 / 密钥一致性自检，降低「全员 401」排障成本。</td></tr>
+<tr><td><code>config/AuthProperties.java</code></td><td>配置</td><td>绑定 <code>gateway.auth.*</code>（总开关 + 免认证白名单），<code>isWhiteListed(path)</code> 用 AntPathMatcher 匹配；<code>validate()</code> 启动校验。</td></tr>
+<tr><td><code>config/JwtConfig.java</code></td><td>配置</td><td><code>@Bean</code> 创建网关侧 <code>JwtUtil</code>（读 <code>jwt.secret</code>/<code>jwt.expire-millis</code>）。</td></tr>
+<tr><td><code>filter/JwtAuthGlobalFilter.java</code></td><td>全局过滤器</td><td><code>GlobalFilter + Ordered</code>（order=-100）：取 token → 校验 → <b>先删外部传入的 X-User-Id/X-Username 再写网关校验值</b> → 转发；白名单用「剥掉路由前缀后」的路径匹配。</td></tr>
+<tr><td><code>resources/application.yml</code></td><td>配置</td><td>应用名、Nacos 地址、<code>spring.config.import</code> 拉 <code>gateway.yaml</code>、本地 <code>jwt.secret</code>（必须与 account 逐字一致）。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+classDiagram
+  class JwtAuthGlobalFilter{ +filter() +getOrder() -100 }
+  class AuthProperties{ +isWhiteListed() +validate() }
+  class JwtConfig{ +jwtUtil() }
+  class JwtUtil
+  class Result
+  class AuthConstants
+  JwtAuthGlobalFilter --> JwtUtil : 校验
+  JwtAuthGlobalFilter --> AuthProperties : 开关/白名单
+  JwtAuthGlobalFilter --> Result : 401 响应
+  JwtAuthGlobalFilter --> AuthConstants : 头名/claim
+  JwtConfig ..> JwtUtil : @Bean 创建
+  AuthProperties ..> AuthConstants : 键名
+  GatewayStartupChecker --> AuthProperties : validate
+</div>
+<p class="note"><b>四个核心设计点：</b>① 用 <code>GlobalFilter</code> 对所有路由生效；② <code>getOrder()=-100</code> 早于转发；③ 白名单必须写「剥前缀后」路径（如 <code>/auth/**</code>），否则登录接口被自己拦截；④ 必须删除外部伪造的身份头再写自身结论，防冒充。</p>
+</section>
+
+<!-- ============ 4 account ============ -->
+<section id="account">
+<h2>4. account-service（账号服务 · 8081）</h2>
+<p class="lead">典型「网关统一认证 + 本地布隆防穿透」账号服务。Controller 薄层只收参与封装 <code>Result</code>，业务全在 <code>UserServiceImpl</code>，落库走 MP，密码 BCrypt，token 用 common 的 <code>JwtUtil</code>。</p>
+<table>
+<thead><tr><th>文件</th><th>类型</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>AccountServiceApplication.java</code></td><td>启动类</td><td><code>@SpringBootApplication</code> + <code>@MapperScan</code> 扫描 mapper 包。</td></tr>
+<tr><td><code>bloom/UserBloomFilter.java</code></td><td>组件</td><td>Redis 上的用户名布隆过滤器（key <code>bloom:user:username</code>，100 万/0.01）防缓存穿透；注入 <code>UserMapper</code> 而非 Service（避循环依赖）；Redis 不可用降级（读失败返回 true、写失败记账）。</td></tr>
+<tr><td><code>config/JwtConfig.java</code></td><td>配置</td><td>把 common 的 <code>JwtUtil</code> 注册为 Bean。</td></tr>
+<tr><td><code>config/MybatisPlusConfig.java</code></td><td>配置</td><td>分页插件 <code>PaginationInnerInterceptor</code> + <code>MetaObjectHandler</code> 自动填充 createTime/updateTime。</td></tr>
+<tr><td><code>config/RedissonConfig.java</code></td><td>配置</td><td>开启 Redisson 懒初始化（<code>lazyInitialization</code>），Redis 挂了也不影响启动。</td></tr>
+<tr><td><code>controller/AuthController.java</code></td><td>控制器</td><td><code>/auth</code>：<code>POST /register</code>、<code>POST /login</code>；入参 @Valid，返回 <code>Result</code>。</td></tr>
+<tr><td><code>controller/UserController.java</code></td><td>控制器</td><td><code>/user/profile</code>：只从网关透传的 <code>X-User-Id</code>/<code>X-Username</code> 头读身份原样回显（演示网关透传）。</td></tr>
+<tr><td><code>dto/LoginRequest.java</code></td><td>DTO</td><td>登录入参（username/password，@NotBlank）。</td></tr>
+<tr><td><code>dto/LoginResponse.java</code></td><td>DTO</td><td>登录出参（token/tokenType/userId/username/nickname，不含密码）。</td></tr>
+<tr><td><code>dto/RegisterRequest.java</code></td><td>DTO</td><td>注册入参（username 4-20 / password 6-32 / nickname ≤20）。</td></tr>
+<tr><td><code>entity/User.java</code></td><td>实体</td><td><code>t_user</code> ORM：雪花主键、BCrypt 密码、逻辑删除、自动填充时间。数据中枢。</td></tr>
+<tr><td><code>handler/GlobalExceptionHandler.java</code></td><td>切面</td><td><code>@RestControllerAdvice</code>：BusinessException / 校验失败 / 兜底 → <code>Result</code>。</td></tr>
+<tr><td><code>mapper/UserMapper.java</code></td><td>Mapper</td><td><code>extends BaseMapper&lt;User&gt;</code>，单表 CRUD。</td></tr>
+<tr><td><code>service/UserService.java</code></td><td>接口</td><td>业务接口：<code>register</code> / <code>login</code> / <code>getByUsername</code>。</td></tr>
+<tr><td><code>service/impl/UserServiceImpl.java</code></td><td>实现</td><td>核心：注册（布隆判重 → BCrypt → 落库 → add 布隆）；登录（布隆前置拦截 → 统一报错防枚举 → 签发 token）。</td></tr>
+<tr><td><code>resources/application.yml</code></td><td>配置</td><td>应用名、Nacos 导入（common.yaml 先 → account-service.yaml 后）、本地 <code>jwt.secret</code>。</td></tr>
+<tr><td><code>resources/sql/user.sql</code></td><td>建表</td><td>库 <code>project0914</code> + <code>t_user</code>（username 唯一索引是并发防重复注册最终保障）。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+classDiagram
+  class AuthController{ +register() +login() }
+  class UserController{ +profile() }
+  class UserService{ +register() +login() }
+  class UserServiceImpl{ +register() +login() }
+  class UserMapper
+  class User
+  class UserBloomFilter{ +mightContain() +add() }
+  class JwtUtil
+  AuthController --> UserService
+  UserController ..> AuthConstants : 读头名
+  UserServiceImpl ..|> UserService
+  UserServiceImpl --> UserMapper
+  UserMapper --> User
+  UserServiceImpl --> UserBloomFilter
+  UserServiceImpl --> JwtUtil
+  UserBloomFilter --> UserMapper : 预热/计数
+  UserBloomFilter ..> RedissonClient : RBloomFilter
+</div>
+<p class="note"><b>关键：</b><code>UserBloomFilter</code> 注入的是 <code>UserMapper</code> 而非 <code>UserService</code>，刻意切断循环依赖（因为 <code>UserServiceImpl</code> 反过来注入它）。数据库唯一索引才是并发防重复注册的最终保障。</p>
+</section>
+
+<!-- ============ 5 dish ============ -->
+<section id="dish">
+<h2>5. dish-service（菜品服务 · 8082）</h2>
+<p class="lead">最大模块：AI 异步生成菜品 + ES 检索 + 发布同步 + 互动（收藏/评分/评论）+ 榜单。不对外暴露，请求经网关、身份从 <code>X-User-Id</code> 头读取。下分若干子包。</p>
+
+<h3 id="dish-ctl">5.1 Controller 层（5 个 @RestController）</h3>
+<table>
+<thead><tr><th>文件</th><th>路由</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>DishGenerateController</code></td><td><code>/ai</code></td><td>生成门面：提交/轮询任务、调序、取消、删除任务、菜品详情、队列快照。</td></tr>
+<tr><td><code>DishInteractionController</code></td><td><code>/ai</code></td><td>收藏（增/删）、评分、评论、我的菜品、我的收藏。</td></tr>
+<tr><td><code>DishPublishController</code></td><td><code>/ai</code></td><td>发布/撤回、发布前检查、<code>POST /es/reindex</code>、食材转正接口（运维）。</td></tr>
+<tr><td><code>DishRankController</code></td><td><code>/ai/rank</code></td><td>榜单：<code>GET ?type=hot|top|latest</code>，只统计已发布。</td></tr>
+<tr><td><code>DishSearchController</code></td><td><code>/search</code></td><td>检索：<code>POST /search</code>（网关 StripPrefix=2 后路径为 <code>/search</code>）。</td></tr>
+<tr><td><code>handler/GlobalExceptionHandler</code></td><td>切面</td><td><code>@RestControllerAdvice</code>：异常 → <code>Result</code>（生成失败不在此，归宿是写 error_msg）。</td></tr>
+</tbody>
+</table>
+
+<h3 id="dish-svc">5.2 Service 层</h3>
+<table>
+<thead><tr><th>文件</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>DishGenerateService</code></td><td>生成门面：submit（立即返回 + 单飞去重 signature + 入队）、myTasks、cancel、deleteTask、move、detail（草稿仅创建者可见）、queueSnapshot。</td></tr>
+<tr><td><code>DishInteractionService</code></td><td>收藏/评分/评论/我的列表：collectCount 按明细重算；recomputeRating 用 Java 算威尔逊下界（与 ES 口径一致）；requireVisibleDish 草稿权限校验。</td></tr>
+<tr><td><code>DishPublishService</code></td><td>发布闸门：check（步骤≥3、食材≥2、有热量、不重名）；publish/unpublish（<code>@Transactional</code> 发 <code>DishPublishedEvent</code>）；tryAutoPublish 失败只记日志。</td></tr>
+<tr><td><code>DishRankService</code></td><td>榜单：内部 enum RankType（hot/top/latest），手写 SQL 只统计 <code>status=1</code> 且自写 <code>deleted=0</code>。</td></tr>
+<tr><td><code>DishSearchService</code></td><td>召回中枢：参数规范化（ID/名字两互斥桶）→ ES 召回 → 应用层精排 → 直出判定（覆盖率≥0.8 且评价≥10 且威尔逊≥0.84）→ 组装结果。</td></tr>
+<tr><td><code>IngredientResolver</code></td><td>食材归一化（ID→标准名→别名→保留原文），读 <code>IngredientMapper</code>。</td></tr>
+<tr><td><code>IngredientCandidateService</code></td><td>表外食材候选：recordUsage（绝不抛异常）、promoteReady（转正四步 + 重写索引）。</td></tr>
+</tbody>
+</table>
+
+<h3 id="dish-ai">5.3 ai 异步生成子系统</h3>
+<table>
+<thead><tr><th>文件</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>DishGenerator</code>（接口）</td><td>生成器抽象，唯一与「用哪个模型」相关处；<code>generate(Input)→Result</code>。</td></tr>
+<tr><td><code>AiDishGenerator</code></td><td>实现：调本地 Ollama；四道约束（系统提示词→<code>format=json</code>→反序列化→校验器逐字段→失败拼回提示词重试 1 次）；本地按「食材×用量」核算热量与 AI 对比（nutritionVerified）。</td></tr>
+<tr><td><code>DishDraftValidator</code></td><td>草稿机器校验（第三道防线），每条报错具体，拼回重试提示词。</td></tr>
+<tr><td><code>DishDraftWriter</code></td><td>草稿落库（拆独立类保证 <code>@Transactional</code> 经代理生效）；记食材候选 usage；草稿态 status=0。</td></tr>
+<tr><td><code>DishTaskQueue</code></td><td>内存调度队列：submit/cancel/move/position；调度线程 + worker 线程池 + 单锁；单用户上限、取消权限内部校验；<code>@PreDestroy</code> 关池。<b>不碰 DB、不认识 AI</b>。</td></tr>
+<tr><td><code>DishTaskExecutor</code>（接口）/ <code>DishGenerationExecutor</code></td><td>队列回调的纯业务编排：置生成中→读快照→调生成器→落草稿→试自动发布→置终态；异常兜住写 error_msg 防僵尸任务。</td></tr>
+<tr><td><code>AiTaskStatus</code> / <code>CancelOutcome</code> / <code>EnqueueResult</code></td><td>枚举/记录：任务状态（0-5）、取消结果（区分真省资源 vs 逻辑取消）、入队结果。</td></tr>
+<tr><td><code>GenerateProperties</code> / <code>QueueProperties</code></td><td>配置：生成（maxAttempts=2、temperature 等）/ 队列（concurrency 默认1、maxPerUser=5）。</td></tr>
+<tr><td><code>AiProbeController</code></td><td>Spring AI 兼容性探针（可删），用 ObjectProvider 懒取 OllamaChatModel。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+classDiagram
+  class DishGenerateController --> DishGenerateService
+  DishGenerateService --> DishTaskQueue : 入队
+  DishTaskQueue --> DishTaskExecutor : 回调
+  DishGenerationExecutor --> DishGenerator
+  DishGenerationExecutor --> DishDraftWriter : 落库
+  DishGenerationExecutor --> DishPublishService : 自动发布
+  AiDishGenerator ..|> DishGenerator
+  AiDishGenerator --> DishDraftValidator
+  DishDraftWriter --> IngredientCandidateService : recordUsage
+</div>
+
+<h3 id="dish-es">5.4 es 同步子系统（与发布解耦）</h3>
+<table>
+<thead><tr><th>文件</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>DishDoc</code></td><td>ES 文档形态，字段与 <code>dish-index.json</code> mapping 一一对应；ingredientIds（剔 null）+ ingredientNames（含表外）+ mainIngredientIds（加权）。</td></tr>
+<tr><td><code>RecalledDish</code></td><td>召回结果载体：ES 粗排分 + 应用层精排（hitCount/similarity/finalScore/directEligible）。</td></tr>
+<tr><td><code>DishSearchRepository</code></td><td>ES 召回执行器：recall/ping；<b>ES 不可用返回空列表不抛异常</b>。</td></tr>
+<tr><td><code>EsDslBuilder</code></td><td>召回 DSL 组装：terms 默认 OR→逐项 term 进 must；status=1 AND deleted=0 必须放 filter（漏=草稿泄漏）；function_score 粗排。</td></tr>
+<tr><td><code>DishIndexWriter</code></td><td>MySQL→ES 写入：ensureIndex（启动自愈）、index（幂等）、delete、listAllDishIds（幽灵清理，失败返回空）、refresh(wait_for)。</td></tr>
+<tr><td><code>DishEsSyncService</code></td><td>同步服务：buildDoc、syncOne（按状态决定 index/delete）、reindexAll（全量 + pruneGhosts 删孤儿文档）。</td></tr>
+<tr><td><code>DishEsSyncListener</code></td><td>连接发布与同步：启动 prepareIndex；<code>@TransactionalEventListener(AFTER_COMMIT)</code> 增量；每天 04:00 全量兜底。</td></tr>
+<tr><td><code>event/DishPublishedEvent</code></td><td>领域事件 record（dishId），解耦发布与 ES 同步。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+classDiagram
+  class DishPublishService --> DishPublishedEvent : publish
+  class DishEsSyncListener --> DishPublishedEvent : 监听 AFTER_COMMIT
+  DishEsSyncListener --> DishEsSyncService
+  DishEsSyncService --> DishIndexWriter : index/delete
+  DishIndexWriter --> RestClient
+  DishSearchRepository --> RestClient
+  DishSearchRepository --> EsDslBuilder : 拼 DSL
+  DishSearchService --> DishSearchRepository : 召回
+</div>
+
+<h3 id="dish-data">5.5 entity / dto / mapper（数据层）</h3>
+<p class="lead">entity 全部 <code>@TableName</code> + <code>@TableLogic</code>；dto 多为 Lombok <code>@Data</code> 传输对象；mapper 多继承 <code>BaseMapper</code>，少数含手写 SQL。</p>
+<table>
+<thead><tr><th>文件</th><th>类型</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>entity/Dish</code></td><td>实体</td><td><code>t_dish</code> 菜品主表（草稿/已发布共表，status 区分）；含 4 个 JSON 字段、营养冗余、评分/收藏计数、<code>autoResultMap=true</code>。</td></tr>
+<tr><td><code>entity/AiGenerateTask</code></td><td>实体</td><td><code>t_ai_generate_task</code>：任务态/单飞去重（requestSignature MD5）/ 频控三职合一。</td></tr>
+<tr><td><code>entity/DishIngredient</code></td><td>实体</td><td><code>t_dish_ingredient</code>：菜品-食材明细，ingredientId 可 null（表外），amountGram 是营养计算唯一来源。</td></tr>
+<tr><td><code>entity/DishCollect</code> / <code>DishComment</code> / <code>DishRating</code></td><td>实体</td><td>收藏（恢复式）/ 评论（可多条）/ 评分（一人一票 <code>uk_dish_user</code>）。</td></tr>
+<tr><td><code>entity/Ingredient</code> / <code>IngredientCandidate</code></td><td>实体</td><td>食材主数据（每100g营养基准）/ 表外食材候选（攒够阈值转正）。</td></tr>
+<tr><td><code>dto/*</code>（16 个）</td><td>DTO</td><td>DishDraft/DishGenerateRequest/Payload、DishSearchRequest、DishRecallResult、DishCardView、DishDetailView、DishItem、DishTaskView、IngredientRef、DishStep、RateRequest、CommentRequest、CollectResult、RatingSummary 等，承载前后端传输与视图模型。</td></tr>
+<tr><td><code>mapper/*</code>（8 个）</td><td>Mapper</td><td>DishMapper（手写三榜单 SQL）、DishCollectMapper（恢复式 upsert）、DishCommentMapper（JOIN t_user 取昵称）、DishRatingMapper（防刷 upsert）、其余 4 个纯 BaseMapper。</td></tr>
+</tbody>
+</table>
+
+<h3 id="dish-cfg">5.6 config / resources</h3>
+<table>
+<thead><tr><th>文件</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>DishServiceApplication</code></td><td>启动类：<code>@EnableDiscoveryClient</code> + <code>@EnableConfigurationProperties(EsProperties)</code> + <code>@EnableScheduling</code>。</td></tr>
+<tr><td><code>config/EsClientConfig</code></td><td>构造 ES <code>RestClient</code> Bean（不用 Spring Data ES，手写适配 7.16.2）。</td></tr>
+<tr><td><code>config/EsProperties</code></td><td>绑定 <code>es.*</code>：地址/索引/超时 + 召回/直出/打分权重，均有默认值。</td></tr>
+<tr><td><code>config/MybatisPlusConfig</code></td><td>分页插件 + 公共字段填充。</td></tr>
+<tr><td><code>config/DishStepListTypeHandler</code></td><td>修正 MP 泛型擦除：把 <code>step_json</code> 正确反序列化为 <code>List&lt;DishStep&gt;</code>。</td></tr>
+<tr><td><code>config/CorsConfig</code></td><td>跨域 Bean（本地用 <code>allowedOriginPatterns("*")</code>）。</td></tr>
+<tr><td><code>config/AiTaskCleanupRunner</code></td><td>启动把遗留「排队中/生成中」任务标为「已中断」（内存队列重启即丢）。</td></tr>
+<tr><td><code>resources/application.yml</code></td><td>应用名、Nacos 导入、本地 jwt.secret。</td></tr>
+<tr><td><code>resources/es/dish-index.json</code></td><td>ES mapping 唯一来源（字段定义权威）。</td></tr>
+<tr><td><code>resources/prompts/dish-generate-system.txt</code></td><td>AI 系统提示词（<b>改它必须重新打包</b>）。</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============ 6 frontend ============ -->
+<section id="frontend">
+<h2>6. frontend-vue（Vue3 前端）</h2>
+<p class="lead">Vite + Vue3 单页应用，无 Pinia/axios（状态用 Vue reactive，请求用 fetch）。dev 5500 / 构建产物 5600，均经 Vite 或 serve-dist.py 把 <code>/api</code> 反代到网关 7000（同源无跨域）。</p>
+<table>
+<thead><tr><th>文件</th><th>层</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>src/main.js</code></td><td>入口</td><td>创建 app、装 router、注册 401 回调（clearLogin + router.replace）。</td></tr>
+<tr><td><code>src/App.vue</code></td><td>根组件</td><td>渲染 router-view + 全局 Toast 容器（右下角）。</td></tr>
+<tr><td><code>src/api.js</code></td><td>接口层</td><td>fetch 封装、401 统一处理、按 AuthApi/DishApi 分组；自动带 Bearer token；服务寻址经 config。</td></tr>
+<tr><td><code>src/config.js</code></td><td>配置</td><td>推断接口基地址（detectDefaultApiBase）、localStorage key、serviceUrl 按服务拼 URL（网关模式 / 直连模式）。</td></tr>
+<tr><td><code>src/router/index.js</code></td><td>路由</td><td>5 条页面路由 + 登录态守卫（无 token 拦截受保护页）。</td></tr>
+<tr><td><code>src/store/auth.js</code></td><td>状态</td><td>登录态/用户/isOwner；ID 一律字符串防精度丢失。</td></tr>
+<tr><td><code>src/store/toast.js</code></td><td>状态</td><td>Toast 队列：toast/toastSuccess/toastError + 退场动画。</td></tr>
+<tr><td><code>src/lib/constants.js</code></td><td>工具</td><td>难度/辣度/来源文案映射、耗时人性化（与后端枚举一致）。</td></tr>
+<tr><td><code>src/lib/ingredients.js</code></td><td>数据</td><td>88 种食材（5 分组）/ 6 口味 / 4 人数，id 与后端 t_ingredient 一一对应。</td></tr>
+<tr><td><code>src/lib/floaters.js</code></td><td>工具</td><td>登录页漂浮装饰（固定种子 20260914，与原生版一致）。</td></tr>
+<tr><td><code>src/lib/utils.js</code></td><td>工具</td><td>表单校验、密码强度、复制、JSON 着色、isSnowflakeId。</td></tr>
+<tr><td><code>src/components/TopBar.vue</code></td><td>组件</td><td>顶栏：导航 + 昵称 + 退出。</td></tr>
+<tr><td><code>src/components/FxBg.vue</code></td><td>组件</td><td>流光背景层（fixed + z-index:0，使用页须 relative/z-index:1）。</td></tr>
+<tr><td><code>src/components/TaskRow.vue</code></td><td>组件</td><td>AI 做菜任务行（排队/生成中/终态渲染，调序/取消/查看）。</td></tr>
+<tr><td><code>src/components/DishCard.vue</code></td><td>组件</td><td>菜品卡片（我的/收藏列表共用）。</td></tr>
+<tr><td><code>src/views/LoginView.vue</code></td><td>视图</td><td>登录/注册页（Tab、密码强度、记住用户名、调试面板）。</td></tr>
+<tr><td><code>src/views/KitchenView.vue</code></td><td>视图</td><td>找菜工作台（选食材 + 召回 + AI 生成任务区，体量最大）。</td></tr>
+<tr><td><code>src/views/DishView.vue</code></td><td>视图</td><td>菜品详情（营养/做法/调料/评分/评论，发布撤回/收藏）。</td></tr>
+<tr><td><code>src/views/RankView.vue</code></td><td>视图</td><td>榜单（热门/高分/最新三榜切换，前端只切参数不排序）。</td></tr>
+<tr><td><code>src/views/ProfileView.vue</code></td><td>视图</td><td>我的（账号卡 + 我的菜品/收藏）。</td></tr>
+<tr><td><code>src/styles/*.css</code>（7 个）</td><td>样式</td><td>app.css（令牌/全局）、fx-bg.css、style/kitchen/dish/rank/profile.css（各页专属，用页面根类名限定防冲突）。</td></tr>
+<tr><td><code>vite.config.js</code> / <code>package.json</code></td><td>构建</td><td>Vite 配置（dev 5500 + /api 反代网关）；依赖 vue/vue-router。</td></tr>
+<tr><td><code>serve-dist.py</code> / <code>start.bat</code> / <code>start-dist.bat</code></td><td>运维</td><td>静态服务+反代 / 开发启动 / 构建产物启动。</td></tr>
+<tr><td><code>verify-vue.py</code></td><td>回归</td><td>CDP 无头 Chrome 端到端验证（登录/各页交互/雪花 ID）。</td></tr>
+</tbody>
+</table>
+<div class="mermaid">
+graph TD
+  V[Views: Login/Kitchen/Dish/Rank/Profile] --> A[api.js]
+  V --> S[store: auth/toast]
+  A --> C[config.js serviceUrl]
+  C -->|/api/account,/api/dish| GW[(网关 7000)]
+  V --> R[router 登录守卫]
+  L[lib: ingredients/constants/utils/floaters] --> V
+  Comp[TopBar/FxBg/TaskRow/DishCard] --> V
+</div>
+</section>
+
+<!-- ============ 7 infra ============ -->
+<section id="infra">
+<h2>7. 工程配置 / SQL / Nacos 配置中心</h2>
+<table>
+<thead><tr><th>文件</th><th>类别</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>pom.xml</code>（根）</td><td>构建</td><td>聚合父工程：common/account/dish/gateway 四模块（order-service 注释预留）；统一版本与插件；<b>强制 -parameters</b>（否则 @RequestParam 无名会 500）。</td></tr>
+<tr><td><code>sql/dish.sql</code></td><td>建表</td><td>菜品域全部核心表（t_dish、t_dish_ingredient、t_ingredient、t_tag、t_dish_rating、t_dish_comment、t_dish_collect、t_ai_generate_task、t_ingredient_candidate、t_user_ingredient_pref 等）+ 召回参考 SQL。</td></tr>
+<tr><td><code>sql/dish-seed-ingredient.sql</code></td><td>种子</td><td>灌 20 种食材（id 101~120），与前端 ingredients.js 对应。</td></tr>
+<tr><td><code>sql/dish-seed-ingredient-more.sql</code></td><td>种子</td><td>扩充至 88 种（id 121~188）。</td></tr>
+<tr><td><code>nacos-config/common.yaml</code></td><td>配置留档</td><td>公共配置：MySQL 数据源、spring.data.redis、MyBatis-Plus；必须第一个导入。</td></tr>
+<tr><td><code>nacos-config/account-service.yaml</code></td><td>配置留档</td><td>专属：server.port 8081、jwt.expire-millis、bloom.user.warm-up。</td></tr>
+<tr><td><code>nacos-config/dish-service.yaml</code></td><td>配置留档</td><td>专属：server.port 8082、es.*、召回/直出阈值、综合分权重。</td></tr>
+<tr><td><code>nacos-config/gateway.yaml</code></td><td>配置留档</td><td>专属：server.port 7000、路由（StripPrefix=2）、CORS 去重、white-list。</td></tr>
+<tr><td><code>docs/architecture.md</code></td><td>文档</td><td>全局技术文档（业务闭环/版本矩阵/架构/核心链路/数据模型/接口清单/设计决策/技术债）。</td></tr>
+<tr><td><code>docs/ai-kitchen.md</code></td><td>文档</td><td>AI 做菜链路设计决策（任务队列选型、营养策略、三道防线、调料 Plan A）。</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============ 8 scripts ============ -->
+<section id="scripts">
+<h2>8. ES 与运维 / 回归脚本</h2>
+<table>
+<thead><tr><th>文件</th><th>类别</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>es/init-dish-index.py</code></td><td>ES 运维</td><td>建 dish_index（读 dish-index.json）；<code>--sample</code> 灌演示、<code>--recreate</code> 重建（默认不灌、不删，防幽灵菜）。</td></tr>
+<tr><td><code>es/verify-recall.py</code></td><td>回归</td><td>端到端验证检索召回/直出/精排；自带演示数据生老病死。</td></tr>
+<tr><td><code>es/sample-dish-data.ndjson</code></td><td>测试数据</td><td>9 条演示文档（含草稿/已删除反例，证明过滤生效）。</td></tr>
+<tr><td><code>es/dish-search.md</code></td><td>文档</td><td>ES 落地方案（版本选择、mapping、terms 默认 OR 坑、加权、同步）。</td></tr>
+<tr><td><code>dish-service/seed-rank-demo.py</code></td><td>造数</td><td>榜单演示数据：注册账号→AI 生成→补互动→核对三榜（--dry/--from）。</td></tr>
+<tr><td><code>dish-service/start.bat</code></td><td>运维</td><td>本地启动 dish（固化 JDK 路径、--server.port=8082、-Dfile.encoding=UTF-8、端口占用检查）。</td></tr>
+<tr><td><code>dish-service/verify-*.py</code>（5 个）</td><td>回归</td><td>verify-prompt（提示词）、verify-ai-flow（生成 E2E）、verify-publish（发布+索引+榜单）、verify-interaction（收藏/评分/评论）、verify-lowcal（低热量边界）。</td></tr>
+<tr><td><code>frontend-vue/verify-vue.py</code></td><td>回归</td><td>Vue 前端 CDP 端到端验证。</td></tr>
+<tr><td><code>frontend-vue/serve-dist.py</code> / <code>start*.bat</code></td><td>运维</td><td>静态服务+反代 / 开发启动 / 构建产物启动。</td></tr>
+<tr><td><code>rollback-frontend.bat</code></td><td>运维</td><td>一键从 Vue 版回滚到原生版快照（先备份当前）。</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============ 9 db ============ -->
+<section id="db">
+<h2>9. 数据库核心表关系总览</h2>
+<p class="lead">MySQL 是 source of truth，ES 只是检索副本。发布经 <code>@TransactionalEventListener(AFTER_COMMIT)</code> 同步写索引，每日 04:00 全量兜底。</p>
+<table>
+<thead><tr><th>表</th><th>职责</th><th>关键约束</th></tr></thead>
+<tbody>
+<tr><td><code>t_user</code>（account）</td><td>用户（username 唯一、BCrypt 密码、逻辑删除）</td><td>uk_username</td></tr>
+<tr><td><code>t_ingredient</code></td><td>食材主数据（每100g营养基准），归一化与营养计算基准</td><td>unique(name)，id 101~188</td></tr>
+<tr><td><code>t_dish</code></td><td>菜品主表（草稿/已发布共表，status 区分）</td><td>idx_pool(status,rating_wilson)、uk_name_creator</td></tr>
+<tr><td><code>t_dish_ingredient</code></td><td>菜品-食材明细（倒排召回 + 营养唯一数据源）</td><td>ingredient_id→t_ingredient（可空=表外）</td></tr>
+<tr><td><code>t_tag</code> / <code>t_dish_tag</code></td><td>标签主数据 + 菜品标签关联（召回过滤/加权）</td><td>—</td></tr>
+<tr><td><code>t_dish_rating</code></td><td>评分（一人一票）</td><td>uk_dish_user</td></tr>
+<tr><td><code>t_dish_comment</code></td><td>评论（可多条，不计分）</td><td>—</td></tr>
+<tr><td><code>t_dish_collect</code></td><td>收藏（恢复式）</td><td>uk_dish_user + 逻辑删除</td></tr>
+<tr><td><code>t_ai_generate_task</code></td><td>AI 生成任务（单飞去重/频控）</td><td>request_signature（MD5）</td></tr>
+<tr><td><code>t_ingredient_candidate</code></td><td>表外食材候选（攒够阈值转正）</td><td>use_count</td></tr>
+<tr><td><code>t_user_ingredient_pref</code></td><td>用户食材偏好（排序加权，已建表未启用）</td><td>—</td></tr>
+</tbody>
+</table>
+<p class="note"><b>一致性约定：</b>主键统一雪花 ID，序列化全部 Long→String（防 JS 精度丢失导致详情页 404）；所有推荐池查询必须带 <code>status=1</code> + <code>deleted=0</code>，杜绝草稿泄漏与已删除数据回流。</p>
+</section>
+
+<footer>由沈知语（语宝）为冰宝整理 · 基于逐文件源码阅读生成 · 2026-09-22</footer>
+</main>
+</div>
+</body>
+</html>

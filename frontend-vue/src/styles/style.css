@@ -1,0 +1,1062 @@
+/* ============================================================
+   登录 / 注册页样式
+   设计取向：简洁现代 —— 浅色为主、左品牌右表单的分栏布局、
+   克制的阴影与圆角，强调色用低饱和的靛蓝，整体不喧哗。
+   ============================================================ */
+
+/* ---------- 设计变量：改这里就能整体换肤 ---------- */
+.page-login{
+    /* 主色：番茄红 —— 美食主题要暖，比正红柔和、比橘色沉稳 */
+    --brand: #e2564a;
+    --brand-dark: #c8443a;
+    --brand-soft: #fdf0ee;
+
+    /* 辅助暖色：用于渐变与强调，像刚出锅的焦糖色 */
+    --warm: #f2933c;
+    --warm-light: #f8b76b;
+
+    /* 中性色 */
+    --ink: #2a211d;
+    --ink-2: #5c5049;
+    --ink-3: #9b8e86;
+    --line: #ece5e0;
+    --surface: #ffffff;
+    --page: #faf7f4;
+
+    /* 语义色 */
+    --danger: #dc3b3b;
+    --danger-soft: #fdf0f0;
+    --success: #3d9e6b;
+    --warn: #e0a03a;
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --shadow-card: 0 1px 2px rgba(42, 33, 29, .04), 0 12px 32px -8px rgba(42, 33, 29, .11);
+    --shadow-pop: 0 20px 60px -12px rgba(42, 33, 29, .24);
+
+    --ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/*
+ * 页面自己的底色。
+ *
+ * 【为什么必须显式写这一条】
+ * 上面那份 --page 等令牌现在挂在 .page-login 上（SPA 里必须限定，
+ * 否则会全局覆盖内页的设计令牌）。而 :root 上的 --page 是内页那份冷灰，
+ * body{background:var(--page)} 取的是它 —— 登录页右半边会跟着变成冷灰。
+ * .form-panel 本身不画背景，所以这里必须把暖色底补回来。
+ */
+.page-login{
+    min-height: 100vh;
+    background: var(--page);
+}
+
+*{
+    box-sizing: border-box;
+}
+
+html, body{
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+body{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    background: var(--page);
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+/* ============================================================
+   整体布局：左品牌 + 右表单
+   ============================================================ */
+.page-login .page{
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    min-height: 100vh;
+}
+
+/* ============================================================
+   流动背景：几个大色团在整页缓慢游走
+   ------------------------------------------------------------
+   用滤镜把色团糊成柔光，再各自配一条「平移 + 缩放」的关键帧，
+   周期都给质数秒数（23/29/37/31），这样它们不会同时回到原位，
+   观感上就是永不重复的流动。整层 pointer-events:none，
+   绝不挡表单点击。
+   ============================================================ */
+.page-login .bg-flow{
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* 整层轻微模糊，色团边界更柔，同时避免色块感太重 */
+    filter: saturate(1.05);
+}
+
+.page-login .blob{
+    position: absolute;
+    border-radius: 50%;
+    /* 大半径 + 中值，把实心圆糊成没有边界的光斑 */
+    filter: blur(72px);
+    opacity: .5;
+    will-change: transform;
+}
+
+.page-login .blob-1{
+    width: 46vw;
+    height: 46vw;
+    top: -12vw;
+    left: -10vw;
+    background: radial-gradient(circle, rgba(226, 86, 74, .72), rgba(226, 86, 74, 0) 68%);
+    animation: drift1 23s ease-in-out infinite;
+}
+
+.page-login .blob-2{
+    width: 40vw;
+    height: 40vw;
+    top: 24vh;
+    right: -12vw;
+    background: radial-gradient(circle, rgba(242, 147, 60, .68), rgba(242, 147, 60, 0) 68%);
+    animation: drift2 29s ease-in-out infinite;
+}
+
+.page-login .blob-3{
+    width: 34vw;
+    height: 34vw;
+    bottom: -12vw;
+    left: 22vw;
+    background: radial-gradient(circle, rgba(248, 183, 107, .62), rgba(248, 183, 107, 0) 70%);
+    animation: drift3 37s ease-in-out infinite;
+}
+
+.page-login .blob-4{
+    width: 28vw;
+    height: 28vw;
+    top: 6vh;
+    left: 40vw;
+    background: radial-gradient(circle, rgba(255, 209, 102, .5), rgba(255, 209, 102, 0) 70%);
+    animation: drift4 31s ease-in-out infinite;
+}
+
+/* 四条轨迹方向、幅度都不同，凑在一起才像「流体」而不是「一起挪」 */
+@keyframes drift1{
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    33%  { transform: translate3d(26vw, 14vh, 0) scale(1.18); }
+    66%  { transform: translate3d(10vw, 30vh, 0) scale(.9); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes drift2 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    30%  { transform: translate3d(-22vw, 18vh, 0) scale(.86); }
+    65%  { transform: translate3d(-34vw, -8vh, 0) scale(1.2); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes drift3 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    35%  { transform: translate3d(-30vw, -16vh, 0) scale(1.14); }
+    70%  { transform: translate3d(14vw, -26vh, 0) scale(.92); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes drift4 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    40%  { transform: translate3d(-18vw, 34vh, 0) scale(1.22); }
+    75%  { transform: translate3d(16vw, 12vh, 0) scale(.88); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* ============================================================
+   漂浮装饰层：冰淇淋 / 气球 / 各种甜点
+   ------------------------------------------------------------
+   分层顺序（从下到上），这是整块效果能成立的关键：
+     0   .bg-flow              流动色团，fixed 铺满整页
+     1   .brand-panel::before  品牌区底色（半透明暖色渐变）
+     2   .floaters             漂浮装饰，fixed 铺满整页
+     3   .brand-panel::after   品牌区流动光泽
+     4   .brand-inner / .form-card  文字与表单内容
+
+   为什么品牌区要拆成 ::before 画底色？
+   如果底色画在 .brand-panel 自己身上，.floaters 就永远被整个盖住，
+   左侧一颗装饰都看不见。拆开之后装饰层能夹在「底色」和「文字」中间，
+   于是左侧也有甜品在飘，又不会糊在文字上。
+
+   实现要点（踩过坑）：
+   - .page 本身**不能**设 z-index，否则它整体变成一个层叠上下文，
+     把里面所有东西（包括面板的 ::before/::after）锁死在同一层，
+     fixed 的 .floaters 只能整个在它下面 → 左侧永远空白。
+   - 改成让 .brand-panel / .form-panel 各自 isolation:isolate，
+     面板内部用负 z-index 把底色压到装饰之下，文字抬到装饰之上。
+
+   每个元素由 JS 注入内联变量（--size/--op/--dur/--delay/--sway/
+   --rot/--top），CSS 只负责把它们组织成动画。
+   动画拆两层：外层 floatUp 负责上下主漂浮，内层 svg 叠一个左右
+   摇摆，各自独立周期 → 合成自然的螺旋感，不会像电梯直上直下。
+   ============================================================ */
+.page-login .floaters{
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.page-login .floater{
+    position: absolute;
+    bottom: -16vh;
+    width: var(--size, 48px);
+    height: calc(var(--size, 48px) * 4 / 3);
+    opacity: var(--op, .8);
+    animation: floatUp var(--dur, 22s) linear var(--delay, 0s) infinite;
+    will-change: transform;
+}
+
+.page-login .floater svg{
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: sway var(--sway-dur, 7s) ease-in-out infinite alternate;
+    transform-origin: 50% 78%;
+    /* 落在背景上的柔和阴影，让元素「浮」起来而不是贴上去 */
+    filter: drop-shadow(0 8px 14px rgba(120, 70, 40, .18));
+}
+
+/* 模糊款：远景，制造景深 */
+.page-login .floater.is-soft{
+    filter: blur(2.4px);
+}
+
+.page-login .floater.is-soft svg{
+    filter: none;
+}
+
+/* 主漂浮：从屏幕下方之外升到上方之外 */
+@keyframes floatUp{
+    from { transform: translateY(0) rotate(var(--rot, 0deg)); }
+    to   { transform: translateY(-136vh) rotate(calc(var(--rot, 0deg) * -1)); }
+}
+
+/* 左右摇摆 + 轻微斜切，避免看起来像平面贴图在平移 */
+@keyframes sway{
+    from { transform: translateX(calc(var(--sway, 16px) * -1)) rotate(-4deg); }
+    to   { transform: translateX(var(--sway, 16px)) rotate(4deg); }
+}
+
+/* 内容层压在装饰之上（注意：不设 z-index，见上方说明） */
+.page-login .page{
+    position: relative;
+}
+
+/* 动效敏感人群：把一切停下来，只保留静态装饰 */
+@media (prefers-reduced-motion: reduce){
+    .page-login .blob,
+.page-login .floater,
+.page-login .floater svg{
+        animation: none !important;
+    }
+
+    /* 让漂浮物静止地散在画面里，而不是全堆在底部 */
+    .page-login .floater{
+        bottom: auto;
+        top: var(--top, 30%);
+    }
+
+    .page-login .blob{
+        opacity: .38;
+    }
+}
+
+/* ---------- 左侧品牌区 ---------- */
+/*
+ * 注意：底色不写在这里，而是交给 .brand-panel::before。
+ * 这样 .floaters 才能插在底色与文字之间（见上方分层说明）。
+ * 本元素只负责定位、裁剪和文字颜色。
+ */
+.page-login .brand-panel{
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    padding: 64px 72px;
+    color: #fff;
+    /* 透明！否则又把装饰盖死了 */
+    background: transparent;
+    /* 建立独立层叠上下文，好让内部负 z-index 只在本面板内生效 */
+    isolation: isolate;
+}
+
+/* 品牌区底色：半透明暖色渐变（z-index -2 → 在漂浮装饰之下） */
+.page-login .brand-panel::before{
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    background: linear-gradient(155deg,
+        rgba(217, 79, 61, .93) 0%,
+        rgba(232, 112, 63, .87) 42%,
+        rgba(240, 153, 74, .84) 100%);
+}
+
+/* 品牌区流动光泽：两层斜向光带缓慢横移，让纯色渐变「活」起来
+   （z-index -1 → 盖在漂浮装饰之上，给元素蒙一层暖光，融合感更强） */
+.page-login .brand-panel::after{
+    content: '';
+    position: absolute;
+    inset: -50%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(115deg,
+            rgba(255, 255, 255, 0) 30%,
+            rgba(255, 255, 255, .16) 45%,
+            rgba(255, 255, 255, 0) 60%),
+        linear-gradient(295deg,
+            rgba(255, 214, 150, 0) 35%,
+            rgba(255, 214, 150, .22) 52%,
+            rgba(255, 214, 150, 0) 68%);
+    animation: sheen 18s ease-in-out infinite;
+}
+
+@keyframes sheen {
+    0%   { transform: translate3d(-12%, -6%, 0) rotate(0deg); }
+    50%  { transform: translate3d(12%, 6%, 0) rotate(3deg); }
+    100% { transform: translate3d(-12%, -6%, 0) rotate(0deg); }
+}
+
+.page-login .brand-inner{
+    position: relative;
+    z-index: 1;
+    max-width: 400px;
+}
+
+.page-login .brand-logo{
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border-radius: 17px;
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .22);
+    color: #fff;
+    margin-bottom: 34px;
+    backdrop-filter: blur(6px);
+}
+
+.page-login .brand-title{
+    font-size: 34px;
+    line-height: 1.25;
+    margin: 0 0 14px;
+    font-weight: 650;
+    letter-spacing: -.4px;
+}
+
+.page-login .brand-sub{
+    margin: 0 0 44px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: rgba(255, 255, 255, .78);
+}
+
+.page-login .brand-points{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 22px;
+}
+
+.page-login .brand-points li{
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.page-login .brand-points .dot{
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    margin-top: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .85);
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, .14);
+}
+
+.page-login .brand-points strong{
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .1px;
+}
+
+.page-login .brand-points small{
+    display: block;
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, .66);
+    margin-top: 2px;
+}
+
+/* 背景装饰圆 */
+.page-login .brand-deco{
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.page-login .deco-a{
+    width: 460px;
+    height: 460px;
+    right: -180px;
+    top: -160px;
+    background: radial-gradient(circle, rgba(255, 255, 255, .22), rgba(255, 255, 255, .04) 55%, transparent 72%);
+}
+
+.page-login .deco-b{
+    width: 360px;
+    height: 360px;
+    left: -140px;
+    bottom: -120px;
+    background: radial-gradient(circle, rgba(255, 200, 140, .30), transparent 68%);
+}
+
+/* ---------- 右侧表单区 ---------- */
+.page-login .form-panel{
+    position: relative;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px 32px;
+    gap: 20px;
+    /*
+     * z-index 必须大于 .floaters 的 2 —— 这里的目的是「把表单盖在装饰之上」，
+     * 而不是像品牌区那样让装饰透出来。
+     * 表单卡是不透明的，甜点飘到卡片正面会压住输入框，很干扰阅读。
+     * 所以右侧的甜点只在卡片周围的空白区飘，不进卡片。
+     */
+}
+
+.page-login .form-card{
+    width: 100%;
+    max-width: 396px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 30px 32px 34px;
+    box-shadow: var(--shadow-card);
+}
+
+/* ---------- Tab 切换 ---------- */
+.page-login .tabs{
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 28px;
+    background: #f5f1ee;
+    border-radius: 11px;
+}
+
+.page-login .tab{
+    position: relative;
+    z-index: 2;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 8px 0;
+    font-size: 14px;
+    font-weight: 550;
+    font-family: inherit;
+    color: var(--ink-3);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color .22s var(--ease);
+}
+
+.page-login .tab.is-active{
+    color: var(--ink);
+}
+
+/* 滑动指示块：比起给 tab 本身换背景，滑动的观感更顺 */
+.page-login .tab-indicator{
+    position: absolute;
+    z-index: 1;
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: var(--surface);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(28, 31, 46, .10);
+    transition: transform .3s var(--ease);
+}
+
+.page-login .tabs[data-active="register"] .tab-indicator{
+    transform: translateX(100%);
+}
+
+/* ============================================================
+   表单
+   ============================================================ */
+.page-login .form{
+    display: grid;
+    gap: 18px;
+    animation: fadeUp .32s var(--ease) both;
+}
+
+.page-login .form.is-hidden{
+    display: none;
+}
+
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.page-login .field{
+    display: grid;
+    gap: 7px;
+}
+
+.page-login .field label{
+    font-size: 13px;
+    font-weight: 550;
+    color: var(--ink-2);
+}
+
+.page-login .field .optional{
+    font-weight: 400;
+    color: var(--ink-3);
+}
+
+/* ---------- 输入框 ---------- */
+.page-login .input-wrap{
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.page-login .input-icon{
+    position: absolute;
+    left: 13px;
+    width: 18px;
+    height: 18px;
+    color: var(--ink-3);
+    pointer-events: none;
+    transition: color .2s var(--ease);
+}
+
+.page-login .input-wrap input{
+    width: 100%;
+    padding: 11px 13px 11px 40px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--ink);
+    background: #fbfbfd;
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color .18s var(--ease), background .18s var(--ease),
+                box-shadow .18s var(--ease);
+}
+
+.page-login .input-wrap input::placeholder{
+    color: #ada19a;
+}
+
+.page-login .input-wrap input:hover{
+    border-color: #dbd1cb;
+}
+
+.page-login .input-wrap input:focus{
+    background: var(--surface);
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3.5px rgba(226, 86, 74, .13);
+}
+
+.page-login .input-wrap input:focus + .eye-btn,
+.page-login .input-wrap:focus-within .input-icon{
+    color: var(--brand);
+}
+
+/* 带眼睛按钮时右侧留空间 */
+.page-login .field:has(.eye-btn) input{
+    padding-right: 42px;
+}
+
+/* ---------- 密码显示切换 ---------- */
+.page-login .eye-btn{
+    position: absolute;
+    right: 6px;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    border-radius: 7px;
+    transition: color .18s var(--ease), background .18s var(--ease);
+}
+
+.page-login .eye-btn:hover{
+    color: var(--ink-2);
+    background: #f4f0ec;
+}
+
+.page-login .eye-btn svg{
+    width: 18px;
+    height: 18px;
+}
+
+.page-login .eye-btn .eye-closed{ display: none; }
+.page-login .eye-btn.is-on .eye-open{ display: none; }
+.page-login .eye-btn.is-on .eye-closed{ display: block; }
+
+/* ---------- 错误态 ---------- */
+.page-login .field.has-error .input-wrap input{
+    border-color: var(--danger);
+    background: var(--danger-soft);
+}
+
+.page-login .field.has-error .input-wrap input:focus{
+    box-shadow: 0 0 0 3.5px rgba(229, 72, 77, .13);
+}
+
+.page-login .field.has-error .input-icon{
+    color: var(--danger);
+}
+
+.page-login .field-error{
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--danger);
+    min-height: 0;
+    display: none;
+}
+
+.page-login .field.has-error .field-error{
+    display: block;
+    animation: fadeUp .2s var(--ease) both;
+}
+
+.page-login .form-card .field-hint{
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+/* ---------- 记住用户名 ---------- */
+.page-login .form-row{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: -2px;
+}
+
+.page-login .checkbox{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.page-login .checkbox input{
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.page-login .checkbox .box{
+    width: 17px;
+    height: 17px;
+    border: 1.5px solid #d5cbc5;
+    border-radius: 5px;
+    display: grid;
+    place-items: center;
+    transition: all .18s var(--ease);
+    flex: 0 0 auto;
+}
+
+.page-login .checkbox .box::after{
+    content: "";
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+    transform: rotate(-45deg) scale(.5);
+    opacity: 0;
+    margin-top: -2px;
+    transition: all .18s var(--ease);
+}
+
+.page-login .checkbox input:checked + .box{
+    background: var(--brand);
+    border-color: var(--brand);
+}
+
+.page-login .checkbox input:checked + .box::after{
+    opacity: 1;
+    transform: rotate(-45deg) scale(1);
+}
+
+.page-login .checkbox input:focus-visible + .box{
+    box-shadow: 0 0 0 3.5px rgba(226, 86, 74, .16);
+}
+
+/* ---------- 密码强度 ---------- */
+.page-login .strength{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    margin-top: 3px;
+}
+
+.page-login .strength i{
+    height: 3.5px;
+    border-radius: 3px;
+    background: #eae3dd;
+    transition: background .25s var(--ease);
+}
+
+.page-login .strength[data-level="1"] i:nth-child(-n+1){ background: var(--danger); }
+.page-login .strength[data-level="2"] i:nth-child(-n+2){ background: #e0a03a; }
+.page-login .strength[data-level="3"] i:nth-child(-n+3){ background: var(--warm); }
+.page-login .strength[data-level="4"] i{ background: #3d9e6b; }
+
+/* ---------- 主按钮 ---------- */
+.page-login .btn-primary{
+    position: relative;
+    width: 100%;
+    margin-top: 4px;
+    padding: 12px 20px;
+    font-size: 14.5px;
+    font-weight: 600;
+    font-family: inherit;
+    letter-spacing: .2px;
+    color: #fff;
+    background: var(--brand);
+    border: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background .18s var(--ease), transform .12s var(--ease),
+                box-shadow .18s var(--ease);
+    box-shadow: 0 4px 14px -4px rgba(226, 86, 74, .46);
+}
+
+.page-login .btn-primary:hover:not(:disabled){
+    background: var(--brand-dark);
+    box-shadow: 0 6px 20px -5px rgba(226, 86, 74, .54);
+}
+
+.page-login .btn-primary:active:not(:disabled){
+    transform: translateY(1px);
+}
+
+.page-login .btn-primary:disabled{
+    opacity: .68;
+    cursor: not-allowed;
+}
+
+.page-login .btn-sm{
+    width: auto;
+    padding: 9px 18px;
+    font-size: 13.5px;
+}
+
+/* 加载态：文字隐藏，转圈居中 */
+.page-login .btn-primary .btn-loader{
+    display: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 17px;
+    height: 17px;
+    margin: -8.5px 0 0 -8.5px;
+    border: 2px solid rgba(255, 255, 255, .35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+}
+
+.page-login .btn-primary.is-loading .btn-text{ opacity: 0; }
+.page-login .btn-primary.is-loading .btn-loader{ display: block; }
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Toast 提示
+   ------------------------------------------------------------
+   【这里的规则全部删掉了 —— 不要加回来】
+   Toast 容器渲染在 App.vue 里、位于 .page-login **之外**，所以任何
+   `.page-login .toast*` 选择器都匹配不到（曾经是一批死规则）。
+   统一由 app.css 提供样式（那边有结构完全相同的一份，含
+   toastIn / toastOut 关键帧，位置同样是右下角：放顶部居中会盖住
+   厨房页的任务区标题）。
+   ============================================================ */
+
+/* ============================================================
+   弹窗
+   ============================================================ */
+.page-login .modal-mask{
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(24, 27, 42, .42);
+    backdrop-filter: blur(3px);
+    animation: fadeIn .22s var(--ease) both;
+}
+
+.page-login .modal-mask.is-hidden{
+    display: none;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.page-login .modal{
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 26px 26px 22px;
+    box-shadow: var(--shadow-pop);
+    animation: popIn .28s var(--ease) both;
+}
+
+@keyframes popIn {
+    from { opacity: 0; transform: translateY(14px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.page-login .modal-head{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.page-login .modal-head .avatar{
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    font-size: 19px;
+    font-weight: 650;
+    color: #fff;
+    background: linear-gradient(140deg, #e2564a, #f2933c);
+    flex: 0 0 auto;
+}
+
+.page-login .modal-head h3{
+    margin: 0;
+    font-size: 16.5px;
+    font-weight: 620;
+}
+
+.page-login .modal-head p{
+    margin: 1px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-3);
+}
+
+.page-login .modal-title{
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 620;
+}
+
+.page-login .modal-body{
+    margin: 0;
+    padding: 18px 0 6px;
+    display: grid;
+    gap: 13px;
+}
+
+.page-login .modal-body > div{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.page-login .modal-body dt{
+    font-size: 12.5px;
+    color: var(--ink-3);
+    flex: 0 0 auto;
+}
+
+.page-login .modal-body dd{
+    margin: 0;
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 550;
+    text-align: right;
+    word-break: break-all;
+}
+
+.page-login .token-row{
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 7px !important;
+}
+
+.page-login .token-row dd{
+    text-align: left;
+}
+
+.page-login .token-row code{
+    display: block;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    background: #f7f4f1;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 11px;
+    max-height: 76px;
+    overflow-y: auto;
+    word-break: break-all;
+    font-weight: 400;
+}
+
+.page-login .modal-actions{
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.page-login .modal-actions .btn-ghost,
+.page-login .modal-actions .btn-primary{
+    flex: 1;
+    margin-top: 0;
+}
+
+.page-login .btn-ghost{
+    padding: 11px 18px;
+    font-size: 13.5px;
+    font-weight: 550;
+    font-family: inherit;
+    color: var(--ink-2);
+    background: #f5f1ee;
+    border: 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background .18s var(--ease), color .18s var(--ease);
+}
+
+.page-login .btn-ghost:hover{
+    background: #ebe5e1;
+    color: var(--ink);
+}
+
+.page-login .modal-close{
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--ink-3);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: color .18s var(--ease), background .18s var(--ease);
+}
+
+.page-login .modal-close:hover{
+    color: var(--danger);
+    background: var(--danger-soft);
+}
+
+/* ---------- 接口调用结果 ---------- */
+.page-login .api-result{
+    margin: 12px 0 0;
+    padding: 11px 13px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    background: #f7f4f1;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    max-height: 190px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.page-login .api-result.is-hidden{
+    display: none;
+}
+
+/* 代码块里保留 JSON 的高亮感 */
+.page-login .api-result .k{ color: #7a5af8; }
+.page-login .api-result .s{ color: var(--success); }
+
+/* ============================================================
+   响应式：窄屏收成单列
+   ============================================================ */
+@media (max-width: 900px){
+    .page-login .page{
+        grid-template-columns: 1fr;
+    }
+
+    .page-login .brand-panel{
+        padding: 40px 32px 36px;
+    }
+
+    .page-login .brand-points{
+        display: none;
+    }
+
+    .page-login .brand-sub{
+        margin-bottom: 0;
+    }
+
+    .page-login .brand-title{
+        font-size: 27px;
+    }
+
+    .page-login .form-panel{
+        padding: 32px 20px 40px;
+    }
+
+    .page-login .form-card{
+        padding: 24px 22px 28px;
+        border-radius: 17px;
+    }
+}
+
+@media (max-width: 420px) {
+    .page-login .brand-logo{
+        width: 50px;
+        height: 50px;
+        margin-bottom: 22px;
+    }
+
+    .page-login .brand-title{
+        font-size: 24px;
+    }
+}

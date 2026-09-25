@@ -1,0 +1,99 @@
+# ============================================================
+# AI 灵感厨房 · 仓库级忽略规则
+# ============================================================
+# 各子模块（account-service / common-service / gateway / frontend-vue）
+# 自带独立的 .gitignore，本文件只负责根目录与跨模块的通用规则。
+# ============================================================
+
+# ---------- 构建产物 ----------
+target/
+build/
+out/
+dist/
+*.jar
+*.war
+# Maven Wrapper 自身必须入库，否则克隆下来无法构建
+!.mvn/wrapper/maven-wrapper.jar
+
+# ---------- 前端依赖与产物 ----------
+node_modules/
+.vite/
+.npm/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ---------- IDE ----------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- 日志 ----------
+*.log
+logs/
+svc-logs/
+
+# ---------- 本地运行配置与凭据（严禁入库） ----------
+# 真实数据库密码、JWT secret、个人环境地址写在这里，不要提交
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+**/bootstrap-local.yml
+.env
+.env.local
+*.pem
+*.p12
+*.key
+*.jks
+*.keystore
+
+# ---------- 本地中间件数据目录 ----------
+# 若在项目内解压 / 运行过这些组件，产生的数据不允许入库
+elasticsearch-*/
+kibana-*/
+nacos-server-*/
+redis-*/
+apache-maven-*/
+*.pid
+
+# ---------- 本地调试产物（诊断截图、浏览器自动化 profile） ----------
+# 说明：文档与 README 引用的示意图统一放 docs/images/，不受此规则影响
+cdp-*-profile/
+chrome-profile/
+*-profile/
+.cache/
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# ---------- 本地工作目录（.workbuddy） ----------
+# 浏览器自动化 CDP profile 会生成上百 MB 缓存，且是本机专属
+.workbuddy/
+.workbuddy*/
+
+# ---------- 打包文件 ----------
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# ---------- 其他 ----------
+*.bak
+*.orig
+*.tmp
+*.temp

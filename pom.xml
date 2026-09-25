@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>com.apesource</groupId>
+    <artifactId>project0914</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    
+    <!-- 子模块：等模块真正建好后再逐个放开，否则加载 Maven 会报模块不存在 -->
+    <modules>
+        <module>common-service</module>
+        <module>account-service</module>
+        <module>dish-service</module>
+<!--        <module>order-service</module>-->
+        <module>gateway</module>
+    </modules>
+    
+    
+    <!-- 统一版本管理 -->
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>3.2.4</spring-boot.version>
+        <spring-cloud.version>2023.0.1</spring-cloud.version>
+        <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
+        <mp.vsersion>3.5.5</mp.vsersion>
+        <jjwt.version>0.12.5</jjwt.version>
+        <mysql.version>8.3.0</mysql.version>
+        <!-- Redisson：3.26.x 内置 redisson-spring-data-32，匹配 Boot 3.2.x -->
+        <redisson.version>3.26.1</redisson.version>
+    </properties>
+    
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Boot BOM：统一 spring-boot-starter-* 的版本 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- Spring Cloud BOM：统一 gateway / loadbalancer / openfeign 等的版本 -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- Spring Cloud Alibaba BOM：版本必须与 Boot 3.2.4 + Cloud 2023.0.1 严格对应，
+                 2023.0.1.0 内置的 Nacos Client 是 2.3.2，官方推荐的服务端版本也是 2.3.2 -->
+            <dependency>
+                <groupId>com.alibaba.cloud</groupId>
+                <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+                <version>${spring-cloud-alibaba.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- mysql 驱动：必须显式写 version，
+                 因为一旦在这里出现，Boot BOM 对它的版本管理就被覆盖了 -->
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            
+            <!-- MyBatis-Plus（Spring Boot 3 要用 mybatis-plus-spring-boot3-starter） -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mp.vsersion}</version>
+            </dependency>
+            
+            <!-- JWT：jjwt 0.12.x 拆成 api / impl / jackson 三个包 -->
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId>
+                <version>${jjwt.version}</version>
+                <scope>runtime</scope>
+            </dependency>
+            
+            <!-- Redisson：提供 RBloomFilter、分布式锁等。
+                 必须选与 Boot 版本匹配的 redisson-spring-data 子模块，
+                 3.26.x 默认带 redisson-spring-data-32（对应 Spring Data 3.2.x） -->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    
+    <!-- 插件版本管理：子模块自动继承，保证编译和打包版本一致 -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <version>${spring-boot.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                        <encoding>UTF-8</encoding>
+                        <!--
+                            ★ 必须开启：把方法参数名编译进 class 文件。
+
+                            为什么需要它：Spring MVC 解析 @RequestParam / @PathVariable 时，
+                            如果注解里没写显式名字（写成 @RequestParam String q 而不是
+                            @RequestParam("q") String q），就得靠反射读参数名 —— 而这依赖
+                            编译期的 -parameters。不开的话 Spring 6.1 会直接抛：
+
+                                IllegalArgumentException: Name for argument of type
+                                [java.lang.String] not specified, and parameter name
+                                information not available via reflection.
+
+                            这个异常会被全局异常处理器兜成 500，报错信息里完全看不出
+                            是编译参数的问题 —— 排查成本极高，所以直接在父 pom 里开掉。
+
+                            根因说明：本项目用的是【自建父 pom】，没有继承
+                            spring-boot-starter-parent，因此丢了它默认帮我们配好的两样东西：
+                              ① spring-boot-maven-plugin 的 repackage 自动绑定
+                                 （已在各子模块显式声明 executions）
+                              ② 编译器的 -parameters 参数（就是这里补上的）
+                        -->
+                        <parameters>true</parameters>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

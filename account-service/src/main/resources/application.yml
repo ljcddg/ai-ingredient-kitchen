@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: account-service
+
+  # ---------- Nacos 配置中心 ----------
+  # 注意：Spring Boot 3 + Spring Cloud Alibaba 2023 不再需要 bootstrap.yml，
+  # 用 spring.config.import 的方式在启动早期导入 Nacos 配置，效果等价且更简洁。
+  config:
+    import:
+      # 【顺序就是优先级】后导入的会覆盖先导入的。
+      # 所以公共配置（数据源 / MyBatis-Plus / Redis）必须放在第一个，
+      # 本服务专属配置放后面 —— 这样单个服务想覆盖某个公共项时才覆盖得掉。
+      - optional:nacos:common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      # 本服务专属配置。
+      # optional: 前缀表示 Nacos 上若暂时没有这份配置也不报错，便于本地先跑起来
+      - optional:nacos:account-service.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+
+  cloud:
+    nacos:
+      # Nacos 服务端地址。account-service 本地配置里必须写这个，
+      # 因为「连不上 Nacos 就拉不到配置」是鸡生蛋问题，地址只能放本地
+      server-addr: 127.0.0.1:8848
+      config:
+        file-extension: yaml
+        group: DEFAULT_GROUP
+        # Nacos 2.x 若开了鉴权才需要填下面两项，当前默认关闭故注释
+        # username: nacos
+        # password: nacos
+      discovery:
+        server-addr: 127.0.0.1:8848
+        group: DEFAULT_GROUP
+        # 本机多网卡时可能注册成虚拟网卡 IP 导致调不通，
+        # 需要时打开下面这行并填真实网卡 IP（本机 WLAN 为 192.168.251.101）
+        # ip: 192.168.251.101
+
+# ---------- JWT ----------
+jwt:
+  # 【安全凭证不入库】密钥是敏感信息，一旦提交到公开仓库任何人都能伪造 token。
+  # 本地开发请自行生成一个：
+  #   openssl rand -base64 32
+  # 或用环境变量注入（推荐，生产环境必须）：
+  #   export JWT_SECRET=<你的base64密钥>
+  #
+  # 必须是 Base64 编码且解码后 >= 32 字节，否则 jjwt 抛 WeakKeyException。
+  # ⚠️ 下面这行是占位值，与 gateway 的 jwt.secret 必须**完全一致**，
+  #    否则现象是「登录成功但所有业务接口 401」。
+  secret: ${JWT_SECRET:REPLACE_WITH_YOUR_OWN_BASE64_SECRET_AT_LEAST_32_BYTES}

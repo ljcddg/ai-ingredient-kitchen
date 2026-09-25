@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.apesource</groupId>
+        <artifactId>project0914</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <artifactId>common-service</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>common-service</name>
+    <description>common-service</description>
+    
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- JWT：把 JwtUtil 提到 common 后，这个模块自己也需要 jjwt。
+             版本由父 pom 的 dependencyManagement 统一管理。
+             impl / jackson 是 scope=runtime，编译期只需要 api 包，
+             但运行时缺了它们会在启动时抛 UnsupportedJwtException，所以必须一起引 -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+        </dependency>
+
+        <!-- Jackson：JsonAutoConfiguration 用到的 ToStringSerializer 在这里，
+             而 Jackson2ObjectMapperBuilderCustomizer 由上面的 spring-boot-starter 提供。
+             这里刻意直接引 jackson-databind 而不是 spring-boot-starter-json ——
+             后者会连带拖进 datatype-jdk8 / jsr310 / module-parameter-names 一串，
+             而 common 编译期只用到那一个类，运行期各服务自己已经有完整的一套。
+             scope=provided：不让 common 把 jackson 往下传递，避免将来某个服务
+             想单独调 Jackson 版本时和 common 传下去的那份打架。 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- spring-web：Jackson2ObjectMapperBuilder 在这个包里（它不在 autoconfigure，
+             而是 org.springframework.http.converter.json）。
+             同样用 provided —— common 只是要编译过，运行期各服务自己的
+             web / webflux starter 都带了它。
+             注意 spring-web 对 jackson-databind 是 optional 依赖、不会传递过来，
+             所以上面那条要单独留着。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- common-service 是被依赖的工具 jar，不需要打成可执行 fat jar。
+                 注意这里必须显式 skip，
+                 否则自建父 pom 下 repackage 会把普通 jar 包一层 BOOT-INF，
+                 其它模块引它时反而找不到类 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
