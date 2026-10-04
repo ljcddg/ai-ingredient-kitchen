@@ -1,0 +1,62 @@
+{
+  "backupTime": "2026-10-01T22:07:56+08:00",
+  "nacosAddr": "http://127.0.0.1:8848",
+  "namespace": "",
+  "count": 6,
+  "configs": [
+    {
+      "dataId": "account-service.yaml",
+      "group": "DEFAULT_GROUP",
+      "tenant": "",
+      "type": "yaml",
+      "md5": null,
+      "file": "DEFAULT_GROUP/account-service.yaml",
+      "size": 1464
+    },
+    {
+      "dataId": "gateway.yaml",
+      "group": "DEFAULT_GROUP",
+      "tenant": "",
+      "type": "yaml",
+      "md5": null,
+      "file": "DEFAULT_GROUP/gateway.yaml",
+      "size": 4003
+    },
+    {
+      "dataId": "seataServer.properties",
+      "group": "SEATA_GROUP",
+      "tenant": "",
+      "type": "properties",
+      "md5": null,
+      "file": "SEATA_GROUP/seataServer.properties",
+      "size": 1069
+    },
+    {
+      "dataId": "dish-service.yaml",
+      "group": "DEFAULT_GROUP",
+      "tenant": "",
+      "type": "yaml",
+      "md5": null,
+      "file": "DEFAULT_GROUP/dish-service.yaml",
+      "size": 2358
+    },
+    {
+      "dataId": "common.yaml",
+      "group": "DEFAULT_GROUP",
+      "tenant": "",
+      "type": "yaml",
+      "md5": null,
+      "file": "DEFAULT_GROUP/common.yaml",
+      "size": 2890
+    },
+    {
+      "dataId": "seataServer-docker.properties",
+      "group": "SEATA_GROUP",
+      "tenant": "",
+      "type": "properties",
+      "md5": null,
+      "file": "SEATA_GROUP/seataServer-docker.properties",
+      "size": 869
+    }
+  ]
+}

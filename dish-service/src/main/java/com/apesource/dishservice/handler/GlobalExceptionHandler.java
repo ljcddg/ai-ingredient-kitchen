@@ -4,10 +4,14 @@ import com.apesource.commonservice.exception.BusinessException;
 import com.apesource.commonservice.result.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Objects;
 
@@ -41,6 +45,52 @@ public class GlobalExceptionHandler {
                 .orElse("参数校验失败");
         log.warn("参数校验失败：{}", message);
         return Result.fail(400, message);
+    }
+
+    /**
+     * 路径压根不存在：返回 404 而不是 500。
+     *
+     * <p>为什么值得单独写一条：兜底的 {@link #handleException} 会把
+     * {@code NoResourceFoundException} 也当成"未预期异常"打出完整堆栈、回一句
+     * "服务器开小差了"。这样调用方（和排查的人）分不清"我路径写错了"和"服务真的挂了"——
+     * 实测 {@code /api/dish/ai/no-such-endpoint} 就是这么变成 500 的。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("接口不存在：path={}", e.getResourcePath());
+        return Result.fail(404, "接口不存在：" + e.getResourcePath());
+    }
+
+    /** 兼容 throwExceptionIfNoHandlerFound=true 的情况，语义同上 */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public Result<Void> handleNoHandlerFound(NoHandlerFoundException e) {
+        log.warn("接口不存在：{} {}", e.getHttpMethod(), e.getRequestURL());
+        return Result.fail(404, "接口不存在：" + e.getRequestURL());
+    }
+
+    /**
+     * 路径参数类型不对（例如把 {@code /ai/dish/{id}} 的 id 写成 notanumber）：
+     * 这是调用方传错了，属于 400 而不是服务故障。
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public Result<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        log.warn("路径参数类型不匹配：name={}, value={}", e.getName(), e.getValue());
+        return Result.fail(400, "参数 " + e.getName() + " 格式不正确");
+    }
+
+    /**
+     * 唯一键冲突：典型场景是同一个创作者又传了一道同名菜
+     * （{@code t_dish.uk_name_creator(name_key, creator_id)} 挡下来的）。
+     *
+     * <p>为什么值得单独一条：这类冲突是<b>调用方能自己解决</b>的（换个名字就行），
+     * 报成"服务器开小差了"等于把用户填了半天的表单判了死刑，还查不出原因。
+     * 走这一条的前置检查是 {@code ManualDishWriter.nameConflict}，它挡住绝大多数情况；
+     * 这里是并发/逻辑删除残留（唯一键不区分 {@code deleted}）的兜底。
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public Result<Void> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一键冲突：{}", e.getMessage());
+        return Result.fail(409, "已经有一道同名的菜了（也可能是重复提交），换个菜名再试");
     }
 
     /** 兜底：未预期的异常必须打完整堆栈，否则线上没法查 */

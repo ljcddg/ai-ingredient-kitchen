@@ -21,14 +21,16 @@ spring:
 
 # ---------- JWT ----------
 jwt:
-  # 【必须与 account-service 完全一致】
+  # 【必须与 account-service 逐字一致】
   # 网关用它验签、account-service 用它签发，两边只要差一个字符，
   # 现象就是「登录明明成功，但所有业务接口都返回 401」。
   #
-  # ⚠️ 这里是占位值，请自行生成并同步到两边（或用环境变量注入）：
-  #   openssl rand -base64 32
-  # 真实密钥严禁提交到版本库。
-  secret: ${JWT_SECRET:REPLACE_WITH_YOUR_OWN_BASE64_SECRET_AT_LEAST_32_BYTES}
+  # 生产环境必须用环境变量注入（真实密钥严禁提交到版本库）：
+  #   export JWT_SECRET=<与 account-service 相同的base64密钥>
+  #
+  # 下面的默认值是本机开发用的临时密钥，必须与 account-service 的完全相同，
+  # 只为让 IDEA 里「直接 Run」能起来；不用于任何正式环境。
+  secret: "${JWT_SECRET:UwSHXD5GF2H2kh/hPSqJ62svFFkM+YW3Y0Yge3jyyY3XmjCspizQmbOgnpDSfhTF}"
 
 # ---------- 网关认证开关 ----------
 # 路由规则、white-list 这些放 Nacos（见 nacos-config/gateway.yaml），

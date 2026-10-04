@@ -124,6 +124,95 @@
                       @click="servings = o.value">{{ o.label }}</button>
             </div>
           </div>
+
+          <!-- 找菜模式（P1-2）：严格 = 只推"现在就能做"的；宽松 = 允许缺几样主料 -->
+          <div class="field">
+            <div class="field-head">
+              <span class="field-label">找菜模式</span>
+              <span class="field-hint">严格只推现在就能做的</span>
+            </div>
+            <div class="segments" id="modeSegs">
+              <button type="button" class="seg" data-mode="strict"
+                      :aria-pressed="String(searchMode === 'strict')"
+                      @click="searchMode = 'strict'">严格</button>
+              <button type="button" class="seg" data-mode="loose"
+                      :aria-pressed="String(searchMode === 'loose')"
+                      @click="searchMode = 'loose'">宽松</button>
+            </div>
+            <div v-if="searchMode === 'loose'" class="chips" style="margin-top:8px">
+              <span class="field-hint">最多允许缺</span>
+              <button v-for="n in [1, 2, 3]" :key="'mm' + n" type="button" class="chip"
+                      :aria-pressed="String(maxMissing === n)"
+                      @click="maxMissing = n">{{ n }} 样</button>
+            </div>
+          </div>
+
+          <!-- 更多条件：忌口 / 时长 / 必用 / 厨具。
+               前两个「找菜」和「生成」都生效，后两个只影响生成（搜索不做厨具过滤） -->
+          <div class="field">
+            <div class="field-head">
+              <span class="field-label">更多条件</span>
+              <button class="ghost-btn" type="button" id="moreToggle"
+                      :aria-expanded="String(moreOpen)" @click="moreOpen = !moreOpen">
+                {{ moreOpen ? '收起' : '展开' }}
+              </button>
+            </div>
+
+            <template v-if="moreOpen">
+              <label class="field-hint" for="excludeInput">不吃 / 忌口（找菜与生成都会避开）</label>
+              <div class="free-ing-row">
+                <input class="input" id="excludeInput" type="text" autocomplete="off"
+                       placeholder="如「香菜」，多个用逗号隔开" maxlength="40"
+                       v-model="excludeInput" @keydown.enter.prevent="addExcludes(excludeInput)">
+                <button class="secondary-btn" type="button"
+                        @click="addExcludes(excludeInput)">加入</button>
+              </div>
+              <div v-if="excludeNames.length" class="picked" id="excludeChips">
+                <button v-for="n in excludeNames" :key="'ex' + n" type="button" class="picked-chip"
+                        :aria-label="'移除忌口 ' + n" @click="removeExclude(n)">
+                  <span>{{ n }}</span>
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"
+                       stroke-linecap="round" aria-hidden="true"><path d="M3 3 9 9M9 3 3 9"/></svg>
+                </button>
+              </div>
+
+              <label class="field-hint" for="cookTimeInput" style="margin-top:10px">
+                最长总耗时（分钟，留空不限）
+              </label>
+              <input class="input" id="cookTimeInput" type="number" min="5" max="180" step="5"
+                     placeholder="留空表示不限" v-model.number="maxCookTimeMin">
+
+              <label class="field-hint" style="margin-top:10px">
+                必用食材（点一下标记，只影响 AI 生成）
+              </label>
+              <div v-if="sortedSelected.length" class="chips" id="mustUseChips">
+                <button v-for="id in sortedSelected" :key="'mu' + id" type="button" class="chip"
+                        :data-id="id"
+                        :aria-pressed="String(effectiveMustUse.includes(id))"
+                        @click="toggleMustUse(id)">{{ nameOfIngredient(id) }}</button>
+              </div>
+              <p v-else class="field-hint">先在上面选几样食材</p>
+
+              <label class="field-hint" for="equipInput" style="margin-top:10px">
+                可用厨具（只影响 AI 生成）
+              </label>
+              <div class="free-ing-row">
+                <input class="input" id="equipInput" type="text" autocomplete="off"
+                       placeholder="如「炒锅」，多个用逗号隔开" maxlength="40"
+                       v-model="equipmentInput" @keydown.enter.prevent="addEquipments(equipmentInput)">
+                <button class="secondary-btn" type="button"
+                        @click="addEquipments(equipmentInput)">加入</button>
+              </div>
+              <div v-if="equipment.length" class="picked" id="equipChips">
+                <button v-for="n in equipment" :key="'eq' + n" type="button" class="picked-chip"
+                        :aria-label="'移除厨具 ' + n" @click="removeEquipment(n)">
+                  <span>{{ n }}</span>
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"
+                       stroke-linecap="round" aria-hidden="true"><path d="M3 3 9 9M9 3 3 9"/></svg>
+                </button>
+              </div>
+            </template>
+          </div>
         </div>
 
         <div class="picker-actions">
@@ -134,6 +223,10 @@
           <button class="picker-secondary" id="generateBtn" type="button"
                   :disabled="pickedCount === 0 || genBusy" @click="submitGenerate">
             {{ genBusy ? '正在提交…' : '跳过查找，直接让 AI 做' }}
+          </button>
+          <!-- 手写菜谱：不依赖 AI。手边这几样食材已经选在上面了，直接搬进表单预填 -->
+          <button class="picker-secondary" id="manualOpenBtn" type="button" @click="openManual">
+            手写菜谱（自己写一道）
           </button>
           <p v-if="freeNote" class="picker-note" id="pickerFreeNote">{{ freeNote }}</p>
           <p class="submit-note" id="submitNote" :style="noteStyle">{{ noteText }}</p>
@@ -258,6 +351,16 @@
                         :class="{ 'is-hit': i <= result.best.hitCount }"></span>
                 </span>
               </div>
+              <!-- P1-2 的两个口径要一起看：
+                   命中率 = 你的食材被用掉多少；满足率 = 这道菜现在能不能做。
+                   只看命中率会推荐出一堆"看着很搭、其实还差好几样"的菜 -->
+              <div class="hit-row">
+                <span class="hit-label">{{ missingText(result.best) }}</span>
+                <span class="tag" :class="{ warn: (result.best.missingCount || 0) > 0 }">
+                  主料满足 {{ Math.round((result.best.satisfactionRate || 0) * 100) }}%
+                </span>
+              </div>
+              <p v-if="result.best.reason" class="cand-sub">{{ result.best.reason }}</p>
               <div class="dish-stats">
                 <div v-if="result.best.ratingCount > 0">
                   <span class="stat-value">{{ result.best.ratingAvg || 0 }}</span>
@@ -296,8 +399,10 @@
                       <div class="cand-sub">{{ candSub(c) }}</div>
                     </div>
                     <div class="cand-right">
-                      <span class="cand-score">{{ c.hitCount }}/{{ totalRequested }}</span>
-                      <span class="cand-flags">{{ c.directEligible ? '可直接用' : '评分还少' }}</span>
+                      <span class="cand-score">{{ Math.round((c.satisfactionRate || 0) * 100) }}%</span>
+                      <span class="cand-flags">
+                        {{ missingText(c) }}<template v-if="c.directEligible"> · 可直接用</template>
+                      </span>
                     </div>
                   </router-link>
                   <template v-else>
@@ -306,8 +411,10 @@
                       <div class="cand-sub">{{ candSub(c) }}</div>
                     </div>
                     <div class="cand-right">
-                      <span class="cand-score">{{ c.hitCount }}/{{ totalRequested }}</span>
-                      <span class="cand-flags">{{ c.directEligible ? '可直接用' : '评分还少' }}</span>
+                      <span class="cand-score">{{ Math.round((c.satisfactionRate || 0) * 100) }}%</span>
+                      <span class="cand-flags">
+                        {{ missingText(c) }}<template v-if="c.directEligible"> · 可直接用</template>
+                      </span>
                     </div>
                   </template>
                 </li>
@@ -327,6 +434,139 @@
         </section>
       </div>
     </main>
+
+    <!-- ==================== 手写菜谱（页内面板，不是新页面） ====================
+         为什么不开新页面：用户手边有什么食材，本来就在这一页选着（selectedIds /
+         freeIngredients），跳走再跳回来这份草稿就没了。所以做成同一页的覆盖层，
+         并把已经选中的食材直接预填成食材表。
+
+         营养这一路和 AI 生成不同：全部按食材库成分表本地算，
+         没有"模型估算"这条退路 —— 对不上的食材会标出来、并记进候选食材表。 -->
+    <div v-if="manualOpen" class="manual-mask" id="manualPanel" @click.self="closeManual">
+      <section class="manual-card" role="dialog" aria-modal="true" aria-labelledby="manualHead">
+        <header class="manual-head">
+          <div>
+            <h2 class="manual-title" id="manualHead">手写菜谱</h2>
+            <p class="manual-sub">
+              填食材和克数，热量按食材库的成分表算。食材 ≥ 2 样、步骤 ≥ 3 条就能直接进找菜库；
+              不够会先存成草稿，只有你自己看得见。
+            </p>
+          </div>
+          <button class="manual-close" id="manualClose" type="button" aria-label="关闭手写菜谱"
+                  @click="closeManual">
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" aria-hidden="true"><path d="M3 3 9 9M9 3 3 9"/></svg>
+          </button>
+        </header>
+
+        <div class="manual-body">
+          <div class="manual-cols">
+            <label class="manual-field">
+              <span class="manual-label">菜名</span>
+              <input class="input" id="manualName" type="text" maxlength="20" autocomplete="off"
+                     placeholder="如「番茄鸡蛋浓汤」" v-model="manualForm.name">
+            </label>
+
+            <div class="manual-field">
+              <span class="manual-label">几人份</span>
+              <div class="segments" id="manualServings">
+                <button v-for="o in SERVING_OPTIONS" :key="'ms' + o.value" type="button" class="seg"
+                        :id="'manualServing' + o.value"
+                        :aria-pressed="String(manualForm.servings === o.value)"
+                        @click="manualForm.servings = o.value">{{ o.label }}</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 食材表：名字 + 克数。克数是营养计算的唯一依据，留空就是"没填好" -->
+          <div class="manual-block">
+            <div class="manual-block-head">
+              <span class="manual-label">食材与用量</span>
+              <span class="manual-hint">克数按食材库算热量；调料不用填（不计热量）</span>
+            </div>
+            <div class="manual-rows" id="manualRows">
+              <div v-for="(row, i) in manualForm.ingredients" :key="'mr' + i" class="manual-row">
+                <input class="input manual-ing-name" :id="'manualRowName' + i" type="text"
+                       list="manualIngList" autocomplete="off" placeholder="食材名，如 番茄"
+                       v-model="row.name">
+                <input class="input manual-ing-gram" :id="'manualRowGram' + i" type="number"
+                       min="1" max="5000" step="5" placeholder="克数" v-model="row.grams">
+                <button class="manual-del" type="button" :id="'manualRowDel' + i"
+                        :aria-label="'删除第 ' + (i + 1) + ' 行食材'"
+                        @click="removeManualRow(i)">删</button>
+              </div>
+            </div>
+            <button class="secondary-btn manual-add" id="manualAddRow" type="button"
+                    @click="addManualRow">+ 加一样食材</button>
+          </div>
+
+          <div class="manual-block">
+            <div class="manual-block-head">
+              <span class="manual-label">做法步骤</span>
+              <span class="manual-hint">至少 3 条，按顺序写</span>
+            </div>
+            <div class="manual-rows" id="manualSteps">
+              <div v-for="(s, i) in manualForm.steps" :key="'ms' + i" class="manual-row manual-step-row">
+                <span class="manual-step-no">{{ i + 1 }}</span>
+                <input class="input manual-step-text" :id="'manualStep' + i" type="text"
+                       :placeholder="'第 ' + (i + 1) + ' 步做什么'" v-model="manualForm.steps[i]">
+                <button class="manual-del" type="button" :id="'manualStepDel' + i"
+                        :aria-label="'删除第 ' + (i + 1) + ' 步'"
+                        @click="removeManualStep(i)">删</button>
+              </div>
+            </div>
+            <button class="secondary-btn manual-add" id="manualAddStep" type="button"
+                    @click="addManualStep">+ 加一步</button>
+          </div>
+
+          <div class="manual-cols">
+            <label class="manual-field">
+              <span class="manual-label">总耗时（分钟，可留空）</span>
+              <input class="input" id="manualCookTime" type="number" min="1" max="600"
+                     placeholder="如 20" v-model="manualForm.cookTimeMin">
+            </label>
+            <label class="manual-field">
+              <span class="manual-label">难度</span>
+              <select class="input" id="manualDifficulty" v-model.number="manualForm.difficulty">
+                <option v-for="(text, level) in DIFFICULTY_TEXT" :key="'md' + level"
+                        :value="Number(level)">{{ text }}</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="manual-field">
+            <span class="manual-label">小贴士（可留空）</span>
+            <input class="input" id="manualChefTip" type="text" maxlength="120"
+                   placeholder="如「番茄先炒出沙，汤更浓」" v-model="manualForm.chefTips">
+          </label>
+
+          <!-- 实时试算：边填边看，别等提交完才发现克数没填、步骤不够 -->
+          <div class="manual-preview" id="manualPreview">
+            <p class="manual-preview-text" id="manualPreviewText">{{ manualPreviewText }}</p>
+            <ul v-if="manualProblems.length" class="manual-problems" id="manualProblems">
+              <li v-for="(p, i) in manualProblems" :key="'mp' + i">{{ p }}</li>
+            </ul>
+            <ul v-if="manualWarnings.length" class="manual-warnings" id="manualWarnings">
+              <li v-for="(w, i) in manualWarnings" :key="'mw' + i">{{ w }}</li>
+            </ul>
+          </div>
+        </div>
+
+        <footer class="manual-foot">
+          <span class="manual-foot-note" id="manualFootNote">{{ manualFootNote }}</span>
+          <button class="secondary-btn" id="manualCancel" type="button" @click="closeManual">取消</button>
+          <button class="submit" id="manualSubmit" type="button"
+                  :disabled="manualBusy || !manualReady" @click="submitManual">
+            {{ manualBusy ? '正在上传…' : '上传菜谱' }}
+          </button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- 食材名联想：只用本地食材表（88 种），别名归一交给后端 -->
+    <datalist id="manualIngList">
+      <option v-for="ing in MANUAL_ING_OPTIONS" :key="'mi' + ing.id" :value="ing.name"></option>
+    </datalist>
   </div>
 </template>
 
@@ -339,7 +579,7 @@
      ① 召回：选食材 → 查库里有没有现成的（毫秒级，同步返回）
      ② 生成：交给 AI 现场做（十几秒，异步排队）
    ============================================================ */
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import FxBg from '../components/FxBg.vue'
 import TopBar from '../components/TopBar.vue'
 import TaskRow from '../components/TaskRow.vue'
@@ -364,6 +604,76 @@ const selectedIds = ref([])        // 从列表点选的食材 ID（数字）
 const freeIngredients = ref([])    // 自由输入的食材名
 const tastes = ref([])
 const servings = ref(2)
+
+/* ---------------- 找菜模式与「更多条件」（P1-2 的两种模式 + P1-3 的生成约束） ----------------
+   同一套条件同时作用于「找菜」和「让 AI 做」：
+   找菜时它们是硬过滤（忌口的东西根本不该被推荐出来），
+   生成时它们进提示词、并逐条被校验器检查。
+   做成一套输入，是为了避免"搜的时候忌口了、生成的时候忘了"这种前后不一致。 */
+const searchMode = ref('loose')     // strict 只用现有主料 / loose 允许缺几样
+const maxMissing = ref(2)           // 宽松模式下最多允许缺几样主料
+const mustUseIds = ref([])          // 必用食材（只影响生成）
+const excludeNames = ref([])        // 忌口食材名（搜与生成都生效）
+const excludeInput = ref('')
+const maxCookTimeMin = ref(null)    // 最长总耗时（搜与生成都生效）
+const equipment = ref([])           // 可用厨具（只影响生成）
+const equipmentInput = ref('')
+const moreOpen = ref(false)
+
+/**
+ * 必用食材只能从已选食材里挑。
+ * 让人手动输入一个手边没有的食材再要求"必须用上"，是自相矛盾的请求
+ * （后端也会在提交阶段把这类无解条件拒掉）。
+ */
+const effectiveMustUse = computed(() =>
+  mustUseIds.value.filter(id => selectedIds.value.includes(id)))
+
+function toggleMustUse(id) {
+  const i = mustUseIds.value.indexOf(id)
+  if (i >= 0) mustUseIds.value.splice(i, 1)
+  else mustUseIds.value.push(id)
+}
+
+/** 加忌口。逗号、顿号、空格都认 —— 方便一次粘贴/输入多个 */
+function addExcludes(raw) {
+  splitNames(raw).forEach(name => {
+    if (!excludeNames.value.includes(name)) excludeNames.value.push(name)
+  })
+  excludeInput.value = ''
+}
+
+function removeExclude(name) {
+  excludeNames.value = excludeNames.value.filter(n => n !== name)
+}
+
+function addEquipments(raw) {
+  splitNames(raw).forEach(name => {
+    if (!equipment.value.includes(name)) equipment.value.push(name)
+  })
+  equipmentInput.value = ''
+}
+
+function removeEquipment(name) {
+  equipment.value = equipment.value.filter(n => n !== name)
+}
+
+function splitNames(raw) {
+  return String(raw || '').split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean)
+}
+
+/**
+ * 缺料文案。
+ *
+ * 一个"还缺 2 样"的数字远不如"还差 松露、牛肉"有用 ——
+ * 前者只能告诉你"不太行"，后者能让你决定"那就买这两样"或者"换一道"。
+ */
+function missingText(item) {
+  if (!item) return ''
+  const n = item.missingCount || 0
+  if (n <= 0) return '主料齐了'
+  const names = (item.missingIngredients || []).join('、')
+  return names ? ('还差 ' + names) : ('还差 ' + n + ' 样主料')
+}
 
 const loading = ref(false)         // 召回请求进行中
 const genBusy = ref(false)         // 生成提交进行中
@@ -603,6 +913,7 @@ function candSub(c) {
   const bits = []
   if (c.ratingCount > 0) bits.push(c.ratingAvg + ' 分（' + c.ratingCount + ' 人）')
   if (c.cookTimeMin) bits.push(c.cookTimeMin + ' 分钟')
+  if (c.missingCount > 0) bits.push(missingText(c))
   return bits.join(' · ')
 }
 
@@ -618,6 +929,13 @@ async function doSearch() {
       // 自由输入的食材也一起送过去，让召回层知道用户手边有什么。
       // 召回层只认 ID，所以这些名字只影响"缺了什么"的提示，不会误召回。
       freeIngredients: [...freeIngredients.value],
+      // P1-2 的两种模式：strict = 一点缺料都不接受；loose = 允许缺 maxMissing 样
+      mode: searchMode.value,
+      maxMissing: searchMode.value === 'strict' ? null : maxMissing.value,
+      // 忌口与时长是硬过滤：不满足的菜不该出现在结果里，
+      // 否则用户看到一堆"看着不错但做不了"的菜，还得自己逐条排除
+      excludeIngredients: [...excludeNames.value],
+      maxCookTimeMin: maxCookTimeMin.value || null,
       page: 1,
       size: 10
     })
@@ -638,7 +956,13 @@ function buildPayload() {
     ingredientIds: [...selectedIds.value],
     freeIngredients: [...freeIngredients.value],
     tastes: tastes.value.length ? [...tastes.value] : [],
-    servings: servings.value
+    servings: servings.value,
+    // P1-3 的生成约束：必用 / 忌口 / 时长上限 / 可用厨具。
+    // 空数组与不传等价（后端 toConstraints() 会把空值归一成 none()）
+    mustUseIngredientIds: [...effectiveMustUse.value],
+    excludeIngredients: [...excludeNames.value],
+    maxCookTimeMin: maxCookTimeMin.value || null,
+    availableEquipment: [...equipment.value]
   }
 }
 
@@ -862,6 +1186,176 @@ async function onTaskAction(act, taskId) {
   }
 }
 
+/* ---------------- 手写菜谱（用户自定义，source=3） ----------------
+
+   为什么做成同一页的覆盖层而不是新路由：用户手边有什么食材，本来就在这页
+   点着（selectedIds / freeIngredients）。跳走再跳回来，这份没提交的草稿就没了；
+   而且"我这几样食材能做点什么"和"我自己写一道"本来就是同一件事的两条出路。
+
+   营养全部按食材库成分表本地算（后端 NutritionCalculator）：
+   手写菜没有 AI 估算这条退路 —— 对不上成分表的食材会被标出来、并记进候选食材表，
+   值照样算给你看，只是标成"未核验"。 */
+
+/** 面板里食材名联想用；本地食材表 88 种，别名归一交给后端 IngredientDirectory */
+const MANUAL_ING_OPTIONS = allLocalIngredients()
+
+const manualOpen = ref(false)
+const manualBusy = ref(false)
+const manualPreview = ref(null)   // 最近一次试算结果（preview 不落库）
+let manualTimer = null
+
+function emptyManualRow() {
+  return { name: '', grams: '' }
+}
+
+/** 空表单：默认 3 行食材 + 3 步 —— 正好是「能发布」的最小骨架，省得用户自己数 */
+function emptyManualForm() {
+  return {
+    name: '',
+    servings: servings.value,
+    cookTimeMin: '',
+    difficulty: 2,
+    chefTips: '',
+    ingredients: [emptyManualRow(), emptyManualRow(), emptyManualRow()],
+    steps: ['', '', '']
+  }
+}
+
+const manualForm = ref(emptyManualForm())
+
+const manualPreviewText = computed(() => {
+  const p = manualPreview.value
+  return (p && p.text) || '填完食材和步骤，这里会实时算出每人份热量。'
+})
+const manualProblems = computed(() => (manualPreview.value && manualPreview.value.problems) || [])
+const manualWarnings = computed(() => (manualPreview.value && manualPreview.value.warnings) || [])
+/** 只有后端试算说"ready"才让点上传：前端自己判一遍门槛容易和后端判歪 */
+const manualReady = computed(() => !!(manualPreview.value && manualPreview.value.ready))
+const manualFootNote = computed(() => {
+  if (manualBusy.value) return '正在上传…'
+  if (!manualPreview.value) return '还没试算'
+  if (manualReady.value) return '够门槛了，上传后直接进找菜库'
+  return '还差 ' + manualProblems.value.length + ' 项，补上再上传'
+})
+
+/** 预填：把已选/自填的食材搬进食材表，克数留空让用户自己填 */
+function prefillManualRows() {
+  const rows = sortedSelected.value.map(id => ({ name: nameOfIngredient(id), grams: '' }))
+  freeIngredients.value.forEach(name => rows.push({ name, grams: '' }))
+  while (rows.length < 3) rows.push(emptyManualRow())
+  return rows
+}
+
+function openManual() {
+  manualForm.value = {
+    ...emptyManualForm(),
+    servings: servings.value,
+    ingredients: prefillManualRows()
+  }
+  manualPreview.value = null
+  manualOpen.value = true
+  scheduleManualPreview()
+}
+
+function closeManual() {
+  manualOpen.value = false
+  clearTimeout(manualTimer)
+}
+
+function addManualRow() {
+  manualForm.value.ingredients.push(emptyManualRow())
+}
+
+function removeManualRow(i) {
+  manualForm.value.ingredients.splice(i, 1)
+  if (!manualForm.value.ingredients.length) addManualRow()
+}
+
+function addManualStep() {
+  manualForm.value.steps.push('')
+}
+
+function removeManualStep(i) {
+  manualForm.value.steps.splice(i, 1)
+  if (!manualForm.value.steps.length) addManualStep()
+}
+
+/**
+ * 表单 → 后端 ManualDishRequest。
+ *
+ * 空克数必须转成 null：`type=number` 的空输入 v-model 拿到的是空字符串，
+ * 原样发出去后端按 BigDecimal 解析会直接失败（"边填边试算"时这一步天天发生）。
+ */
+function manualPayload() {
+  const f = manualForm.value
+  return {
+    name: (f.name || '').trim(),
+    servings: f.servings,
+    cookTimeMin: f.cookTimeMin === '' || f.cookTimeMin == null ? null : Number(f.cookTimeMin),
+    difficulty: f.difficulty,
+    chefTips: (f.chefTips || '').trim(),
+    ingredients: f.ingredients
+      .map(r => {
+        const name = (r.name || '').trim()
+        return {
+          name,
+          ingredientId: findIngredientIdByName(name),
+          grams: r.grams === '' || r.grams == null ? null : Number(r.grams)
+        }
+      })
+      .filter(r => r.name || r.grams != null),
+    steps: f.steps.map(s => (s || '').trim()).filter(Boolean)
+  }
+}
+
+/** 边填边算：300ms 防抖 —— 每敲一个字母打一次后端，只会让面板一直闪 */
+function scheduleManualPreview() {
+  clearTimeout(manualTimer)
+  manualTimer = setTimeout(runManualPreview, 300)
+}
+
+async function runManualPreview() {
+  const payload = manualPayload()
+  // 表单还空着就别问了：后端只会回一堆"没填"，还白花一次请求
+  if (!payload.name && !payload.ingredients.length && !payload.steps.length) {
+    manualPreview.value = null
+    return
+  }
+  try {
+    manualPreview.value = await DishApi.manualPreview(payload)
+  } catch (e) {
+    manualPreview.value = null
+    toastError(e.message)
+  }
+}
+
+async function submitManual() {
+  if (manualBusy.value) return
+  const name = (manualForm.value.name || '').trim()
+  manualBusy.value = true
+  try {
+    const res = await DishApi.createManual(manualPayload())
+    if (res && res.published) {
+      toastSuccess('「' + name + '」已发布到找菜库')
+    } else {
+      const why = res && res.problems && res.problems.length
+        ? '，还差：' + res.problems.join('；')
+        : ''
+      toastInfo('「' + name + '」已存为草稿' + why, 4000)
+    }
+    closeManual()
+  } catch (e) {
+    toastError(e.message)
+  } finally {
+    manualBusy.value = false
+  }
+}
+
+// 面板里的任何改动都触发一次试算（deep 监听，不必给每个输入框挂 @input）
+watch(manualForm, () => {
+  if (manualOpen.value) scheduleManualPreview()
+}, { deep: true })
+
 /* ---------------- 启动 ---------------- */
 
 /** 点到别处就收起联想（原生版是挂在 document 上的全局监听） */
@@ -893,5 +1387,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopPolling()
   clearTimeout(flashTimer)
+  clearTimeout(manualTimer)
 })
 </script>

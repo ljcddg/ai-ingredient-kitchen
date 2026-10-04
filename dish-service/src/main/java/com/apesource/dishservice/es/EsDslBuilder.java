@@ -48,11 +48,9 @@ public class EsDslBuilder {
             "ingredientIds", "mainIngredientIds", "ingredientNames", "ingredientCount",
             "tasteTags", "tagIds", "baseServing", "difficulty", "cookTimeMin",
             "ratingAvg", "ratingWilson", "ratingCount", "collectCount", "viewCount",
+            "rankLevel", "dishScore", "pushCount", "likeCount", "cookCount",
             "energyKcal", "publishTime"
     );
-
-    /** 相似召回的放宽比例：至少命中所选食材的 60% */
-    private static final double PARTIAL_MIN_RATIO = 0.6;
 
     private final EsProperties properties;
 
@@ -64,11 +62,10 @@ public class EsDslBuilder {
      * @param ingredientIds 用户选中的食材 ID（调用前已去重排序），可空
      * @param freeNames     用户自由输入的食材名（食材表之外、没有主数据 ID），可空
      * @param tasteTags     口味标签，可空
-     * @param allowPartial  是否允许缺食材（软匹配）
      * @return ES {@code _search} 的请求体 JSON
      */
     public String buildRecallBody(List<Long> ingredientIds, List<String> freeNames,
-                                  List<String> tasteTags, boolean allowPartial) {
+                                  List<String> tasteTags) {
         ObjectNode root = objectMapper.createObjectNode();
 
         ObjectNode functionScore = root.putObject("query").putObject("function_score");
@@ -78,13 +75,18 @@ public class EsDslBuilder {
         ArrayNode filters = bool.putArray("filter");
         filters.addObject().putObject("term").put("status", 1);
         filters.addObject().putObject("term").put("deleted", 0);
+        // 冷启动：搜索只召回已晋级（rankLevel=2）的菜。
+        // 推荐池里的新菜还没被验证过，它们的曝光走推荐流，不占搜索结果 ——
+        // 否则"搜得到但没人看过"的菜会挤掉真正被验证过的好菜。
+        // 注意：索引里必须有这个字段，否则这条过滤会把所有文档都滤掉。
+        filters.addObject().putObject("term").put("rankLevel", 2);
         if (tasteTags != null && !tasteTags.isEmpty()) {
             ArrayNode tagArray = filters.addObject().putObject("terms").putArray("tasteTags");
             tasteTags.forEach(tagArray::add);
         }
 
         // ---------------- 食材约束 ----------------
-        buildIngredientClause(bool, ingredientIds, freeNames, allowPartial);
+        buildIngredientClause(bool, ingredientIds, freeNames);
 
         // ---------------- function_score：粗排加权 ----------------
         ArrayNode functions = functionScore.putArray("functions");
@@ -123,41 +125,39 @@ public class EsDslBuilder {
     /**
      * 组装食材约束条件 —— 本类的核心。
      *
-     * <p><b>为什么逐项拼子句，而不是用一个 {@code terms} 数组：</b>
-     * <ol>
-     *   <li>食材有 ID（表内）和名字（表外）两个来源，而 {@code terms} 一次只能查一个字段；</li>
-     *   <li>逐项子句之后，「命中几个子句」就等于「覆盖了几样食材」，
-     *       软匹配的 {@code minimum_should_match} 因此能直接表达为「至少覆盖几样」。</li>
-     * </ol>
+     * <p><b>为什么改成"至少命中一样"（原来分硬约束/软匹配两种模式）：</b>
+     * 原来的硬约束是「菜必须包含你选的<b>全部</b>食材」—— 这个约束本身是错的。
+     * 用户报出「番茄、鸡蛋、牛肉、奶酪」，意思是<b>手边有这些</b>，
+     * 并不要求一道菜把四样全用上（说明文档里也专门点了这一条）。
+     * 按"全部匹配"去找，会把这些食材都在用、只是没凑齐四样的菜全部排除，
+     * 命中率极低，于是几乎所有请求都落到"调 AI"上。
      *
-     * <p>硬约束模式：全部子句放进 {@code must}，一样都不能少。
-     * <p>软匹配模式：全部子句放进 {@code should}，{@code minimum_should_match} 取
-     * 「食材总数 × 60%」向上取整。
+     * <p>真正该管的约束是「这道菜要求的<b>必需主料</b>你有没有」——
+     * 那是集合运算，ES 表达不了（它不知道每道菜的主料集合相对你的集合缺了什么），
+     * 所以放到应用层算（见 {@code DishSearchService} 的满足率 / 缺料数 / 硬约束过滤）。
+     * ES 这一步只负责把"用到了至少一样你有的食材"的候选捞回来。
+     *
+     * <p><b>顺带的好处</b>：should 子句命中得越多、bool 的分数越高，
+     * 于是「用上你更多食材」的菜在 ES 粗排里就靠前 —— 相当于免费得到一层粗排。
+     *
+     * <p><b>为什么逐项拼子句，而不是用一个 {@code terms} 数组：</b>
+     * 食材有 ID（表内）和名字（表外）两个来源，而 {@code terms} 一次只能查一个字段。
+     *
+     * <p>【踩过的坑】{@code minimum_should_match} 必须设在 {@code bool} 上，
+     * 不能塞进 {@code terms} 里 —— terms 查询不认这个参数，
+     * 塞进去会被 ES 当成一个"待匹配的字段名"，那条分支于是永远不命中。
      */
     private void buildIngredientClause(ObjectNode bool, List<Long> ingredientIds,
-                                       List<String> freeNames, boolean allowPartial) {
+                                       List<String> freeNames) {
         List<Long> ids = ingredientIds == null ? List.of() : ingredientIds;
         List<String> names = freeNames == null ? List.of() : freeNames;
-        int total = ids.size() + names.size();
 
-        if (allowPartial) {
-            int minMatch = Math.max(1, (int) Math.ceil(total * PARTIAL_MIN_RATIO));
+        ArrayNode should = bool.putArray("should");
+        ids.forEach(id -> should.addObject().putObject("term").put("ingredientIds", id));
+        names.forEach(name -> should.addObject().putObject("term").put("ingredientNames", name));
 
-            ArrayNode should = bool.putArray("should");
-            ids.forEach(id -> should.addObject().putObject("term").put("ingredientIds", id));
-            names.forEach(name -> should.addObject()
-                    .putObject("term").put("ingredientNames", name));
-
-            // 【踩过的坑】minimum_should_match 必须设在 bool 上，不能塞进 terms 里：
-            // terms 查询不认这个参数，塞进去会被 ES 当成一个"待匹配的字段名"，
-            // 那条分支于是永远不命中 —— 软匹配会悄悄退化成「至少中一样」。
-            bool.put("minimum_should_match", minMatch);
-            return;
-        }
-
-        ArrayNode must = bool.putArray("must");
-        ids.forEach(id -> must.addObject().putObject("term").put("ingredientIds", id));
-        names.forEach(name -> must.addObject().putObject("term").put("ingredientNames", name));
+        // 一样都不沾的菜没有召回的资格（Service 层已保证至少有一种食材）
+        bool.put("minimum_should_match", 1);
     }
 
     private String toJson(ObjectNode node) {

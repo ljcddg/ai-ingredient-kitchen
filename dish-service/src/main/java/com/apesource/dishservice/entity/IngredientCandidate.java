@@ -53,6 +53,20 @@ public class IngredientCandidate {
     /** 转正后对应的 t_ingredient.id */
     private Long ingredientId;
 
+    /**
+     * 审核人用户ID（管理员）。
+     * <p>
+     * 与状态、时间、说明一起构成审核留痕。它回答的是"这条数据是谁放进主数据的" ——
+     * 主数据是所有归一化与营养计算的基准，出了脏数据必须能追到人。
+     */
+    private Long reviewedBy;
+
+    /** 审核时间 */
+    private LocalDateTime reviewTime;
+
+    /** 审核说明：拒绝时必填（为什么拒），通过时可选（依据是什么） */
+    private String reviewReason;
+
     private LocalDateTime firstSeen;
 
     private LocalDateTime lastSeen;

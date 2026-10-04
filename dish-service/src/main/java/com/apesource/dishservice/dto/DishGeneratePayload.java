@@ -12,5 +12,17 @@ import java.util.List;
  * <p>用 record 依赖 Jackson 的参数名推断，而参数名需要编译期 {@code -parameters}
  * （父 pom 里已开）。这也是那次 500 报错换来的经验。
  */
-public record DishGeneratePayload(List<IngredientRef> ingredients, List<String> tastes, int servings) {
+public record DishGeneratePayload(List<IngredientRef> ingredients, List<String> tastes, int servings,
+                                  GenerateConstraints constraints) {
+
+    /**
+     * 约束（老任务兜底）。
+     *
+     * <p>约束字段是后加的，库里 2026-10 之前提交的任务快照里没有这个 key，
+     * 反序列化出来是 null。所有读取方都走这里拿，就不会有人忘了判空 ——
+     * 忘了的表现是 <b>NPE 把任务打成失败</b>，而失败原因只写一句"落库失败"。
+     */
+    public GenerateConstraints constraintsOrNone() {
+        return constraints == null ? GenerateConstraints.none() : constraints;
+    }
 }

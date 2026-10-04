@@ -1,0 +1,90 @@
+{
+  "ran_at": "2026-10-02T00:08:13",
+  "fixed_conditions": {
+    "app_queue_concurrency": "ai.queue.concurrency = 2",
+    "ollama_parallel": "OLLAMA_NUM_PARALLEL = 1",
+    "context_length": "40960",
+    "model": "gemma4:e2b",
+    "hardware": "RTX 4060 Laptop 8G / 本机单实例"
+  },
+  "levels": [
+    {
+      "level": "sequential",
+      "concurrent": false,
+      "submitted": 2,
+      "completed": 2,
+      "wall_seconds": 483.7,
+      "throughput_per_min": 0.25,
+      "latency_p50_ms": 240162,
+      "latency_p95_ms": 240358,
+      "latency_mean_ms": 240260,
+      "queue_wait_max_ms": 308,
+      "queue_wait_mean_ms": 214,
+      "failure_count": 2,
+      "failure_rate": 1.0,
+      "mean_attempts": 0.0,
+      "tasks": [
+        {
+          "task_id": "2105687201584975873",
+          "status": 3,
+          "cost_ms": 240050,
+          "queue_wait_ms": 308,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        },
+        {
+          "task_id": "2105688215813820418",
+          "status": 3,
+          "cost_ms": 240041,
+          "queue_wait_ms": 121,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        }
+      ]
+    },
+    {
+      "level": "concurrent",
+      "concurrent": true,
+      "submitted": 4,
+      "completed": 4,
+      "wall_seconds": 483.9,
+      "throughput_per_min": 0.5,
+      "latency_p50_ms": 480289,
+      "latency_p95_ms": 480364,
+      "latency_mean_ms": 360298,
+      "queue_wait_max_ms": 240317,
+      "queue_wait_mean_ms": 120248,
+      "failure_count": 4,
+      "failure_rate": 1.0,
+      "mean_attempts": 0.0,
+      "tasks": [
+        {
+          "task_id": "2105689231108018178",
+          "status": 3,
+          "cost_ms": 240051,
+          "queue_wait_ms": 181,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        },
+        {
+          "task_id": "2105689231368065026",
+          "status": 3,
+          "cost_ms": 240057,
+          "queue_wait_ms": 251,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        },
+        {
+          "task_id": "2105689231623917570",
+          "status": 3,
+          "cost_ms": 240047,
+          "queue_wait_ms": 240242,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        },
+        {
+          "task_id": "2105689231883964417",
+          "status": 3,
+          "cost_ms": 240047,
+          "queue_wait_ms": 240317,
+          "error_msg": "模型响应超时（超过 240 秒），已放弃本次生成。可以重试，或换个更常见的食材组合"
+        }
+      ]
+    }
+  ]
+}

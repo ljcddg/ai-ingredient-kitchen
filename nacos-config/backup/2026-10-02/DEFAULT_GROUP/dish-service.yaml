@@ -1,0 +1,102 @@
+# ============================================================
+# dish-service 专属配置（Nacos DataId: dish-service.yaml, Group: DEFAULT_GROUP）
+# ============================================================
+# 数据源 / MyBatis-Plus 已经抽到 common.yaml，由本地 application.yml 一起导入。
+#
+# 推送命令（项目根目录执行）：
+#   curl -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" \
+#     --data-urlencode "dataId=dish-service.yaml" \
+#     --data-urlencode "group=DEFAULT_GROUP" \
+#     --data-urlencode "type=yaml" \
+#     --data-urlencode "content@nacos-config/dish-service.yaml"
+# ============================================================
+
+# ---------- 服务端口 ----------
+# 端口规划：gateway=7000，account-service=8081，dish-service=8082
+# 注意是 server.port，不是 spring.port（写成 spring.port 会被静默忽略）
+server:
+  port: 8082
+
+# ---------- Elasticsearch ----------
+# 唯一的检索服务端是 Docker 容器 es（镜像 elasticsearch:8.16.0，单节点）
+# ES 8 默认开启 security，该容器用 xpack.security.enabled=false 显式关掉了，
+# 所以仍然走 http、不需要用户名密码（原生解压版 7.16.2 已退役）
+es:
+  uris: http://127.0.0.1:9200
+  # 菜品索引名
+  dish-index: dish_index
+  # 连接超时（秒）
+  connect-timeout: 3
+  # 读超时（秒）
+  socket-timeout: 30
+
+  recall:
+    # ES 侧一次召回多少条候选进「粗排池」，应用层在此基础上精排 + 分页
+    top-n: 200
+    # 用户最多可选几种食材（防止 should 里拼出几十个 term 拖慢查询）
+    max-ingredients: 10
+
+  # ---------- 直出判定阈值 ----------
+  # 第一条件是「缺料为 0」：只要还缺主料，就谈不上"直接用这道菜"。
+  # 质量上给两条路，走哪条会记在返回结果的 directPath 里，便于核对。
+  judge:
+    # 【只给 legacy 排序策略用】覆盖率下限：命中食材数 / 用户所选食材数
+    min-similarity: 0.8
+    # 路径一「充分评价」：评价人数下限
+    min-rating-count: 10
+    # 路径一：威尔逊下界下限。
+    # 原来写的是 0.84，但 10 次满分的威尔逊下界只有约 0.722 ——
+    # 两条阈值永远不可能同时成立，直出条件实际上恒为假。这里调到 0.70：
+    # 10 次满分（0.722）能过，9 次满分（约 0.596）过不了。
+    # 另外注意：输入是平均星级归一化后的值，它只是排序启发式，
+    # 不要解释成严格的好评率置信区间。
+    min-rating-wilson: 0.70
+    # 路径二「少量高分」：新菜天然没人评价，给一条"3 个人都打高分"的通道
+    light-rating-count: 3
+    light-rating-avg: 4.5
+
+  # ---------- 应用层综合分 ----------
+  # satisfaction（默认）= 满足率 + 利用率 + 质量分 + 热度 − 缺料惩罚
+  # legacy             = 覆盖率 + 质量分 + 热度（原公式，留作对照实验的基线）
+  score:
+    strategy: satisfaction
+    # legacy 用：覆盖率权重
+    weight-similarity: 0.5
+    # satisfaction 用：主料满足率（这道菜现在能不能做）
+    weight-satisfaction: 0.40
+    # satisfaction 用：主料利用率（你的食材被用掉多少）
+    weight-utilization: 0.15
+    # 两套策略共用：质量分与收藏热度
+    weight-wilson: 0.30
+    weight-collect: 0.15
+    # 缺料惩罚：缺得越多扣得越多，扣到 missing-penalty-cap 样就封顶
+    missing-penalty: 0.25
+    missing-penalty-cap: 3
+    # 收藏热度归一化基准：log1p(collectCount) / log1p(该值)
+    collect-baseline: 1000.0
+
+# ---------- AI 生成 ----------
+# 这些值本来就是 GenerateProperties 里的默认值，写在这里是为了：
+#   ① 换模型/改提示词之后能不改代码就调；② 对照实验要能远程切开关
+ai:
+  generate:
+    # 最多尝试几次（含首次）。2 = 失败重试 1 次
+    max-attempts: 2
+    # 生成温度。实测 0.7 有变化但不跑偏
+    temperature: 0.7
+    # 营养校验容差（本地算的值与 AI 给的值偏差超过这个比例就标记为未核实）
+    nutrition-tolerance: 0.4
+    # P2-1 参考菜谱增强：生成前检索库内相似菜谱作为参考注入提示词。
+    # 做对照实验时把它切成 false 就是"直接生成"那一臂
+    enhance-enabled: true
+    # 注入几条参考菜谱（1~5）。3 是实测平衡点：再多模型容易照抄
+    reference-limit: 3
+    # 每条参考带几步做法要点（只给前几步，避免整道菜被抄下来）
+    reference-step-hints: 2
+    # 单次模型调用超时（秒）。实测依据：单请求独占模型约 40~175 秒；
+    # 两个任务并发时（Ollama 并行度 1，分时复用）单次调用会超过 240 秒 ——
+    # 用 240 会把这 6 个任务全部误判成超时失败。600 秒只兜"真的卡死"。
+    attempt-timeout-seconds: 600
+    # 降级配额：检索引擎不可用时，每个用户每小时最多提交几次生成。
+    # 防止一次 ES 抖动把本地模型队列堵死（说明文档第四节）
+    degraded-quota-per-hour: 5

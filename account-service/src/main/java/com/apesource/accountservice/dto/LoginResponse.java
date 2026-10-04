@@ -29,11 +29,21 @@ public class LoginResponse {
     /** 昵称 */
     private String nickname;
 
+    /**
+     * 角色：0-普通用户，1-管理员。
+     * <p>
+     * 前端拿它决定要不要显示管理入口。<b>它只用于界面展示</b>——
+     * 真正的权限判定在服务端（dish-service 会回源查 {@code t_user.role}），
+     * 所以提权/降权后不需要重新登录，前端那点显示差异刷新一下就好。
+     */
+    private Integer role;
 
-    public LoginResponse(String token, Long userId, String username, String nickname) {
+
+    public LoginResponse(String token, Long userId, String username, String nickname, Integer role) {
         this.token = token;
         this.userId = userId;
         this.username = username;
         this.nickname = nickname;
+        this.role = role;
     }
 }

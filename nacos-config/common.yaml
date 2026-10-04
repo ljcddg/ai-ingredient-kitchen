@@ -68,5 +68,7 @@ mybatis-plus:
   configuration:
     # 下划线转驼峰：数据库 create_time -> 实体 createTime
     map-underscore-to-camel-case: true
-    # 开发期打印 SQL，上线记得关
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # SQL 日志：**默认关**。开着的时候每条 SQL（含参数）都往 stdout 打，
+    # 实测把后台索引同步拖到约 0.3 条/秒（正常是几十条/秒的量级），
+    # 排查问题时再临时改成 org.apache.ibatis.logging.stdout.StdOutImpl。
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

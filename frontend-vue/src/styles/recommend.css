@@ -1,0 +1,554 @@
+/* ============================================================
+   推荐页专属样式
+   ------------------------------------------------------------
+   令牌、顶栏、按钮、卡片、空态、骨架、Toast 都在 styles/app.css，
+   流动背景在 styles/fx-bg.css。本文件只放这一页独有的东西。
+
+   【和找菜页的关系】两个字都用了「左选右出」的两栏工作台：
+     找菜页  .page-kitchen .workbench   392px + 1fr
+     推荐页  .page-recommend .workbench 340px + 1fr
+   配方一致、左栏略窄（推荐页左栏只有食材 + 缺料容忍两项，
+   不像找菜页要放口味/人数/更多条件），保证两页切换时不像换了个产品。
+
+   【为什么左栏的食材组件样式要重写一份而不是复用 kitchen.css】
+   kitchen.css 里的选择器全部带 .page-kitchen 前缀 —— 这是刻意的：
+   同一个组件在两个页面出现时，样式按页前缀各管各的，改一边不会
+   意外影响另一边。代价是这些规则要复制过来，收益是「改推荐页的
+   食材网格，结果找菜页跟着变了」这种事不会发生。
+   ============================================================ */
+
+/* ---------- 工作台两栏 ---------- */
+/*
+ * position + z-index 不能删：.fx-bg 是 fixed + z-index:0（定位元素），
+ * 本元素默认 static，绘制顺序里定位元素在上 —— 不抬起来会被背景盖住。
+ */
+.page-recommend .workbench{
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 20px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 24px 20px 72px;
+    align-items: start;
+    animation: fxRise .42s var(--ease) both;
+}
+
+@media (max-width: 980px) {
+    .page-recommend .workbench{
+        grid-template-columns: minmax(0, 1fr);
+        padding: 16px 14px 64px;
+    }
+}
+
+/* ---------- 左栏面板 ---------- */
+.page-recommend .panel{
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-1);
+}
+
+.page-recommend .picker{
+    position: sticky;
+    top: 84px;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 108px);
+    padding: 18px;
+    /* 面板自己不能滚，要让内部的 .picker-scroll 滚 ——
+       否则底部固定的提交按钮会跟着一起滚走。
+       用 clip 而不是 hidden：clip 只裁剪、不创建新的滚动容器，
+       不会破坏 .picker 自身 sticky 的参照，也不会在内部元素获得焦点时
+       让面板自己滚动。下面一行是给不支持 clip 的浏览器兜底。 */
+    overflow: hidden;
+    overflow: clip;
+}
+
+.page-recommend .picker-scroll{
+    flex: 1 1 auto;
+    /* flex 子项默认不收缩，少了这行内部滚动不会生效 */
+    min-height: 0;
+    overflow-y: auto;
+    /* 负边距让滚动条贴到面板边缘，不占内容宽度 */
+    margin: 0 -18px;
+    padding: 0 18px;
+}
+
+.page-recommend .picker-scroll::-webkit-scrollbar{ width: 8px; }
+.page-recommend .picker-scroll::-webkit-scrollbar-track{ background: transparent; }
+.page-recommend .picker-scroll::-webkit-scrollbar-thumb{
+    background: var(--line-2);
+    border: 2px solid var(--surface);
+    border-radius: 999px;
+}
+
+/* 提交区固定在面板底部：食材列表很长，滚到底才看见按钮等于没有按钮 */
+.page-recommend .picker-actions{
+    flex: none;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+}
+
+.page-recommend .picked-count{
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.page-recommend .picker-btns{
+    display: flex;
+    gap: 8px;
+}
+
+.page-recommend .picker-btns .secondary-btn{ flex: none; }
+/* 主按钮占满剩余宽度 —— 它是这一栏唯一的目标动作 */
+.page-recommend .picker-btns .primary-btn{ flex: 1 1 auto; }
+
+@media (max-width: 980px) {
+    .page-recommend .picker{
+        position: static;
+        max-height: none;
+        display: block;
+    }
+    .page-recommend .picker-scroll{
+        overflow-y: visible;
+        margin: 0;
+        padding: 0;
+    }
+}
+
+/* ---------- 字段块 ---------- */
+.page-recommend .field + .field{
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.page-recommend .field-head{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.page-recommend .field-label{
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+.page-recommend .field-hint{
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 食材搜索 ---------- */
+.page-recommend .ing-search{
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.page-recommend .ing-search-icon{
+    position: absolute;
+    left: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--ink-3);
+    pointer-events: none;
+}
+
+.page-recommend .ing-search-input{
+    width: 100%;
+    padding: 8px 32px 8px 31px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--glass-2);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    transition: border-color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-recommend .ing-search-input::placeholder{ color: var(--ink-3); }
+.page-recommend .ing-search-input:focus{
+    outline: none;
+    border-color: var(--accent);
+    /* 聚焦时给不透明底：正在输入的时候不希望背景的光斑干扰视线 */
+    background: var(--surface);
+}
+
+/* type="search" 在 WebKit 下自带清除叉，和右侧自绘的会并排出现两个，关掉它 */
+.page-recommend .ing-search-input::-webkit-search-cancel-button{
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.page-recommend .ing-search-clear{
+    position: absolute;
+    right: 6px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-3);
+    cursor: pointer;
+    transition: color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-recommend .ing-search-clear:hover{ color: var(--ink); background: var(--line); }
+.page-recommend .ing-search-clear svg{ width: 10px; height: 10px; }
+
+.page-recommend .ing-search-miss{
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* ---------- 食材按钮 ---------- */
+.page-recommend .ing-group + .ing-group{ margin-top: 14px; }
+
+.page-recommend .ing-group-name{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.page-recommend .group-tone{
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    /* 色点只是分类标识，不参与强调，所以压一点不透明度 */
+    opacity: .85;
+}
+
+/* 左栏比找菜页窄（340 vs 392），格子最小宽度跟着收一档，
+   否则一行只放得下 3 个，88 种食材要滚很久 */
+.page-recommend .ing-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 7px;
+}
+
+.page-recommend .ing{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 36px;
+    padding: 7px 6px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-recommend .ing:hover{ border-color: var(--ink-3); }
+.page-recommend .ing:active{ transform: scale(.97); }
+
+.page-recommend .ing[aria-pressed="true"]{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    /* 选中态只换底色在流光背景上不够"跳"，补一圈柔和外发光。
+       用 box-shadow 而不是 outline —— outline 不占布局但会被相邻按钮压住，
+       视觉上像缺了口。 */
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+    animation: recIngPop .22s var(--ease);
+}
+
+@keyframes recIngPop {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.055); }
+    100% { transform: scale(1); }
+}
+
+.page-recommend .ing-tick{
+    width: 12px;
+    height: 12px;
+    flex: none;
+    display: none;
+}
+
+.page-recommend .ing[aria-pressed="true"] .ing-tick{ display: block; }
+
+/* ---------- 已选食材摘要 ---------- */
+.page-recommend .picked{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+}
+
+.page-recommend .picked-chip{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-recommend .picked-chip:hover{ border-color: var(--ink-3); color: var(--ink); }
+.page-recommend .picked-chip svg{ width: 10px; height: 10px; opacity: .7; }
+
+/* 自填食材标一下：它不参与营养校验、也进不了倒排索引，
+   和主数据食材不是一回事，得让用户看出来 */
+.page-recommend .picked-tag{
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: 10.5px;
+}
+
+.page-recommend .picked-empty{
+    color: var(--ink-3);
+    font-size: 12px;
+}
+
+/* ---------- 自由输入 + 联想 ---------- */
+.page-recommend .free-ing{ margin-top: 12px; }
+
+.page-recommend .free-ing-row{
+    display: flex;
+    gap: 8px;
+}
+
+.page-recommend .free-ing-row .input{ flex: 1 1 auto; min-width: 0; }
+.page-recommend .free-ing-row .secondary-btn{ flex: none; padding: 9px 14px; }
+
+.page-recommend .suggest{
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--glass-2);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    overflow: hidden;
+}
+
+.page-recommend .suggest-item{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 11px;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.page-recommend .suggest-item:hover,
+.page-recommend .suggest-item.is-active{ background: var(--accent-soft); }
+
+.page-recommend .suggest-group{
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+/* ---------- 缺料容忍分段（和厨房页 .segments 同一套） ---------- */
+.page-recommend .segments{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    /* 槽体是"凹槽"，选中格是"凸起"，两者靠明度差区分 */
+    background: var(--glass-2);
+}
+
+.page-recommend .seg{
+    padding: 7px 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background .16s var(--ease), color .16s var(--ease);
+}
+
+.page-recommend .seg:hover{ color: var(--ink); }
+
+.page-recommend .seg[aria-pressed="true"]{
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(34, 32, 30, .08);
+}
+
+.page-recommend .chips{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+}
+
+.page-recommend .chip{
+    padding: 6px 14px;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-recommend .chip:hover{ border-color: var(--ink-3); }
+.page-recommend .chip:active{ transform: scale(.97); }
+
+.page-recommend .chip[aria-pressed="true"]{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ---------- 右栏结果 ---------- */
+.page-recommend .results{ min-width: 0; }
+
+.page-recommend .rec-list{
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 10px;
+}
+
+.page-recommend .rec-row{
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+
+/* 复用 rank.css 的条目外观（玻璃面 + hover 抬阴影），
+   推荐结果和榜单条目本来就该长一样 —— 都是"一道菜 + 几个角标" */
+.page-recommend .rank-item{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+    border-radius: var(--r-lg);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .16s var(--ease), box-shadow .16s var(--ease),
+                transform .1s var(--ease);
+}
+
+.page-recommend .rank-item:hover{
+    border-color: var(--ink-3);
+    box-shadow: var(--shadow-pop);
+}
+
+.page-recommend .rank-item:active{ transform: scale(.995); }
+
+.page-recommend .rec-main{
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.page-recommend .rank-main{ min-width: 0; flex: 1 1 auto; }
+
+.page-recommend .rank-name{
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+}
+
+.page-recommend .rank-summary{
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.page-recommend .rank-meta{
+    margin-top: 7px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* 点赞按钮 */
+.page-recommend .rec-like{
+    flex: none;
+    align-self: center;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: border-color .16s var(--ease), background .16s var(--ease),
+                color .16s var(--ease), transform .1s var(--ease);
+}
+
+.page-recommend .rec-like:hover{ border-color: var(--ink-3); color: var(--ink); }
+.page-recommend .rec-like:active{ transform: scale(.97); }
+
+.page-recommend .rec-like.on{
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ---------- 换一批 ---------- */
+.page-recommend .rec-more{
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+}
+
+/* 窄屏：收掉点赞按钮的内边距，让菜名和角标先站住 */
+@media (max-width: 560px){
+    .page-recommend .rank-item{ padding: 12px 14px; gap: 10px; }
+    .page-recommend .rec-like{ padding: 6px 10px; font-size: 12.5px; }
+}

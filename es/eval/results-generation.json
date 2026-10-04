@@ -1,0 +1,45 @@
+{
+  "ran_at": "2026-10-01T23:39:05",
+  "repeats": 1,
+  "queries": [
+    "q133"
+  ],
+  "stats": {
+    "tasks_submitted": 1,
+    "records": 1,
+    "success": 1,
+    "failed": 0,
+    "cancelled": 0,
+    "format_pass_rate": 1.0,
+    "constraint_pass_rate": 1.0,
+    "constraint_violation_rate": 0.0,
+    "failure_rate": 0.0,
+    "first_try_rate": 1.0,
+    "mean_attempts": 1.0,
+    "mean_cost_ms": 175865,
+    "p50_cost_ms": 175865,
+    "p95_cost_ms": 175865,
+    "publish_rate": 1.0,
+    "models": [
+      "gemma4:e2b"
+    ],
+    "prompt_versions": [
+      "076b89e0"
+    ]
+  },
+  "records": [
+    {
+      "task_id": "2105683169864740866",
+      "status": 2,
+      "model": "gemma4:e2b",
+      "prompt_version": "076b89e0",
+      "attempts": 1,
+      "cost_ms": 175865,
+      "format_ok": 1,
+      "constraint_ok": 1,
+      "review_status": 1,
+      "temperature": "0.70",
+      "validation_errors": ""
+    }
+  ]
+}

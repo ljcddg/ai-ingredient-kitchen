@@ -54,10 +54,46 @@ public class DishSearchRequest {
 
     /**
      * 是否允许「相似召回」（允许缺部分食材）。
-     * 默认 false —— 先按硬约束找「完全覆盖所选食材」的菜，
-     * 一条都没有时再由上层决定要不要放开。
+     *
+     * <p>它的语义在本次改动后有了变化，<b>保留只是为了不打断前端</b>：
+     * <ul>
+     *   <li>旧语义：false = 菜必须包含你选的<b>全部</b>食材（ES 侧 must 硬过滤）。</li>
+     *   <li>新语义：它只是 {@link #mode} 的简写 —— true 等价于 {@code loose}。
+     *       因为"必须用上你冰箱里的每一样"这个约束本身就是错的：
+     *       你手上有番茄、鸡蛋、牛肉、奶酪，不代表要有一道菜把四样全用上。</li>
+     * </ul>
+     * 显式传了 {@code mode} 时以 {@code mode} 为准。
      */
     private Boolean allowPartial = Boolean.FALSE;
+
+    /**
+     * 召回模式：
+     * <ul>
+     *   <li>{@code strict}（默认，「只用现有食材」）：<b>缺料数必须为 0</b>，
+     *       即菜谱要求的主料你都有。注意它<b>不要求</b>你把手边所有食材都用上。</li>
+     *   <li>{@code loose}（「允许补充少量食材」）：缺料数 ≤ {@link #maxMissing}。</li>
+     * </ul>
+     */
+    private String mode;
+
+    /** loose 模式下允许缺几样主料，默认 2 */
+    @Min(value = 0, message = "允许缺料数不能为负")
+    @Max(value = 10, message = "允许缺料数最多 10 样")
+    private Integer maxMissing;
+
+    /**
+     * 禁用食材（ID）：菜里出现任何一样就整条淘汰。
+     * <p>过敏/忌口属于硬约束，不能只做扣分 —— 扣完分它还是可能排进前五。
+     */
+    private List<Long> excludeIngredientIds;
+
+    /** 禁用食材（名字，含表外食材），与 {@link #excludeIngredientIds} 取并集 */
+    private List<String> excludeIngredients;
+
+    /** 最长耗时（分钟）：超过就淘汰。可空表示不限 */
+    @Min(value = 1, message = "最长耗时至少 1 分钟")
+    @Max(value = 600, message = "最长耗时最多 600 分钟")
+    private Integer maxCookTimeMin;
 
     /** 页码，从 1 开始 */
     @Min(value = 1, message = "页码从 1 开始")
@@ -67,4 +103,15 @@ public class DishSearchRequest {
     @Min(value = 1, message = "每页至少 1 条")
     @Max(value = 50, message = "每页最多 50 条")
     private Integer size = 10;
+
+    /**
+     * 排序策略覆盖：{@code satisfaction}（默认）或 {@code legacy}。
+     *
+     * <p>留这个入口是为了做<b>对照实验</b>：同一批查询要在同一份菜库快照上分别跑两臂，
+     * 靠改 Nacos 配置 + 重启服务来切换的话，两臂之间菜库/索引可能已经变了，
+     * 结果就不可比了。空值表示用服务端配置（{@code es.score.strategy}）。
+     *
+     * <p>它只是排序口径的切换，不涉及权限或数据可见性，所以不需要管理员校验。
+     */
+    private String strategy;
 }

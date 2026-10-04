@@ -1,0 +1,33 @@
+# ============================================================
+# account-service 专属配置（Nacos DataId: account-service.yaml, Group: DEFAULT_GROUP）
+# ============================================================
+# 数据源 / MyBatis-Plus / Redis 这些公共项已经抽到 common.yaml，
+# 由本服务本地 application.yml 的 spring.config.import 一起导进来。
+# 这里只留本服务独有的东西。
+#
+# 推送命令（项目根目录执行）：
+#   curl -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" \
+#     --data-urlencode "dataId=account-service.yaml" \
+#     --data-urlencode "group=DEFAULT_GROUP" \
+#     --data-urlencode "type=yaml" \
+#     --data-urlencode "content@nacos-config/account-service.yaml"
+# ============================================================
+
+# ---------- 服务端口 ----------
+# 注意是 server.port 而不是 spring.port。
+# spring 下没有 port 配置项，写成 spring.port 会被静默忽略（不报错但不生效）。
+server:
+  port: 8081
+
+# ---------- JWT ----------
+jwt:
+  # secret 是安全凭证，按约定保留在本地 application.yml，不在此处配置。
+  # 这里只放非敏感的过期时间：2 小时（毫秒）
+  expire-millis: 7200000
+
+# ---------- 布隆过滤器（用户名存在性） ----------
+bloom:
+  user:
+    # 启动时是否全量预热（把库里的 username 灌进布隆）。
+    # 数据量大时可关闭，改用离线任务构建。
+    warm-up: true

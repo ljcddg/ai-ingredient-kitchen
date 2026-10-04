@@ -89,7 +89,7 @@
 <div class="kv">
   <b>业务名</b><span>AI 灵感厨房（project0914）</span>
   <b>根包</b><span><code>com.apesource</code>；父 pom <code>project0914:1.0.0</code>（packaging=pom，自建父 pom 不继承 spring-boot-starter-parent）</span>
-  <b>技术栈</b><span><span class="tag">Boot 3.2.4</span><span class="tag">Cloud 2023.0.1</span><span class="tag">SCA 2023.0.1.0</span><span class="tag">JDK 17</span><span class="tag">MyBatis-Plus 3.5.5</span><span class="tag">jjwt 0.12.5</span><span class="tag">Redisson 3.26.1</span><span class="tag">Elasticsearch 7.16.2</span><span class="tag">Ollama gemma4:e2b</span></span>
+  <b>技术栈</b><span><span class="tag">Boot 3.2.4</span><span class="tag">Cloud 2023.0.1</span><span class="tag">SCA 2023.0.1.0</span><span class="tag">JDK 17</span><span class="tag">MyBatis-Plus 3.5.5</span><span class="tag">jjwt 0.12.5</span><span class="tag">Redisson 3.26.1</span><span class="tag">Elasticsearch 8.16.0（Docker）</span><span class="tag">Ollama gemma4:e2b</span></span>
   <b>统一约定</b><span>一律 <code>jakarta.*</code>；所有 <code>Long</code> 序列化为字符串（防前端 JS 精度丢失）；主键雪花 ID（<code>IdType.ASSIGN_ID</code>）；逻辑删除 <code>@TableLogic</code></span>
   <b>前端</b><span>两套并存：原生 <code>frontend/</code>（无构建）与 Vue 版 <code>frontend-vue/</code>（Vite+Vue3，当前主用）</span>
 </div>
@@ -332,7 +332,7 @@ classDiagram
 <thead><tr><th>文件</th><th>作用</th></tr></thead>
 <tbody>
 <tr><td><code>DishServiceApplication</code></td><td>启动类：<code>@EnableDiscoveryClient</code> + <code>@EnableConfigurationProperties(EsProperties)</code> + <code>@EnableScheduling</code>。</td></tr>
-<tr><td><code>config/EsClientConfig</code></td><td>构造 ES <code>RestClient</code> Bean（不用 Spring Data ES，手写适配 7.16.2）。</td></tr>
+<tr><td><code>config/EsClientConfig</code></td><td>构造 ES <code>RestClient</code> Bean（不用 Spring Data ES，手写适配服务端；零版本耦合，7.16.2 → 8.16.0 业务代码一行未改）。</td></tr>
 <tr><td><code>config/EsProperties</code></td><td>绑定 <code>es.*</code>：地址/索引/超时 + 召回/直出/打分权重，均有默认值。</td></tr>
 <tr><td><code>config/MybatisPlusConfig</code></td><td>分页插件 + 公共字段填充。</td></tr>
 <tr><td><code>config/DishStepListTypeHandler</code></td><td>修正 MP 泛型擦除：把 <code>step_json</code> 正确反序列化为 <code>List&lt;DishStep&gt;</code>。</td></tr>

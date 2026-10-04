@@ -14,6 +14,22 @@ export const SPICY_TEXT = { 0: '不辣', 1: '微辣', 2: '中辣', 3: '很辣' }
 /** 菜品来源 1-官方 2-AI 3-自定义 */
 export const SOURCE_TEXT = { 1: '官方精选', 2: 'AI 生成', 3: '我的创作' }
 
+/**
+ * 营养来源（对应 t_dish.nutrition_source，说明文档 P2-2）。
+ *
+ * 这两个标签的意义完全不同，必须分开显示：
+ *   1 = AI 按常识估的，只能当参考
+ *   2 = 按食材成分表（每 100 克）× 实际用量算出来的
+ * 把估算标成"计算值"就是在把估算当实测用。
+ */
+export const NUTRITION_SOURCE_TEXT = {
+  1: '营养为 AI 估算',
+  2: '营养按成分表计算'
+}
+
+/** 食材候选的审核状态（对应 IngredientCandidate 常量） */
+export const CANDIDATE_STATUS_TEXT = { 0: '待审核', 1: '已转正', 2: '已驳回' }
+
 /** 把毫秒数说成人话：12.3 秒 / 1 分 05 秒 */
 export function humanDuration(ms) {
   if (!ms && ms !== 0) return ''

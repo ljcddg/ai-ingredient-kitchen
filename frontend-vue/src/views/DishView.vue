@@ -139,8 +139,15 @@
               <section v-if="nutritionCells.length" class="card">
                 <div class="card-title-row">
                   <h2 class="card-title">营养（每人份）</h2>
-                  <span v-if="aiEstimated" class="tag warn nutri-source">AI 估算，仅供参考</span>
-                  <span v-else class="tag ok nutri-source">按食材精确计算</span>
+                  <span v-if="aiEstimated" class="tag warn nutri-source">
+                    {{ nutritionSourceText || 'AI 估算，仅供参考' }}
+                  </span>
+                  <span v-else-if="localUnverified" class="tag warn nutri-source">
+                    {{ nutritionSourceText }} · 未通过核对
+                  </span>
+                  <span v-else class="tag ok nutri-source">
+                    {{ nutritionSourceText || '按食材精确计算' }}
+                  </span>
                 </div>
                 <div class="nutri-grid">
                   <div v-for="c in nutritionCells" :key="c[2]" class="nutri">
@@ -151,6 +158,14 @@
                 <p v-if="aiEstimated" class="nutri-caveat">
                   这些数字由 AI 根据食材和用量估算，同一道菜每次生成会有浮动，
                   用来判断「大概吃进去多少」可以，别拿它做严格的饮食控制。
+                </p>
+                <p v-else-if="localUnverified" class="nutri-caveat">
+                  数字是按食材成分表算的，但这次没通过一致性核对（可能与配料表对不齐），
+                  当作近似值看就好。
+                </p>
+                <p v-else class="nutri-caveat">
+                  按「每 100 克成分 × 实际用量 ÷ 人数」算出来的，不含调料的热量，
+                  所以比实际吃到的略微偏低。
                 </p>
               </section>
 
@@ -248,7 +263,7 @@ import FxBg from '../components/FxBg.vue'
 import TopBar from '../components/TopBar.vue'
 import { DishApi } from '../api.js'
 import { authState } from '../store/auth.js'
-import { DIFFICULTY_TEXT, SPICY_TEXT, SOURCE_TEXT } from '../lib/constants.js'
+import { DIFFICULTY_TEXT, SPICY_TEXT, SOURCE_TEXT, NUTRITION_SOURCE_TEXT } from '../lib/constants.js'
 import { toastSuccess, toastError, toastInfo } from '../store/toast.js'
 
 const STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">'
@@ -298,9 +313,41 @@ const isOwner = computed(() => {
 
 const rating = computed(() => (dish.value && dish.value.rating) || { average: 0, count: 0, collectCount: 0 })
 
+/**
+ * 营养来源代码（1 = AI 估算，2 = 按成分表本地计算）。
+ *
+ * 之前这里用 `!verified` 反推"是不是 AI 估的"，那是错的：verified 说的是
+ * "有没有通过一致性核对"，不是"数字哪来的"。本地算出来但核对没过的数据
+ * 会被误标成 AI 估算 —— 与列表页（按 nutritionSource 渲染）自相矛盾。
+ * 现在改成跟列表页同一口径：后端给代码，前端查同一张映射表。
+ */
+const nutritionSourceCode = computed(() => {
+  const n = dish.value && dish.value.nutrition
+  if (!n) return null
+  return n.nutritionSource === null || n.nutritionSource === undefined ? null : n.nutritionSource
+})
+
+/** 没有代码的老数据：退回 verified 猜测，至少不会把两种来源说成同一种 */
+const nutritionSourceText = computed(() => {
+  const code = nutritionSourceCode.value
+  if (code && NUTRITION_SOURCE_TEXT[code]) return NUTRITION_SOURCE_TEXT[code]
+  const n = dish.value && dish.value.nutrition
+  if (!n) return ''
+  return n.verified ? NUTRITION_SOURCE_TEXT[2] : NUTRITION_SOURCE_TEXT[1]
+})
+
+/** 只有确实来自 AI 估算（或来源不明且未核对）时才提示"数字会浮动" */
 const aiEstimated = computed(() => {
+  const code = nutritionSourceCode.value
+  if (code) return code === 1
   const n = dish.value && dish.value.nutrition
   return !!n && !n.verified
+})
+
+/** 本地计算但没通过核对 —— 少见，但要如实说，不能冒充"精确计算" */
+const localUnverified = computed(() => {
+  const n = dish.value && dish.value.nutrition
+  return nutritionSourceCode.value === 2 && !!n && !n.verified
 })
 
 /** 营养格：后端给什么显示什么，前端不自己判断可信度 */

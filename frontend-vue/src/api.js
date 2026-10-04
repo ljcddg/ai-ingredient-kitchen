@@ -233,6 +233,43 @@ export const DishApi = {
     )
   },
 
+  // ================================================================ 推荐池（冷启动）
+
+  /**
+   * 推荐流。
+   *
+   * @param {number[]} ingredientIds 主数据食材 ID（走 ingredientIds 召回，精度高）
+   * @param {number} page 页码
+   * @param {number} size 每页条数
+   * @param {string[]} [ingredientNames] 表外食材名（走 ingredientNames 召回）。
+   *        列表里没有的食材只有名字没有 ID，后端按 keyword 匹配识别。
+   *
+   * 后端按「全匹配 → 部分匹配 → 随机补齐」三级取菜，
+   * 并且在返回的同时给这些菜的 push_count +1（不需要前端再上报一次曝光）。
+   * 24 小时内推过的菜会被自动排除，所以翻页不会重复看到同一道。
+   */
+  recommendFeed(ingredientIds, page, size, ingredientNames) {
+    const ids = (ingredientIds || []).filter(Boolean)
+    const names = (ingredientNames || []).filter(Boolean)
+    let url = '/ai/recommend?page=' + (page || 1) + '&size=' + (size || 10)
+    if (ids.length) url += '&ingredientIds=' + ids.join(',')
+    // 名字可能含中文/空格，必须逐个 encode
+    if (names.length) url += '&ingredientNames=' + encodeURIComponent(names.join(','))
+    return request(url, { auth: true, service: 'dish' })
+  },
+
+  /** 上报查看：用户点进详情页时调一次。查看率是晋级的核心指标，时机必须准 */
+  reportView(dishId) {
+    return request('/ai/recommend/' + dishId + '/view', { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  /** 上报互动。type: like（点赞）/ collect（收藏）/ cook（试做打卡） */
+  reportInteract(dishId, type) {
+    return request('/ai/recommend/' + dishId + '/interact?type=' + encodeURIComponent(type), {
+      method: 'POST', auth: true, service: 'dish'
+    })
+  },
+
   /** 收藏（幂等，重复点不会让收藏数虚增） */
   collect(dishId) {
     return request('/ai/dish/' + dishId + '/collect', { method: 'POST', auth: true, service: 'dish' })
@@ -273,5 +310,111 @@ export const DishApi = {
   /** 我收藏的菜品 */
   myCollects() {
     return request('/ai/my/collects', { auth: true, service: 'dish' })
+  },
+
+  // ================================================================ 手写菜谱
+
+  /**
+   * 手写菜谱「试算」：只把表单算一遍（营养 + 能不能发出去），**不落库**。
+   *
+   * 面板上边填边调它，用户就能提前看到"每人份多少 kcal、还差什么"，
+   * 不用等提交完才发现克数没填、步骤不够 3 条。
+   * 返回 ManualDishPreview：nutrition / items / problems / warnings / ready。
+   */
+  manualPreview(payload) {
+    return request('/ai/dish/manual/preview', { method: 'POST', body: payload, auth: true, service: 'dish' })
+  },
+
+  /**
+   * 手写菜谱「上传」：落库成 source=3（用户自定义）、nutrition_source=2（本地精确计算）的菜。
+   *
+   * 后端会先存草稿再试发布，返回 ManualDishResult：
+   *   { dishId, published, problems, nutrition }
+   * published=false 时 problems 里是"还差什么"（重名只有查库才知道，面板提前提示不了）。
+   */
+  createManual(payload) {
+    return request('/ai/dish/manual', { method: 'POST', body: payload, auth: true, service: 'dish' })
+  }
+}
+
+/* ============================================================
+   管理员接口（说明文档 P0-2 / P1-6 / P2-2）
+
+   后端对这些路径做了 fail-closed 授权：不是管理员一律 403，
+   所以前端拿不到数据不是"接口坏了"，而是账号没有管理员角色。
+   ============================================================ */
+export const AdminApi = {
+  // ---------------- 食材候选审核 ----------------
+  //
+  // ⚠️ 管理接口的路径**都带 `/ai` 前缀**：后端这些接口统一挂在 `DishPublishController`
+  // 的 `@RequestMapping("/ai")` 下（`/ai/ingredients/...`、`/ai/es/...`、`/ai/admin/...`）。
+  // 少写 `/ai` 不会报 404，而是落到没有 handler 的路径上、返回业务码 500「服务器开小差了」，
+  // 前端只看到"错误框"，很容易误判成后端故障。
+  // （这个 bug 就是前端 E2E 抓到的：后端直连的验证脚本全过，前端管理台却整页报错。）
+
+  /** 待审候选（status=0 的那批） */
+  ingredientCandidates(limit) {
+    return request('/ai/ingredients/candidates?limit=' + (limit || 20),
+      { auth: true, service: 'dish' })
+  },
+
+  /** 已审核过的候选（含审核人与审核说明，用来复盘"当初为什么放进来"） */
+  reviewedCandidates(limit) {
+    return request('/ai/ingredients/candidates/reviewed?limit=' + (limit || 50),
+      { auth: true, service: 'dish' })
+  },
+
+  /** 通过：转正成正式食材（可批量） */
+  approveIngredients(ids, reason) {
+    return request('/ai/ingredients/candidates/approve', {
+      method: 'POST', body: { ids, reason: reason || null }, auth: true, service: 'dish'
+    })
+  },
+
+  /** 驳回：必须给理由（后端会校验）—— 没理由的驳回下次还会被同一个人提上来 */
+  rejectIngredients(ids, reason) {
+    return request('/ai/ingredients/candidates/reject', {
+      method: 'POST', body: { ids, reason }, auth: true, service: 'dish'
+    })
+  },
+
+  // ---------------- 索引同步（P1-6） ----------------
+
+  /** 同步待办总览：pending 多说明索引在追；givenUp 不为 0 就必须人工介入 */
+  esSyncStatus() {
+    return request('/ai/es/sync/status', { auth: true, service: 'dish' })
+  },
+
+  /** 待办明细 */
+  esSyncTasks(status, limit) {
+    const qs = []
+    if (status !== null && status !== undefined && status !== '') qs.push('status=' + status)
+    qs.push('limit=' + (limit || 50))
+    return request('/ai/es/sync/tasks?' + qs.join('&'), { auth: true, service: 'dish' })
+  },
+
+  /** 手动补偿：把失败/放弃的待办重置为立刻可执行，并马上跑一轮 */
+  esSyncRetry() {
+    return request('/ai/es/sync/retry', { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  /** 全量重建索引。实测 30 道菜约 30 秒，按钮期间要禁用 */
+  reindex() {
+    return request('/ai/es/reindex', { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  // ---------------- 营养（P2-2） ----------------
+
+  /** 把库里标着"AI 估算"的菜按成分表重算，并返回新旧偏差统计 */
+  recomputeNutrition() {
+    return request('/ai/admin/nutrition/recompute', { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  // ---------------- 强制作业 ----------------
+
+  /** 强制下架（不需要是该菜的主人），用于处理违规或明显错误的内容 */
+  forceUnpublish(dishId) {
+    return request('/ai/admin/dish/' + dishId + '/unpublish',
+      { method: 'POST', auth: true, service: 'dish' })
   }
 }

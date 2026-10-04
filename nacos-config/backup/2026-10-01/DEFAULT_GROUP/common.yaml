@@ -1,0 +1,72 @@
+# ============================================================
+# 公共配置（Nacos DataId: common.yaml, Group: DEFAULT_GROUP）
+# ============================================================
+# 各业务服务在自己的本地 application.yml 里这样引用：
+#
+#   spring:
+#     config:
+#       import:
+#         - optional:nacos:common.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+#         - optional:nacos:<服务名>.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+#
+# 【顺序就是优先级】后导入的覆盖先导入的。
+# 所以「公共配置」必须写在第一个，「服务专属配置」写在后面，
+# 否则单个服务想覆盖公共项（比如把连接池调大）会覆盖不掉。
+#
+# 【什么该放这里】
+#   所有服务共用、且与服务本身无关的：数据源、MyBatis-Plus、Redis。
+#
+# 【什么不该放这里】
+#   server.port       各服务端口不同（account 8081 / dish 8082）
+#   jwt.secret        安全凭证，按项目约定留在各服务本地 application.yml
+#   es.*              只有 dish-service 用
+#   bloom.*           只有 account-service 用
+#   gateway.*         只有 gateway 用
+#
+# 【一个前提】这些配置带中文注释，命令行启动时必须加
+#   -Dfile.encoding=UTF-8
+# 否则 Java 17 在 Windows 下会用 GBK 解码 UTF-8 字节，YAML 解析直接失败。
+# 详见 PITFALLS.md。IDEA 里跑不受影响（IDEA 默认带这个参数）。
+# ============================================================
+
+spring:
+  # ---------- 数据源 ----------
+  # 全项目共用一个库 project0914。等真的需要分库时再拆到各自的专属配置里。
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: "jdbc:mysql://localhost:3306/project0914?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+    username: root
+    password: root
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # ---------- Redis ----------
+  # 注意 Boot 3.x 的 key 是 spring.data.redis，
+  # 不是老的 spring.redis（写错会静默失效，不报错）
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: root
+      database: 0
+      timeout: 3000ms
+      connect-timeout: 3000ms
+
+# ---------- MyBatis-Plus ----------
+mybatis-plus:
+  global-config:
+    db-config:
+      # 逻辑删除：查询自动追加 deleted = 0，删除自动变成 update deleted = 1
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+    banner: false
+  configuration:
+    # 下划线转驼峰：数据库 create_time -> 实体 createTime
+    map-underscore-to-camel-case: true
+    # 开发期打印 SQL，上线记得关
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

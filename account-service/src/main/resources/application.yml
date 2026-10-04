@@ -36,12 +36,14 @@ spring:
 # ---------- JWT ----------
 jwt:
   # 【安全凭证不入库】密钥是敏感信息，一旦提交到公开仓库任何人都能伪造 token。
-  # 本地开发请自行生成一个：
-  #   openssl rand -base64 32
-  # 或用环境变量注入（推荐，生产环境必须）：
+  # 生产环境必须用环境变量注入：
   #   export JWT_SECRET=<你的base64密钥>
   #
-  # 必须是 Base64 编码且解码后 >= 32 字节，否则 jjwt 抛 WeakKeyException。
-  # ⚠️ 下面这行是占位值，与 gateway 的 jwt.secret 必须**完全一致**，
+  # 必须是标准 Base64 编码且解码后 >= 32 字节，否则 jjwt 抛
+  # DecodingException(Illegal base64 character) 或 WeakKeyException。
+  # ⚠️ 下面这行与 gateway 的 jwt.secret 必须**逐字一致**，
   #    否则现象是「登录成功但所有业务接口 401」。
-  secret: ${JWT_SECRET:REPLACE_WITH_YOUR_OWN_BASE64_SECRET_AT_LEAST_32_BYTES}
+  #
+  # 下面的默认值是本机开发用的临时密钥（openssl rand -base64 48 生成），
+  # 只为让 IDEA 里「直接 Run」能起来；不用于任何正式环境。
+  secret: "${JWT_SECRET:UwSHXD5GF2H2kh/hPSqJ62svFFkM+YW3Y0Yge3jyyY3XmjCspizQmbOgnpDSfhTF}"

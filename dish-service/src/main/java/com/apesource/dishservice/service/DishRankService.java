@@ -32,9 +32,29 @@ public class DishRankService {
     /** 单页上限。挡掉 ?size=100000 这种把库拖垮的请求 */
     private static final int MAX_PAGE_SIZE = 50;
 
-    private static final int DEFAULT_PAGE_SIZE = 20;
+    /** 默认每页 10 条 —— 榜单是"看排名"的场景，10 条一屏比 20 条更像榜单 */
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
+    /**
+     * 榜单总容量：每种榜最多只放前 100 条（10 页）。
+     *
+     * <p>为什么封顶：名次越往后越没有区分度（第 200 名和第 201 名的"热门度"
+     * 几乎没有差别），但深分页的代价是实打实的 —— offset 越大，MySQL 要扫描
+     * 再丢弃的行越多。100 条既是够用的浏览深度，也是可控的查询成本。
+     *
+     * <p>封顶要同时体现在两处：① 超过容量的页直接返回空页不查库；
+     * ② 对外返回的 total 也要封顶，否则前端会算出 100 条以外的页码。
+     */
+    private static final int RANK_TOTAL_LIMIT = 100;
 
     private final DishMapper dishMapper;
+
+    /**
+     * 冷启动榜的查询放在推荐模块的 Mapper 里，不混进 {@link DishMapper} ——
+     * 前三榜按收藏/威尔逊/发布时间排，冷启动榜按综合得分排，
+     * 是两套完全不同的口径，混在一起只会互相干扰。
+     */
+    private final com.apesource.dishservice.mapper.RecommendMapper recommendMapper;
 
     /**
      * 榜单类型。
@@ -48,7 +68,9 @@ public class DishRankService {
     public enum RankType {
         HOT("热门榜", "大家都在做的"),
         TOP("高分榜", "评价最好的"),
-        LATEST("最新榜", "刚出锅的");
+        LATEST("最新榜", "刚出锅的"),
+        /** 冷启动榜：从推荐池里靠真实流量验证杀出来的菜，按综合得分排序 */
+        COLD("冷启动榜", "新菜里的黑马");
 
         private final String title;
         private final String subtitle;
@@ -60,6 +82,7 @@ public class DishRankService {
             return switch (raw.trim().toLowerCase()) {
                 case "top", "rating", "score" -> TOP;
                 case "latest", "new", "newest" -> LATEST;
+                case "cold", "recommend", "newcomer" -> COLD;
                 default -> HOT;
             };
         }
@@ -88,22 +111,39 @@ public class DishRankService {
         int safeSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
         int offset = (safePage - 1) * safeSize;
 
+        // 起点已经在容量之外，直接给空页，连库都不用查
+        if (offset >= RANK_TOTAL_LIMIT) {
+            log.debug("榜单 {} 第 {} 页起点 {} 已超出容量 {}，返回空页",
+                    rankType, safePage, offset, RANK_TOTAL_LIMIT);
+            return new RankPage(rankType.name().toLowerCase(), rankType.getTitle(),
+                    rankType.getSubtitle(), RANK_TOTAL_LIMIT, safePage, safeSize, List.of());
+        }
+
+        // 最后一页往往装不满，按剩余容量裁剪，不多查
+        int fetchSize = Math.min(safeSize, RANK_TOTAL_LIMIT - offset);
+
         List<DishCardView> items = switch (rankType) {
-            case HOT -> dishMapper.selectHotRank(safeSize, offset);
-            case TOP -> dishMapper.selectTopRank(safeSize, offset);
-            case LATEST -> dishMapper.selectLatestRank(safeSize, offset);
+            case HOT -> dishMapper.selectHotRank(fetchSize, offset);
+            case TOP -> dishMapper.selectTopRank(fetchSize, offset);
+            case LATEST -> dishMapper.selectLatestRank(fetchSize, offset);
+            case COLD -> recommendMapper.selectColdRank(fetchSize, offset);
         };
 
         long total = switch (rankType) {
             // 高分榜的计数条件和查询本身必须一致（都带 rating_count >= 1），
             // 否则会出现"总数说有 3 页、翻到第 3 页却是空的"
             case TOP -> dishMapper.countRated();
+            case COLD -> recommendMapper.countColdRank();
             case HOT, LATEST -> {
                 Long c = dishMapper.selectCount(
                         Wrappers.<Dish>lambdaQuery().eq(Dish::getStatus, STATUS_PUBLISHED));
                 yield c == null ? 0L : c;
             }
         };
+
+        // 总量按容量封顶。不封顶的话前端会算出 100 条以外的页码，
+        // 翻过去却是空的 —— 比直接不给更让人困惑
+        total = Math.min(total, RANK_TOTAL_LIMIT);
 
         log.debug("榜单 {} 第 {} 页（每页 {}），共 {} 条，返回 {} 条",
                 rankType, safePage, safeSize, total, items.size());

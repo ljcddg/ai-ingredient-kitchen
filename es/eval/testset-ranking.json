@@ -1,0 +1,3107 @@
+{
+  "meta": {
+    "built_at": "2026-10-01T23:11:33",
+    "seed": 20261001,
+    "rule_acceptable": "必需主料（全部非调料食材）都在用户手上 = 这道菜现在就能做",
+    "total": 162,
+    "by_group": {
+      "common": 30,
+      "missing": 30,
+      "alias": 30,
+      "unknown": 12,
+      "constraint": 30,
+      "from_dish": 30
+    },
+    "by_split": {
+      "validation": 90,
+      "test": 72
+    },
+    "with_solution": 31,
+    "dish_snapshot": {
+      "published_dishes": 32,
+      "max_publish_time": "2026-10-01 23:09:29",
+      "max_update_time": "2026-10-01 23:09:28"
+    }
+  },
+  "queries": [
+    {
+      "query_id": "q001",
+      "group": "common",
+      "ingredientIds": [
+        110,
+        112
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆腐、米饭",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q002",
+      "group": "common",
+      "ingredientIds": [
+        113,
+        114,
+        124
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "胡萝卜、菠菜、洋葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q003",
+      "group": "common",
+      "ingredientIds": [
+        108,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "青椒、香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q004",
+      "group": "common",
+      "ingredientIds": [
+        103,
+        105
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "土豆、葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q005",
+      "group": "common",
+      "ingredientIds": [
+        110,
+        115,
+        117
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生抽、大蒜、豆腐",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q006",
+      "group": "common",
+      "ingredientIds": [
+        102,
+        123
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白菜、鸡蛋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q007",
+      "group": "common",
+      "ingredientIds": [
+        110,
+        115,
+        117
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生抽、大蒜、豆腐",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q008",
+      "group": "common",
+      "ingredientIds": [
+        116,
+        122
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生姜、黄瓜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q009",
+      "group": "common",
+      "ingredientIds": [
+        102,
+        120
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鸡蛋、醋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q010",
+      "group": "common",
+      "ingredientIds": [
+        103,
+        112,
+        117
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱、米饭、生抽",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q011",
+      "group": "common",
+      "ingredientIds": [
+        117,
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白糖、生抽",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q012",
+      "group": "common",
+      "ingredientIds": [
+        113,
+        120,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "胡萝卜、香菇、醋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q013",
+      "group": "common",
+      "ingredientIds": [
+        103,
+        118,
+        127
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱、盐、金针菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q014",
+      "group": "common",
+      "ingredientIds": [
+        121,
+        125
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "西兰花、茄子",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q015",
+      "group": "common",
+      "ingredientIds": [
+        105,
+        119,
+        120
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "土豆、醋、白糖",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q016",
+      "group": "common",
+      "ingredientIds": [
+        123,
+        127
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "金针菇、白菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q017",
+      "group": "common",
+      "ingredientIds": [
+        119,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白糖、香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q018",
+      "group": "common",
+      "ingredientIds": [
+        102,
+        114,
+        120
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "洋葱、醋、鸡蛋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q019",
+      "group": "common",
+      "ingredientIds": [
+        108,
+        116
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生姜、青椒",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q020",
+      "group": "common",
+      "ingredientIds": [
+        105,
+        115
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、土豆",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q021",
+      "group": "common",
+      "ingredientIds": [
+        113,
+        115,
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、白糖、胡萝卜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q022",
+      "group": "common",
+      "ingredientIds": [
+        110,
+        123,
+        125
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆腐、白菜、西兰花",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q023",
+      "group": "common",
+      "ingredientIds": [
+        114,
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "洋葱、白糖",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q024",
+      "group": "common",
+      "ingredientIds": [
+        112,
+        120,
+        121
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "醋、茄子、米饭",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q025",
+      "group": "common",
+      "ingredientIds": [
+        102,
+        122,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鸡蛋、黄瓜、香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q026",
+      "group": "common",
+      "ingredientIds": [
+        115,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q027",
+      "group": "common",
+      "ingredientIds": [
+        105,
+        116,
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白糖、土豆、生姜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q028",
+      "group": "common",
+      "ingredientIds": [
+        105,
+        122
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "黄瓜、土豆",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q029",
+      "group": "common",
+      "ingredientIds": [
+        108,
+        114,
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白糖、洋葱、青椒",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q030",
+      "group": "common",
+      "ingredientIds": [
+        103,
+        120
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱、醋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q031",
+      "group": "missing",
+      "ingredientIds": [
+        181
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "牛奶",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q032",
+      "group": "missing",
+      "ingredientIds": [
+        151
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鲈鱼",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q033",
+      "group": "missing",
+      "ingredientIds": [
+        124
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "菠菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q034",
+      "group": "missing",
+      "ingredientIds": [
+        119
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "白糖",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q035",
+      "group": "missing",
+      "ingredientIds": [
+        112
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "米饭",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q036",
+      "group": "missing",
+      "ingredientIds": [
+        117
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生抽",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q037",
+      "group": "missing",
+      "ingredientIds": [
+        144
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "排骨",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q038",
+      "group": "missing",
+      "ingredientIds": [
+        127
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "金针菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q039",
+      "group": "missing",
+      "ingredientIds": [
+        129
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "南瓜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q040",
+      "group": "missing",
+      "ingredientIds": [
+        145
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鸡翅",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q041",
+      "group": "missing",
+      "ingredientIds": [
+        184
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "柠檬",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q042",
+      "group": "missing",
+      "ingredientIds": [
+        118
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "盐",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q043",
+      "group": "missing",
+      "ingredientIds": [
+        109
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "猪肉",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q044",
+      "group": "missing",
+      "ingredientIds": [
+        122
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "黄瓜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q045",
+      "group": "missing",
+      "ingredientIds": [
+        110
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆腐",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q046",
+      "group": "missing",
+      "ingredientIds": [
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "胡萝卜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q047",
+      "group": "missing",
+      "ingredientIds": [
+        133
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "玉米",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q048",
+      "group": "missing",
+      "ingredientIds": [
+        174
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆瓣酱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q049",
+      "group": "missing",
+      "ingredientIds": [
+        120
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "醋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q050",
+      "group": "missing",
+      "ingredientIds": [
+        103
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q051",
+      "group": "missing",
+      "ingredientIds": [
+        130
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "芹菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q052",
+      "group": "missing",
+      "ingredientIds": [
+        132
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆角",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q053",
+      "group": "missing",
+      "ingredientIds": [
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q054",
+      "group": "missing",
+      "ingredientIds": [
+        131
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "生菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q055",
+      "group": "missing",
+      "ingredientIds": [
+        159
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "面条",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q056",
+      "group": "missing",
+      "ingredientIds": [
+        180
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "芝麻油",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q057",
+      "group": "missing",
+      "ingredientIds": [
+        114
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "洋葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "validation"
+    },
+    {
+      "query_id": "q058",
+      "group": "missing",
+      "ingredientIds": [
+        143
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "五花肉",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q059",
+      "group": "missing",
+      "ingredientIds": [
+        142
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鸡胸肉",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q060",
+      "group": "missing",
+      "ingredientIds": [
+        170
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "蚝油",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 1,
+      "split": "test"
+    },
+    {
+      "query_id": "q061",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "青笋",
+        "马铃薯"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "莴笋、土豆",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q062",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "大葱",
+        "河蟹"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱、螃蟹",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q063",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "黑芝麻",
+        "菠棱菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "芝麻、菠菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q064",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "落花生",
+        "燕麦片"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "花生、燕麦",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q065",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "翅中",
+        "馄饨皮"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鸡翅、饺子皮",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q066",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "落花生",
+        "蚬子"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "花生、蛤蜊",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q067",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "白瓜",
+        "绵羊肉"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "冬瓜、羊肉",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q068",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "西芹",
+        "蒸馍"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "芹菜、馒头",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q069",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "江白菜（鲜）",
+        "小白菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "海带、白菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q070",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "长茄",
+        "小白菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "茄子、白菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q071",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "青花菜",
+        "牛肉腩"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "西兰花、牛腩",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q072",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "蒜瓣",
+        "青花菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、西兰花",
+      "acceptable_dish_ids": [
+        2100443392434511874
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q073",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "水磨年糕",
+        "四季豆"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "年糕、豆角",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q074",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "米线",
+        "圆葱"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "米粉、洋葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q075",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "绵羊肉",
+        "青笋"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "羊肉、莴笋",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q076",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "鲜奶",
+        "肋排"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "牛奶、排骨",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q077",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "河蟹",
+        "大葱"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "螃蟹、葱",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q078",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "赤根菜",
+        "甘薯"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "菠菜、红薯",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q079",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "水磨年糕",
+        "花菇"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "年糕、香菇",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q080",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "藕",
+        "红萝卜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "莲藕、胡萝卜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q081",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "大葱",
+        "藕节"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱、莲藕",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q082",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "豆腐干",
+        "枕瓜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "豆干、冬瓜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q083",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "稀奶油",
+        "奶酪"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "淡奶油、芝士",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q084",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "小麦粉",
+        "鲑鱼"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "面粉、三文鱼",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q085",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "小麦粉",
+        "娃娃菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "面粉、白菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q086",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "方腿",
+        "藕节"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "火腿、莲藕",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q087",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "大闸蟹",
+        "鹅仔菜"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "螃蟹、生菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q088",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "江白菜（鲜）",
+        "馍"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "海带、馒头",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q089",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "蒜瓣",
+        "核桃仁"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、核桃",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q090",
+      "group": "alias",
+      "ingredientIds": [],
+      "freeIngredients": [
+        "蒜瓣",
+        "烟肉"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜、培根",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q091",
+      "group": "unknown",
+      "ingredientIds": [
+        151
+      ],
+      "freeIngredients": [
+        "洋蓟"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "鲈鱼 + 洋蓟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q092",
+      "group": "unknown",
+      "ingredientIds": [
+        103
+      ],
+      "freeIngredients": [
+        "羽衣甘蓝"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "葱 + 羽衣甘蓝",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q093",
+      "group": "unknown",
+      "ingredientIds": [
+        159
+      ],
+      "freeIngredients": [
+        "莳萝"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "面条 + 莳萝",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q094",
+      "group": "unknown",
+      "ingredientIds": [
+        159
+      ],
+      "freeIngredients": [
+        "秋葵"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "面条 + 秋葵",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q095",
+      "group": "unknown",
+      "ingredientIds": [
+        180
+      ],
+      "freeIngredients": [
+        "抱子甘蓝"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "芝麻油 + 抱子甘蓝",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q096",
+      "group": "unknown",
+      "ingredientIds": [
+        171
+      ],
+      "freeIngredients": [
+        "欧芹"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "料酒 + 欧芹",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q097",
+      "group": "unknown",
+      "ingredientIds": [
+        126
+      ],
+      "freeIngredients": [
+        "香茅"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "香菇 + 香茅",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q098",
+      "group": "unknown",
+      "ingredientIds": [
+        124
+      ],
+      "freeIngredients": [
+        "牛至"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "菠菜 + 牛至",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q099",
+      "group": "unknown",
+      "ingredientIds": [
+        109
+      ],
+      "freeIngredients": [
+        "藏红花"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "猪肉 + 藏红花",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q100",
+      "group": "unknown",
+      "ingredientIds": [
+        136
+      ],
+      "freeIngredients": [
+        "罗勒"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "冬瓜 + 罗勒",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q101",
+      "group": "unknown",
+      "ingredientIds": [
+        115
+      ],
+      "freeIngredients": [
+        "紫苏"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "大蒜 + 紫苏",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q102",
+      "group": "unknown",
+      "ingredientIds": [
+        114
+      ],
+      "freeIngredients": [
+        "鱼腥草"
+      ],
+      "mode": "loose",
+      "maxMissing": 3,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "洋葱 + 鱼腥草",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q103",
+      "group": "constraint",
+      "ingredientIds": [
+        123,
+        151
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        145
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 鸡翅",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q104",
+      "group": "constraint",
+      "ingredientIds": [
+        115,
+        125
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [
+        2100443392434511874
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q105",
+      "group": "constraint",
+      "ingredientIds": [
+        103,
+        112
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q106",
+      "group": "constraint",
+      "ingredientIds": [
+        127,
+        131
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q107",
+      "group": "constraint",
+      "ingredientIds": [
+        114,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        113
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 胡萝卜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q108",
+      "group": "constraint",
+      "ingredientIds": [
+        153,
+        180
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q109",
+      "group": "constraint",
+      "ingredientIds": [
+        136,
+        143
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q110",
+      "group": "constraint",
+      "ingredientIds": [
+        109,
+        122
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q111",
+      "group": "constraint",
+      "ingredientIds": [
+        102,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        116
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 生姜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q112",
+      "group": "constraint",
+      "ingredientIds": [
+        120,
+        129
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q113",
+      "group": "constraint",
+      "ingredientIds": [
+        110,
+        141
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q114",
+      "group": "constraint",
+      "ingredientIds": [
+        103,
+        117
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q115",
+      "group": "constraint",
+      "ingredientIds": [
+        129,
+        143
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        108
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 青椒",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q116",
+      "group": "constraint",
+      "ingredientIds": [
+        129,
+        145
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q117",
+      "group": "constraint",
+      "ingredientIds": [
+        127,
+        180
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q118",
+      "group": "constraint",
+      "ingredientIds": [
+        159,
+        162
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q119",
+      "group": "constraint",
+      "ingredientIds": [
+        108,
+        129
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        143
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 五花肉",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q120",
+      "group": "constraint",
+      "ingredientIds": [
+        126,
+        162
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q121",
+      "group": "constraint",
+      "ingredientIds": [
+        114,
+        153
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q122",
+      "group": "constraint",
+      "ingredientIds": [
+        124,
+        151
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q123",
+      "group": "constraint",
+      "ingredientIds": [
+        121,
+        124
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        125
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 西兰花",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q124",
+      "group": "constraint",
+      "ingredientIds": [
+        127,
+        133
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q125",
+      "group": "constraint",
+      "ingredientIds": [
+        105,
+        112
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q126",
+      "group": "constraint",
+      "ingredientIds": [
+        124,
+        126
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q127",
+      "group": "constraint",
+      "ingredientIds": [
+        136,
+        171
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        106
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 韭菜",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q128",
+      "group": "constraint",
+      "ingredientIds": [
+        114,
+        184
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q129",
+      "group": "constraint",
+      "ingredientIds": [
+        112,
+        122
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": 20,
+      "availableEquipment": [],
+      "note": "总耗时 <= 20 分钟",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q130",
+      "group": "constraint",
+      "ingredientIds": [
+        116,
+        136
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [
+        "炒锅",
+        "锅铲"
+      ],
+      "note": "只有炒锅和锅铲",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q131",
+      "group": "constraint",
+      "ingredientIds": [
+        114,
+        121
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [
+        184
+      ],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "忌口 柠檬",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q132",
+      "group": "constraint",
+      "ingredientIds": [
+        130,
+        151
+      ],
+      "freeIngredients": [],
+      "mode": "strict",
+      "maxMissing": null,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "严格模式：只用现有主料",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q133",
+      "group": "from_dish",
+      "ingredientIds": [
+        116,
+        143
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443081837912065 的主料反推",
+      "acceptable_dish_ids": [
+        2100443081837912065
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q134",
+      "group": "from_dish",
+      "ingredientIds": [
+        116,
+        136,
+        144
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443517403799553 的主料反推",
+      "acceptable_dish_ids": [
+        2100443517403799553
+      ],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q135",
+      "group": "from_dish",
+      "ingredientIds": [
+        181,
+        184
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100408453634756610 的主料反推",
+      "acceptable_dish_ids": [
+        2100408453634756610
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q136",
+      "group": "from_dish",
+      "ingredientIds": [
+        122,
+        139
+      ],
+      "freeIngredients": [
+        "鸡蛋"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099759041311162370 的主料反推",
+      "acceptable_dish_ids": [],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q137",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102,
+        131,
+        141,
+        181
+      ],
+      "freeIngredients": [
+        "紫米"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099795627610275841 的主料反推",
+      "acceptable_dish_ids": [
+        2099795627610275841,
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 6,
+      "split": "validation"
+    },
+    {
+      "query_id": "q138",
+      "group": "from_dish",
+      "ingredientIds": [
+        104,
+        105,
+        114
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443298184306689 的主料反推",
+      "acceptable_dish_ids": [
+        2100423087561424898,
+        2100443298184306689
+      ],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q139",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102,
+        2100410628637253634
+      ],
+      "freeIngredients": [
+        "食用油"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099701542419701762 的主料反推",
+      "acceptable_dish_ids": [
+        2099701542419701762,
+        2099755697712775169,
+        2099756441111216130,
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 4,
+      "split": "validation"
+    },
+    {
+      "query_id": "q140",
+      "group": "from_dish",
+      "ingredientIds": [
+        104,
+        105
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100423087561424898 的主料反推",
+      "acceptable_dish_ids": [
+        2100423087561424898
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q141",
+      "group": "from_dish",
+      "ingredientIds": [
+        106,
+        116
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099765411125149697 的主料反推",
+      "acceptable_dish_ids": [
+        2099765411125149697
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q142",
+      "group": "from_dish",
+      "ingredientIds": [
+        102,
+        106
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443578560946177 的主料反推",
+      "acceptable_dish_ids": [
+        2100443578560946177
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q143",
+      "group": "from_dish",
+      "ingredientIds": [
+        105,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099751879889395713 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q144",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2105676477823414273 的主料反推",
+      "acceptable_dish_ids": [
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q145",
+      "group": "from_dish",
+      "ingredientIds": [
+        115,
+        125
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443392434511874 的主料反推",
+      "acceptable_dish_ids": [
+        2100443392434511874
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q146",
+      "group": "from_dish",
+      "ingredientIds": [
+        101
+      ],
+      "freeIngredients": [
+        "迷迭香"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100411594660904961 的主料反推",
+      "acceptable_dish_ids": [
+        2100411594660904961
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q147",
+      "group": "from_dish",
+      "ingredientIds": [
+        103,
+        116,
+        151
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443237010382849 的主料反推",
+      "acceptable_dish_ids": [
+        2100443237010382849
+      ],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q148",
+      "group": "from_dish",
+      "ingredientIds": [
+        105,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099752643919630338 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q149",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102,
+        2100410628637253634
+      ],
+      "freeIngredients": [
+        "食用油"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099756441111216130 的主料反推",
+      "acceptable_dish_ids": [
+        2099701542419701762,
+        2099755697712775169,
+        2099756441111216130,
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 4,
+      "split": "validation"
+    },
+    {
+      "query_id": "q150",
+      "group": "from_dish",
+      "ingredientIds": [
+        116,
+        145
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443134828748802 的主料反推",
+      "acceptable_dish_ids": [
+        2100443134828748802
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q151",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102,
+        103
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443026313715714 的主料反推",
+      "acceptable_dish_ids": [
+        2100443026313715714,
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q152",
+      "group": "from_dish",
+      "ingredientIds": [
+        109,
+        110
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443179212873730 的主料反推",
+      "acceptable_dish_ids": [
+        2100443179212873730
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q153",
+      "group": "from_dish",
+      "ingredientIds": [
+        103,
+        105,
+        108,
+        113,
+        114,
+        115,
+        116,
+        121,
+        2100410628637253634
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100406590378119169 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169,
+        2100406590378119169
+      ],
+      "user_ingredient_count": 9,
+      "split": "test"
+    },
+    {
+      "query_id": "q154",
+      "group": "from_dish",
+      "ingredientIds": [
+        108,
+        109,
+        115
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443344908853249 的主料反推",
+      "acceptable_dish_ids": [
+        2100443344908853249
+      ],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q155",
+      "group": "from_dish",
+      "ingredientIds": [
+        105,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099752747070148609 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q156",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        105,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100417166374387714 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169,
+        2100415871160729602,
+        2100417166374387714
+      ],
+      "user_ingredient_count": 3,
+      "split": "test"
+    },
+    {
+      "query_id": "q157",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        105
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100415871160729602 的主料反推",
+      "acceptable_dish_ids": [
+        2100415871160729602
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q158",
+      "group": "from_dish",
+      "ingredientIds": [
+        105,
+        113
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099753873190535169 的主料反推",
+      "acceptable_dish_ids": [
+        2099751879889395713,
+        2099752643919630338,
+        2099752747070148609,
+        2099753873190535169
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    },
+    {
+      "query_id": "q159",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2105674677158404097 的主料反推",
+      "acceptable_dish_ids": [
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 2,
+      "split": "test"
+    },
+    {
+      "query_id": "q160",
+      "group": "from_dish",
+      "ingredientIds": [
+        101,
+        102,
+        2100410628637253634
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2099755697712775169 的主料反推",
+      "acceptable_dish_ids": [
+        2099755697712775169,
+        2105674677158404097,
+        2105676477823414273
+      ],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q161",
+      "group": "from_dish",
+      "ingredientIds": [
+        114,
+        148
+      ],
+      "freeIngredients": [
+        "食用油"
+      ],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443628808708098 的主料反推",
+      "acceptable_dish_ids": [
+        2100443628808708098
+      ],
+      "user_ingredient_count": 3,
+      "split": "validation"
+    },
+    {
+      "query_id": "q162",
+      "group": "from_dish",
+      "ingredientIds": [
+        109,
+        160
+      ],
+      "freeIngredients": [],
+      "mode": "loose",
+      "maxMissing": 2,
+      "excludeIngredientIds": [],
+      "maxCookTimeMin": null,
+      "availableEquipment": [],
+      "note": "由菜品 2100443456284401665 的主料反推",
+      "acceptable_dish_ids": [
+        2100443456284401665
+      ],
+      "user_ingredient_count": 2,
+      "split": "validation"
+    }
+  ]
+}

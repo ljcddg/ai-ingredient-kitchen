@@ -20,10 +20,16 @@
       <nav class="nav" aria-label="主导航">
         <router-link class="nav-link" to="/kitchen" data-page="kitchen"
                      :aria-current="current === 'kitchen' ? 'page' : undefined">找菜</router-link>
+        <router-link class="nav-link" to="/recommend" data-page="recommend"
+                     :aria-current="current === 'recommend' ? 'page' : undefined">推荐</router-link>
         <router-link class="nav-link" to="/rank" data-page="rank"
                      :aria-current="current === 'rank' ? 'page' : undefined">榜单</router-link>
         <router-link class="nav-link" to="/profile" data-page="profile"
                      :aria-current="current === 'profile' ? 'page' : undefined">我的</router-link>
+        <!-- 管理入口只给管理员看。普通用户看不到它，但就算手敲 /admin，
+             路由守卫也会送回来、后端接口更是直接 403 —— 这里只是少一层困惑 -->
+        <router-link v-if="isAdmin" class="nav-link" to="/admin" data-page="admin"
+                     :aria-current="current === 'admin' ? 'page' : undefined">管理</router-link>
       </nav>
     </div>
     <div class="topbar-right">
@@ -43,11 +49,11 @@
    ============================================================ */
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { authState, clearLogin } from '../store/auth.js'
+import { authState, clearLogin, isAdmin } from '../store/auth.js'
 import { toastSuccess } from '../store/toast.js'
 
 const props = defineProps({
-  /** 当前页标识：'kitchen' | 'dish' | 'rank' | 'profile' */
+  /** 当前页标识：'kitchen' | 'dish' | 'recommend' | 'rank' | 'profile' | 'admin' */
   current: { type: String, default: '' }
 })
 

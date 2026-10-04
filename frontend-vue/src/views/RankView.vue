@@ -11,8 +11,8 @@
         </div>
       </div>
 
-      <!-- 用分段控件而不是页签：三个选项是"同一份列表的三种排序"，
-           用页签会显得像三个不同的页面 -->
+      <!-- 用分段控件而不是页签：四个选项是"同一份列表的四种排序"，
+           用页签会显得像四个不同的页面 -->
       <div class="rank-seg" id="rankSeg" role="tablist" aria-label="榜单类型">
         <button
           v-for="t in RANK_TYPES"
@@ -72,7 +72,13 @@
                 </div>
                 <!-- 没人评价时不要显示"0.0 分"——那看起来像"很难吃" -->
                 <div class="rank-score">
-                  <template v-if="item.ratingCount > 0">
+                  <!-- 冷启动榜是综合得分排的序，就显示综合得分，
+                       显示平均分反而对不上名次，会让人以为排序错了 -->
+                  <template v-if="state.type === 'cold'">
+                    <div class="rank-score-num">{{ Number(item.dishScore || 0).toFixed(0) }}</div>
+                    <div class="rank-score-label">综合得分</div>
+                  </template>
+                  <template v-else-if="item.ratingCount > 0">
                     <div class="rank-score-num">{{ Number(item.ratingAvg || 0).toFixed(1) }}</div>
                     <div class="rank-score-label">{{ item.ratingCount }} 人评价</div>
                   </template>
@@ -115,11 +121,18 @@ import { DIFFICULTY_TEXT, SOURCE_TEXT } from '../lib/constants.js'
 const RANK_TYPES = [
   { key: 'hot', label: '热门榜' },
   { key: 'top', label: '高分榜' },
-  { key: 'latest', label: '最新榜' }
+  { key: 'latest', label: '最新榜' },
+  // 冷启动榜：按综合得分（评分 60% + 互动 40%）排，新菜从这里冒头
+  { key: 'cold', label: '冷启动榜' }
 ]
 
-/** 每页条数。与后端 Service 里的上限（50）保持一致，别写个更大的数 */
-const PAGE_SIZE = 20
+/**
+ * 每页条数。两个约束都要对齐后端 DishRankService：
+ *   ① 单页上限 50 —— 这里别写更大的数，写了也会被后端夹回去
+ *   ② 榜单总容量 100 —— 后端会把返回的 total 封顶到 100，
+ *      所以这里最多就是 10 页，翻到底自动没有"再看"按钮
+ */
+const PAGE_SIZE = 10
 
 const state = reactive({ type: 'hot', page: 1, total: 0 })
 const items = ref([])

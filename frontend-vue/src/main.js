@@ -16,6 +16,7 @@ import './styles/style.css'   // 登录页专属
 import './styles/kitchen.css' // 找菜工作台
 import './styles/dish.css'    // 菜品详情
 import './styles/rank.css'    // 榜单
+import './styles/recommend.css' // 推荐
 import './styles/profile.css' // 我的
 
 const app = createApp(App)

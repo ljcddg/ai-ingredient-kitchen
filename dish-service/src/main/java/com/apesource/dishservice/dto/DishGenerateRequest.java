@@ -30,4 +30,37 @@ public class DishGenerateRequest {
 
     /** 人数 */
     private Integer servings;
+
+    // ---------- 生成约束（说明文档第三节：把用户条件真正约束到生成结果上） ----------
+
+    /**
+     * 必用食材（从列表里点选的）。
+     * <p>和 {@link #ingredientIds} 的区别：那些是"手边有的"，
+     * 这些是"这道菜必须用上的"。留空表示不作要求。
+     */
+    private List<Long> mustUseIngredientIds;
+
+    /** 必用食材（自由输入的名字） */
+    private List<String> mustUseIngredients;
+
+    /** 禁用食材（主数据 ID）—— 过敏、忌口、宗教禁忌，出现即判不合格 */
+    private List<Long> excludeIngredientIds;
+
+    /** 禁用食材（名字，含表外食材） */
+    private List<String> excludeIngredients;
+
+    /** 最长总耗时（备菜 + 下锅，分钟）。可空表示不限 */
+    private Integer maxCookTimeMin;
+
+    /** 用户手上有的厨具。可空表示不限制；非空时菜谱要求的设备必须是它的子集 */
+    private List<String> availableEquipment;
+
+    /** 打包成值对象传给后面几层 —— 六个参数一路传下去太容易漏 */
+    public GenerateConstraints toConstraints() {
+        GenerateConstraints constraints = new GenerateConstraints(
+                mustUseIngredientIds, mustUseIngredients,
+                excludeIngredientIds, excludeIngredients,
+                maxCookTimeMin, availableEquipment);
+        return constraints.noConstraint() ? GenerateConstraints.none() : constraints;
+    }
 }

@@ -33,6 +33,12 @@
       "collectCount":      { "type": "integer" },
       "viewCount":         { "type": "integer" },
 
+      "rankLevel":         { "type": "byte" },
+      "dishScore":         { "type": "double" },
+      "pushCount":         { "type": "integer" },
+      "likeCount":         { "type": "integer" },
+      "cookCount":         { "type": "integer" },
+
       "energyKcal":        { "type": "double" },
       "publishTime":       { "type": "date" }
     }

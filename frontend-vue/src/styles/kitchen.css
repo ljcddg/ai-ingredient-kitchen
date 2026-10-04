@@ -1037,3 +1037,223 @@
 }
 
 .page-kitchen .cand-link:hover .cand-name{ color: var(--accent); }
+
+/* ============================================================
+   手写菜谱面板（页内覆盖层，不是新页面）
+
+   放在这一页是因为：用户手边这几样食材正选在上面，跳走再回来草稿就丢了。
+   覆盖层用固定定位盖住工作台，卡片自己内部滚动 —— 表单会长到一屏放不下。
+   ============================================================ */
+.page-kitchen .manual-mask{
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: rgba(24, 18, 16, .46);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.page-kitchen .manual-card{
+    width: 100%;
+    max-width: 720px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-pop);
+    animation: fxRise .28s var(--ease) both;
+}
+
+.page-kitchen .manual-head{
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.page-kitchen .manual-title{
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.page-kitchen .manual-sub{
+    margin: 6px 0 0;
+    max-width: 56ch;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--ink-2);
+}
+
+.page-kitchen .manual-close{
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .manual-close:hover{ border-color: var(--ink-3); color: var(--ink); }
+.page-kitchen .manual-close svg{ width: 12px; height: 12px; }
+
+.page-kitchen .manual-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px 22px;
+}
+
+.page-kitchen .manual-cols{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.page-kitchen .manual-field{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.page-kitchen .manual-label{
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.page-kitchen .manual-hint{
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+.page-kitchen .manual-block{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.page-kitchen .manual-block-head{
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.page-kitchen .manual-rows{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 名字自适应、克数固定窄列、删除键最窄 —— 三列都对齐才好一行行往下填 */
+.page-kitchen .manual-row{
+    display: grid;
+    grid-template-columns: 1fr 96px 40px;
+    gap: 8px;
+    align-items: center;
+}
+
+.page-kitchen .manual-step-row{ grid-template-columns: 26px 1fr 40px; }
+
+.page-kitchen .manual-step-no{
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.page-kitchen .manual-del{
+    height: 34px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink-3);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .16s var(--ease), color .16s var(--ease);
+}
+
+.page-kitchen .manual-del:hover{ border-color: var(--danger); color: var(--danger); }
+
+.page-kitchen .manual-add{ align-self: flex-start; font-size: 12.5px; }
+
+/* 试算结果：能不能发出去，一眼看完，不用等提交 */
+.page-kitchen .manual-preview{
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+}
+
+.page-kitchen .manual-preview-text{
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+}
+
+.page-kitchen .manual-problems,
+.page-kitchen .manual-warnings{
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12.5px;
+    line-height: 1.7;
+}
+
+.page-kitchen .manual-problems{ color: var(--danger); }
+.page-kitchen .manual-warnings{ color: var(--warn); }
+
+.page-kitchen .manual-foot{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+}
+
+.page-kitchen .manual-foot-note{
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+/* .submit 在左栏是撑满的，这里只占按钮自己的宽度 */
+.page-kitchen .manual-foot .submit{ width: auto; }
+
+@media (max-width: 720px){
+    .page-kitchen .manual-cols{ grid-template-columns: 1fr; }
+    .page-kitchen .manual-row{ grid-template-columns: 1fr 84px 40px; }
+    .page-kitchen .manual-foot{ flex-wrap: wrap; }
+    .page-kitchen .manual-foot-note{ flex-basis: 100%; }
+}

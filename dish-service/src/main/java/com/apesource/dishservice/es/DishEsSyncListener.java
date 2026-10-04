@@ -1,5 +1,6 @@
 package com.apesource.dishservice.es;
 
+import com.apesource.dishservice.entity.EsSyncTask;
 import com.apesource.dishservice.event.DishPublishedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,12 +15,17 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * 把「发布」这件事和「同步索引」这件事接起来。
  *
- * <p>三条触发路径，覆盖了索引可能落后的所有情况：
+ * <p>四条路径，覆盖了索引可能落后的所有情况：
  * <ol>
- *   <li><b>启动时</b>检查索引在不在，不在就按 mapping 建出来</li>
- *   <li><b>发布后</b>（增量）靠事务事件立刻同步一条 —— 这是主路径</li>
- *   <li><b>每天凌晨</b>（全量）兜底一次 —— 增量漏掉的（进程崩溃、ES 短时不可用、
- *       有人直接改库）都由它补齐</li>
+ *   <li><b>写待办</b>：发布/撤回的那笔业务事务里，用
+ *       {@link EsSyncTaskService#enqueue} 记下"这道菜要重新对一次索引"。
+ *       它和业务数据同生共死 —— 事务回滚就一起没有，提交了就一定留得下。
+ *       （登记点在 {@code DishPublishService}，不在本类：本类的监听器跑在事务之后）</li>
+ *   <li><b>提交后立刻试一次</b>：下面的 {@link #onDishPublished}，
+ *       让"发完马上能搜到"的体验不变；成功就把待办收掉</li>
+ *   <li><b>后台按退避重试</b>：{@link EsSyncWorker} 定时扫待办，
+ *       失败的重试到成功或明确放弃 —— 这是"最终一致"真正的兜底</li>
+ *   <li><b>每天凌晨全量重建</b>：保留为核对手段（说明文档明确要求它不作为唯一恢复方式）</li>
  * </ol>
  *
  * <p>为什么增量同步用 {@code @TransactionalEventListener} 而不是普通的 {@code @EventListener}：
@@ -35,7 +41,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 public class DishEsSyncListener {
 
-    private final DishEsSyncService syncService;
+    private final EsSyncTaskService taskService;
+
+    private final EsSyncWorker syncWorker;
 
     private final DishIndexWriter writer;
 
@@ -60,17 +68,27 @@ public class DishEsSyncListener {
         }
     }
 
-    /** 增量：发布（或下架）之后同步这一条 */
+    /**
+     * 发布（或下架）提交之后：立即尝试同步一次。
+     *
+     * <p>失败<b>不重试、也不报错</b>：待办还留在表里（状态已变成"失败待重试"），
+     * 后台任务会按退避接着试。请求这条路只负责"顺手把最常见的情况做掉"。
+     */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDishPublished(DishPublishedEvent event) {
-        log.info("收到发布事件，开始同步索引：dishId={}", event.dishId());
-
-        // 这里刻意同步执行而不是 @Async：本地 ES、单条写入是毫秒级，
-        // 引入异步反而要多考虑线程池与"任务丢了怎么办"。
-        // 如果将来 ES 变远、写入变慢，就该换成丢消息队列（RocketMQ）而不是简单加点 @Async。
-        boolean ok = syncService.syncOne(event.dishId());
-        if (!ok) {
-            log.warn("发布后同步索引失败 dishId={}，等待定时全量补齐", event.dishId());
+        EsSyncTask task = taskService.find(event.dishId());
+        if (task == null) {
+            // 正常流程不会走到这里（登记在业务事务里）。真出现了说明有人在事务外发了事件，
+            // 那就补一条待办 —— 宁可多同步一次，也不能让索引悄悄落后
+            log.warn("发布事件没有对应的同步待办，补登记：dishId={}", event.dishId());
+            taskService.enqueue(event.dishId(), null);
+            task = taskService.find(event.dishId());
+            if (task == null) {
+                return;
+            }
+        }
+        if (syncWorker.syncNow(task)) {
+            log.info("发布后同步索引成功：dishId={}", event.dishId());
         }
     }
 
@@ -90,7 +108,7 @@ public class DishEsSyncListener {
         }
         log.info("开始定时全量重建菜品索引");
         try {
-            syncService.reindexAll();
+            syncWorker.reindexAll();
         } catch (Exception e) {
             // 定时任务里的异常必须自己兜住：抛出去会被调度器吞掉，
             // 而且不影响下一次调度，很容易长期无人发现

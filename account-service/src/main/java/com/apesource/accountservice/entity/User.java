@@ -49,6 +49,16 @@ public class User implements Serializable {
     /** 账号状态：0-禁用，1-正常 */
     private Integer status;
 
+    /**
+     * 角色：0-普通用户，1-管理员。
+     * <p>
+     * 取值与 common-service 的 {@code AuthConstants.ROLE_USER / ROLE_ADMIN} 对应。
+     * 注册时不显式赋值也没问题 —— 数据库该列有默认值 0，
+     * 而 MyBatis-Plus 默认忽略 null 字段，不会把 null 写进去。
+     * 但注册处仍然显式 set 了一次，为的是读代码时不必去翻 DDL 才知道默认角色是什么。
+     */
+    private Integer role;
+
     /** 逻辑删除标记：0-未删除，1-已删除 */
     @TableLogic
     private Integer deleted;

@@ -11,7 +11,7 @@
   <img alt="Spring Boot" src="https://img.shields.io/badge/Spring%20Boot-3.2.4-6DB33F?logo=springboot&logoColor=white">
   <img alt="Spring Cloud" src="https://img.shields.io/badge/Spring%20Cloud-2023.0.1-6DB33F?logo=spring&logoColor=white">
   <img alt="Nacos" src="https://img.shields.io/badge/Nacos-2.3.2-2F7DD1">
-  <img alt="Elasticsearch" src="https://img.shields.io/badge/Elasticsearch-7.16-005571?logo=elasticsearch&logoColor=white">
+  <img alt="Elasticsearch" src="https://img.shields.io/badge/Elasticsearch-8.16-005571?logo=elasticsearch&logoColor=white">
   <img alt="Redis" src="https://img.shields.io/badge/Redis-Redisson%203.26-DC382D?logo=redis&logoColor=white">
   <img alt="Vue" src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/LLM-Ollama%20local-000000">
@@ -55,6 +55,14 @@
 用「先计数、够了再转正」做一道缓冲，让真实需求浮上来，垃圾输入（甚至脏话）自己沉下去 ——
 因为食材主数据是所有归一化与营养计算的基准，不能被污染。
 
+除此之外还有第三条内容来源：**用户手写菜谱**（`t_dish.source = 3`）。它不走模型 ——
+食材页上「手写菜谱」按钮就地展开一个面板（不跳页），用户填菜名 / 成分表（食材 + 克数）/
+做法步骤，面板里实时试算「每人份多少 kcal、覆盖率多少、还差什么」；营养一律按
+`t_ingredient` 的成分表本地算，对不上就照 AI 那套降级并标注来源。
+落库**一律先存草稿**，发布门槛与 AI 生成共用同一套校验（`DishPublishService.check`：
+≥2 样食材、≥3 条步骤、菜名 ≤20 字、热量 > 0、不与已发布菜重名），
+够门槛就自动进找菜库，不够就留在草稿里、把原因原样回给用户。
+
 ---
 
 ## 技术形态
@@ -85,7 +93,7 @@
 | jjwt | 0.12.5 | 拆成 api / impl / jackson 三包 |
 | Redisson | 3.26.1 | 内置 `redisson-spring-data-32`，匹配 Boot 3.2.x |
 | MySQL 驱动 | 8.3.0 | 显式写 version，否则覆盖 Boot BOM 的管理 |
-| Elasticsearch | 7.16.2 | 见下方说明 |
+| Elasticsearch | 8.16.0 | 只跑在 Docker（单节点、已关 security），见下方说明 |
 | Ollama | `gemma3:4b` 级别本地模型 | 本地推理，一道菜 12~26 秒 |
 
 ---
@@ -217,7 +225,7 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 
 | # | 决策点 | 选择 | 放弃了什么 | 理由 |
 |---|---|---|---|---|
-| 1 | ES 客户端 | 手写 `RestClient` | Spring Data 的 Repository 抽象 | Spring Data ES 5.2.x 只兼容 ES 8.11.1，本机 7.16.2 不保证；DSL 本来就要手写 |
+| 1 | ES 客户端 | 手写 `RestClient` | Spring Data 的 Repository 抽象 | Spring Data ES 5.2.x 的目标是 ES 8.11.1，服务端 8.16.0 仍不是官方钉死的版本；手写 RestClient 零版本耦合（7.16.2 → 8.16.0 业务代码一行未改）；DSL 本来就要手写 |
 | 2 | 生成调度 | 自建内存队列 | MQ 的可靠性 / 天然分布式 | MQ 表达不了「改顺序 / 取消排队」；单实例下自建更简单可控 |
 | 3 | 并发度 | 默认 1 | 吞吐 | 本地单模型串行最稳，且实测不慢 |
 | 4 | 营养来源 | AI 估算 + 标注「仅供参考」 | 本地精确计算 | 食材可自由输入，主数据不可能全覆盖；本地计算降级为后台校验 |
@@ -264,6 +272,9 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `project0914` | `t_dish_rating` / `t_dish_comment` | 评分（一人一票）/ 评论（可多条） |
 | `project0914` | `t_dish_collect` | 收藏（恢复式） |
 | `project0914` | `t_ai_generate_task` | AI 生成任务（状态机 + 去重 + 配额） |
+| `project0914` | `t_ai_generation_record` | 生成记录（模型 / 提示词版本 / 校验结果 / 原始输出截断），换模型后老结果仍可解释 |
+| `project0914` | `t_dish_push_log` | 推荐流推流日志（一人一菜一行，24 小时去重靠**查询条件**而非唯一键） |
+| `project0914` | `t_es_sync_task` | 索引同步待办（退避重试 + 人工补偿入口） |
 | `project0914` | `t_tag` / `t_dish_tag` | 标签 |
 | `project0914` | `t_ingredient_candidate` | 表外食材沉淀（3 次转正） |
 | `project0914` | `t_user_ingredient_pref` | 用户食材偏好（已建表，待启用） |
@@ -301,6 +312,11 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `POST` | `/api/dish/ai/tasks/{taskId}/cancel` | 取消（排队中 / 执行中都走这里） |
 | `DELETE` | `/api/dish/ai/tasks/{taskId}` | 删除任务记录（**仅限已结束的**，不碰菜品） |
 | `GET` | `/api/dish/ai/dish/{dishId}` | 菜品详情（营养 / 步骤 / 大厨建议 / 评分 / 评论） |
+| `POST` | `/api/dish/ai/dish/manual/preview` | **手写菜谱试算**：只按食材成分表算营养、只报「还差什么」，不入库 |
+| `POST` | `/api/dish/ai/dish/manual` | **手写菜谱入库**：`source=3`、营养走本地计算；够发布门槛就自动发布，不够就留草稿并回原因 |
+| `GET` | `/api/dish/ai/recommend` | 推荐流一屏（冷启动候选池 + 24h 去重；`matchType` 说明这道菜为什么被推） |
+| `POST` | `/api/dish/ai/recommend/{dishId}/view` | 上报查看（查看率是晋级的核心指标，所以挂在详情页而不是列表接口上） |
+| `POST` | `/api/dish/ai/recommend/{dishId}/interact?type=like\|collect\|cook` | 上报互动 |
 
 </details>
 
@@ -325,10 +341,25 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `POST` | `/api/dish/ai/dish/{dishId}/publish` | 发布进找菜库 |
 | `POST` | `/api/dish/ai/dish/{dishId}/unpublish` | 撤回（同步删索引） |
 | `GET` | `/api/dish/ai/dish/{dishId}/publish-check` | 发布前校验（预检） |
-| `GET` | `/api/dish/ai/rank?type=hot\|top\|latest` | 榜单 |
-| `POST` | `/api/dish/ai/es/reindex` | 全量重建索引（**当前无权限校验，对外前必须加**） |
-| `POST` | `/api/dish/ai/ingredients/promote` | 食材候选转正 |
-| `GET` | `/api/dish/ai/ingredients/candidates` | 候选食材列表 |
+| `GET` | `/api/dish/ai/rank?type=hot\|top\|latest\|cold` | 榜单（`cold` = 冷启动榜，按综合得分排，新菜从这里冒头） |
+| `POST` | `/api/dish/ai/es/reindex` | 🔒 全量重建索引 |
+| `POST` | `/api/dish/ai/admin/dish/{dishId}/unpublish` | 🔒 管理员强制下架 |
+| `GET` | `/api/dish/ai/ingredients/candidates` | 🔒 待审食材候选清单（按热度倒序） |
+| `POST` | `/api/dish/ai/ingredients/candidates/approve` | 🔒 审核通过 → 转正成正式食材 |
+| `POST` | `/api/dish/ai/ingredients/candidates/reject` | 🔒 审核拒绝（理由必填） |
+| `GET` | `/api/dish/ai/ingredients/candidates/reviewed` | 🔒 已审核历史（谁、何时、为什么） |
+| `GET` | `/api/dish/ai/es/sync/status` | 🔒 索引同步积压统计（待同步 / 完成 / 待重试 / 已放弃） |
+| `GET` | `/api/dish/ai/es/sync/tasks?status=&limit=` | 🔒 同步任务清单（排查"为什么索引里没有这道菜"） |
+| `POST` | `/api/dish/ai/es/sync/retry` | 🔒 手动补偿失败任务（不等下一次退避） |
+| `POST` | `/api/dish/ai/admin/nutrition/recompute` | 🔒 按食材成分表整库重算营养（返回偏差报告） |
+
+> ⚠️ 运维接口的前缀**不统一**：多数是 `/ai/...`，只有"强制下架"和"营养重算"是 `/ai/admin/...`。
+> 前端曾经因此把 `/ai` 整段漏掉，6 个管理接口全部打到空路径上
+> （症状是管理台整页报错，却看不出是 URL 写错）—— 路径以 Controller 上的
+> `@RequestMapping` 为准，别照着邻居猜。
+
+🔒 = 需要管理员角色（`t_user.role = 1`）。判定在业务服务内完成后端拦截器**回源查库**得出，
+不信任请求头里的任何角色字段 —— 请求头可以伪造，权限判断不能信它。
 
 </details>
 
@@ -362,7 +393,7 @@ ai-ingredient-kitchen/
 | MySQL 8 | `127.0.0.1:3306` | 库名 `project0914`，编码 `utf8mb4` |
 | Redis | `127.0.0.1:6379` | 供 Redisson 布隆过滤器使用 |
 | Nacos | `127.0.0.1:8848` | 配置中心 + 注册中心 |
-| Elasticsearch | `127.0.0.1:9200` | 7.16.2 解压版 |
+| Elasticsearch | `127.0.0.1:9200` | Docker 容器 `es`（8.16.0，单节点、已关 security、纯 http 免密） |
 | Ollama | `127.0.0.1:11434` | 需先 `ollama pull` 对应模型 |
 
 ### 启动顺序
@@ -402,18 +433,80 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 
 ---
 
+## 评估与验证
+
+改进项不能只说「做完了」，得留下能复现的数字。测试集固定（`es/eval/testset-ranking.json`，162 组，
+按食材组合哈希划分 validation / test），脚本各自独立、产物全部入库存档，**结论按数据推导，不写预设立场**。
+
+| 实验 | 脚本 | 产物 | 一句话结论 |
+|---|---|---|---|
+| 排序对照（legacy vs satisfaction） | `es/eval/run-ranking-experiment.py` | `results-ranking.{md,json}` | test 划分 P@5 0.339 → **0.467**，最优缺料排第 1 0.569 → **0.639**，约束违反 0/0 |
+| 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
+| 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
+| 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
+| 营养本地计算对照 | `dish-service/verify-p2-nutrition.py` | 10/10 断言 | 小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 手写菜谱重名拦截（纯接口回归，约 5 秒） | `dish-service/verify-manual-dish.py` | 14 断言（PASS 14 / FAIL 0） | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」）；探针自建数据自己清 |
+| 前端端到端（真实浏览器点按） | `frontend-vue/verify-vue.py` | **253 断言 / 0 失败** | 六个页面含管理台 + 手写菜谱（9i）+ 推荐页（9j）：断言前端**实际发出的请求体**（patch `fetch` 抓载荷），曾借此抓出管理台 10 个接口漏掉 `/ai` 前缀的真 bug |
+| 人工可操作性（盲评材料 + 汇总口径） | `es/eval/human-eval-kit.py` | `es/eval/human-eval/`（`blind-sheet.md` / `ratings-template.csv` / `answer-key.csv`，`score` 出 `human-eval-report.md`） | 工具已就绪并按假评分表验证过汇总与加权 kappa；**现有 7 条样本两臂各自困在一个提示词版本上，不能直接对比**，要下结论得补 B 臂样本 + ≥2 名真人评分 |
+
+几条必须一起交代的口径（细节在各报告里）：
+
+- **失败样本不剔除**，且失败的归因要分档：格式不合格 / 约束不合格是两类问题，混在一起看不出该改哪边。
+- `OLLAMA_NUM_PARALLEL` 是**设置值不是实测值**（环境变量只对重启后的 Ollama 生效）——报告里如实标注，
+  要断言 Ollama 侧行为得另加「直接对 `/api/generate` 并发压测」的对照。
+- 小样本（负载 2+2 个任务）只够验证观测口径，**不足以给稳定的 P95**；写进论文需要扩规模重复多次。
+- **指标绑在"菜库快照"上**：排序/协同实验当时是 32→34 道已发布菜；现在库里已是 149 道（110 已发布，含验证脚本自己生成的），
+  所以 `results-ranking.*` 里的 P@5 **不能拿来和今天的数据对比**。要重跑实验，先记下当下的
+  `SELECT COUNT(*) FROM t_dish WHERE deleted=0 AND status=1` 再跑，报告里也要写清快照。
+- 营养偏差、生成耗时等指标受机器状态影响大（冷启动 + 40960 上下文 + GPU 争用），报告记录了运行时的固定条件。
+- 人工评价**不能只由生成模型自己完成**：`human-eval-kit.py build` 出盲评材料（序号打乱，是哪条策略只记在**不给评价者看的** `answer-key.csv` 里），
+  `score` 汇总两臂均分并算评价者之间的**线性加权 Cohen's kappa**。一条必须说清的混杂：**现有记录里 A 臂（参考增强）全在 `prompt_version=076b89e0`、
+  B 臂（直接生成）全在 `1379896b`** —— 两臂差的既是"有没有参考菜谱"也是"提示词版本"，跨版本比较无效；有效对比必须在**同一个提示词版本**下补齐两臂。
+
+### 要跑人工评价时：怎么补齐 B 臂（三步）
+
+现有 7 条可用样本两臂都不到 5 条，且各自困在一个提示词版本上，所以**要下结论必须重新生成 B 臂**。
+`es/eval/fill-arm-b.py` 是这件事的执行脚本（预检 → 提交 → 等终态 → 回读确认这批真的是 B 臂）：
+
+```bash
+# 1) 先备份 Nacos，再把 dish-service.yaml 的 ai.generate.enhance-enabled 改成 false 并推送
+python nacos-config/backup-nacos.py
+#    推送方式：POST http://127.0.0.1:8848/nacos/v1/cs/configs
+#    body: dataId=dish-service.yaml & group=DEFAULT_GROUP & tenant= & type=yaml & content=<整个文件内容>
+#    内容必须用 UTF-8 无 BOM 读（PowerShell 的 Set-Content -Encoding UTF8 会写 BOM，Nacos 端会解析失败）
+
+# 2) 重启 dish-service —— Nacos 配置改了不重启不生效
+Get-CimInstance Win32_Process -Filter "Name='java.exe'" |
+  Where-Object { $_.CommandLine -like '*dish-service*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+java "-Dfile.encoding=UTF-8" -jar dish-service\target\dish-service-0.0.1-SNAPSHOT.jar --server.port=8082
+
+# 3) 补 5 条 B 臂样本（约 25~45 分钟，单次生成 2~8 分钟）
+python es/eval/fill-arm-b.py 5
+```
+
+跑完**务必把 `enhance-enabled` 改回 `true` 并再重启一次**（否则后面再也生成不出 A 臂）。
+脚本的预检、登录、端口检查已实测；提交与回读两段要等真正补样本时才会跑到 —— 第一次跑如果报错，
+先看它打印的 mysql stderr 原文，不要只看"没输出"。
+
+补齐之后：`python es/eval/human-eval-kit.py build` 出材料 → 找 ≥2 人各填一份 `ratings-<名字>.csv` →
+`python es/eval/human-eval-kit.py score` 出 `human-eval-report.md`。
+
+---
+
 ## 已知限制与技术债
 
 | 类别 | 问题 | 影响 | 处理建议 |
 |---|---|---|---|
-| 功能缺口 | AI 自补的食材未过归一化 | 该食材进不了倒排索引，营养只能标「估算」 | 生成后补一遍 `IngredientResolver` |
+| 功能缺口 | ~~AI 自补的食材未过归一化~~ **已修（2026-10-02）** | 原影响：该食材进不了按 ID 的召回、营养只能标「估算」、还会被误记进候选表 | `DishDraftWriter` 现在在"用户勾选列表"之外回退 `IngredientDirectory.resolveId()`（正式名 + 别名 + 去空白/大小写）；历史欠账由 `sql/migration-05-ingredient-id-backfill.sql` 补（实测 6 行 → 0 行）；`IngredientDirectory` 改两遍加载，正式名优先于别名，冲突时打 warn |
+| 运维 | ~~推荐页整页 500（「没能加载推荐 / 再试一次」）~~ **已修（2026-10-02）** | 根因：冷启动的推流日志表 `t_dish_push_log` 不在库里，而推荐候选查询里有对它的 `NOT EXISTS` 24 小时去重子查询 → `Table 'project0914.t_dish_push_log' doesn't exist`。`t_dish` 的冷启动字段与 `idx_rank_level_score` 索引都在，**只缺这一张表**，所以表现成"列表页整页打挂"而不是某个功能降级 | 补 `sql/migration-06-recommend-push-log.sql`（`CREATE TABLE IF NOT EXISTS`，可重复执行）。教训：**新功能引入的新表必须落成 `sql/` 下的脚本**，否则换库/恢复备份时表会静默消失，而代码只在真正访问到它时才炸 |
 | 功能缺口 | 账号中心未做（改昵称 / 改密码 / 旧 token 失效） | 用户无法自主维护账号 | 需动网关（token 带 `iat` + 比对 Redis 改密时间戳），**必须单独做** |
 | 架构 | 生成队列是**单实例内存队列** | 无法水平扩容；重启会中断任务 | 迁 Redis ZSet 做分布式队列 |
 | 架构 | 前端用**轮询**（1.5s）而非 SSE | 有无效请求开销 | 改 SSE + Ollama 流式输出 |
-| 性能 | 本地单模型、并发度 1 | 全局吞吐瓶颈 | 换更大 GPU / 模型，或接云端 API |
-| 安全 | `es/reindex` 与食材转正接口**无权限校验** | 对外暴露可被滥用 | 对外前加管理员校验 |
+| 安全 | 业务服务不能被限制为"只允许网关访问" | 直连 8082 伪造 `X-User-Id` 可冒充普通用户（**但拿不到管理员权限**，权限回源查库） | 部署时用网络策略/安全组只放行网关 |
+| 性能 | 应用侧并发 2，而 Ollama `NUM_PARALLEL=1` | 队列不是瓶颈（实测排队 ≤239ms），瓶颈是单次模型调用（P50 数分钟） | 实测把 Ollama 提到 2 会爆 8G 显存回退 CPU（单请求 2.5s→7.4s），需先把上下文从 40960 调小；用户已决定**维持并行 1** |
+| 性能 | 模型调用超时阈值设小会把「并发下变慢」误判成「卡死」 | 240s 时一次 2 vs 4 的实验 6/6 任务全灭 | 已提到 **600s**；阈值必须大于并发下的单任务上限，否则测的是阈值不是系统 |
 | 运维 | 数据源 / Redis 密码是 `root/root` 占位；Seata 已建库建表但未部署 | 不能直接上生产 | 配置外置 + 部署 Seata |
-| 一致性 | ES 与 MySQL 之间是最终一致 | 有秒级窗口 | 已用 `AFTER_COMMIT` + 每日全量兜底 |
+| 一致性 | ES 与 MySQL 之间是最终一致 | 有秒级窗口 | `AFTER_COMMIT` 立即尝试一次 + `t_es_sync_task` 待办表（退避 5/15/45/120s，5 次后放弃）+ 管理员手动补偿 + 每日 04:00 全量核对；实测停掉 ES 后撤回仍成功，恢复后旧任务**只会删不会写回** |
 
 ---
 

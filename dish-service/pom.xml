@@ -62,13 +62,14 @@
         <!--
             ★ 这里【故意不引】 spring-boot-starter-data-elasticsearch。
 
-            原因：本机 ES 服务端是 7.16.2（D:\explorer\NeatDM\utils\elasticsearch-7.16.2），
-            而 Boot 3.2.4 能用的 Spring Data ES 5.2.x，官方兼容目标是 ES 8.11.1。
-            两者不是官方保证的组合（Elastic 对 8.x 客户端连 7.x 服务端明确 "without
-            guarantees made"），硬上会踩一堆难排查的坑。
+            原因：Boot 3.2.4 能用的 Spring Data ES 5.2.x，官方兼容目标是 ES 8.11.1。
+            服务端起初是原生解压版 7.16.2（明确不在兼容范围内），现在换成了
+            Docker 容器里的 elasticsearch:8.16.0 —— 更接近了，但仍不是官方钉死的
+            那个版本，没必要为此把数据访问层整个交给它。
 
             改用自写的轻量客户端：用 Spring 6.1 自带的 RestClient 直接发 JSON DSL。
-            好处是【零版本耦合】—— 以后把服务端换成 8.11.x，这里一行都不用改。
+            好处是【零版本耦合】—— 这次从 7.16.2 升到 8.16.0，业务代码一行未改，
+            已经验证过这个决定是划算的。
 
             索引 mapping 与查询 DSL 见项目根目录 es/dish-search.md。
         -->

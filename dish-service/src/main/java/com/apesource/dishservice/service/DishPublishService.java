@@ -4,6 +4,7 @@ import com.apesource.commonservice.exception.BusinessException;
 import com.apesource.dishservice.dto.DishStep;
 import com.apesource.dishservice.entity.Dish;
 import com.apesource.dishservice.entity.DishIngredient;
+import com.apesource.dishservice.es.EsSyncTaskService;
 import com.apesource.dishservice.event.DishPublishedEvent;
 import com.apesource.dishservice.mapper.DishIngredientMapper;
 import com.apesource.dishservice.mapper.DishMapper;
@@ -78,6 +79,9 @@ public class DishPublishService {
      * 这样即使 ES 挂了也不影响发布结果，二者不会互相拖累。
      */
     private final ApplicationEventPublisher events;
+
+    /** 发布/撤回都在业务事务里登记一条"待同步索引" */
+    private final EsSyncTaskService esSyncTaskService;
 
     // ==================================================================
     // 校验
@@ -202,24 +206,61 @@ public class DishPublishService {
      */
     @Transactional
     public String unpublish(long userId, long dishId) {
-        Dish dish = requireOwnDish(userId, dishId);
+        String message = doUnpublish(requireOwnDish(userId, dishId));
+        log.info("用户 {} 撤回菜品 {}", userId, dishId);
+        return message;
+    }
 
+    /**
+     * 管理员强制下架：不校验归属，其余逻辑与用户自助撤回完全一致。
+     *
+     * <p>存在的意义：某道菜违反内容规范（或演示时要清掉一条脏数据）而作者联系不上时，
+     * 靠"让用户自己撤"是撤不掉的。
+     *
+     * <p><b>为什么强制下架也不能简化成一句 UPDATE：</b>
+     * 索引里那份文档要靠 {@link DishPublishedEvent} 才会被删掉。
+     * 少发这个事件的结果是"搜得到、点进去说不存在"的幽灵菜，
+     * 而且库里状态已经改了，靠凌晨的定时全量重建才能自愈 —— 期间一直错着。
+     */
+    @Transactional
+    public String adminUnpublish(long dishId) {
+        Dish dish = dishMapper.selectById(dishId);
+        if (dish == null) {
+            throw new BusinessException("菜品不存在");
+        }
+        String message = doUnpublish(dish);
+        log.info("管理员强制下架菜品 {}", dishId);
+        return message;
+    }
+
+    /**
+     * 撤回的共同实现（归属校验之外的全部逻辑）。
+     *
+     * <p>条件更新里的 {@code eq(status, PUBLISHED)} 是并发保护：
+     * 两个请求同时撤回，只有一个能把状态从"已发布"改成"草稿"，
+     * 另一个影响 0 行 → 明确抛"状态已经变了"，而不是重复发一次事件。
+     */
+    private String doUnpublish(Dish dish) {
         if (!Objects.equals(dish.getStatus(), STATUS_PUBLISHED)) {
             return "这道菜本来就不在找菜库里";
         }
 
+        Long dishId = dish.getId();
         boolean updated = dishMapper.update(null, Wrappers.<Dish>lambdaUpdate()
                 .eq(Dish::getId, dishId)
                 .eq(Dish::getStatus, STATUS_PUBLISHED)
                 .set(Dish::getStatus, STATUS_DRAFT)
+                // 撤回就退回未进池，不该继续被推给别人看
+                .set(Dish::getRankLevel, Dish.RANK_LEVEL_NONE)
                 .set(Dish::getPublishTime, null)) > 0;
 
         if (!updated) {
             throw new BusinessException("状态已经变了，请刷新后重试");
         }
 
+        // 撤回同样要登记：索引里那份必须被删掉，否则"搜得到、点进去说不存在"
+        esSyncTaskService.enqueue(dishId, LocalDateTime.now());
         events.publishEvent(new DishPublishedEvent(dishId));
-        log.info("用户 {} 撤回菜品 {}", userId, dishId);
         return "已从找菜库撤下，仍保留在你的菜品里";
     }
 
@@ -271,12 +312,18 @@ public class DishPublishService {
                 .eq(Dish::getId, dish.getId())
                 .eq(Dish::getStatus, STATUS_DRAFT)
                 .set(Dish::getStatus, STATUS_PUBLISHED)
+                // 发布即进推荐池。新菜没有任何曝光，先把它送到用户面前
+                // 用真实流量验证，达标的再由 RankPromoteJob 升上排行榜。
+                .set(Dish::getRankLevel, Dish.RANK_LEVEL_POOL)
                 .set(Dish::getPublishTime, LocalDateTime.now())) > 0;
 
         if (!updated) {
             throw new BusinessException("状态已经变了，请刷新后重试");
         }
 
+        // 事务内登记待同步（说明文档 P1-6 的要求）：这样"改了库"和"记下要同步"
+        // 是同生共死的 —— 事务提交了就一定有一条待办，不会因为进程崩溃或 ES 抖动漏掉
+        esSyncTaskService.enqueue(dish.getId(), LocalDateTime.now());
         events.publishEvent(new DishPublishedEvent(dish.getId()));
     }
 

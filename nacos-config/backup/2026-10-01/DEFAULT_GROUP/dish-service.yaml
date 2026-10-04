@@ -1,0 +1,56 @@
+# ============================================================
+# dish-service 专属配置（Nacos DataId: dish-service.yaml, Group: DEFAULT_GROUP）
+# ============================================================
+# 数据源 / MyBatis-Plus 已经抽到 common.yaml，由本地 application.yml 一起导入。
+#
+# 推送命令（项目根目录执行）：
+#   curl -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" \
+#     --data-urlencode "dataId=dish-service.yaml" \
+#     --data-urlencode "group=DEFAULT_GROUP" \
+#     --data-urlencode "type=yaml" \
+#     --data-urlencode "content@nacos-config/dish-service.yaml"
+# ============================================================
+
+# ---------- 服务端口 ----------
+# 端口规划：gateway=7000，account-service=8081，dish-service=8082
+# 注意是 server.port，不是 spring.port（写成 spring.port 会被静默忽略）
+server:
+  port: 8082
+
+# ---------- Elasticsearch ----------
+# 本机是解压版 ES 7.16.2（D:\explorer\NeatDM\utils\elasticsearch-7.16.2）
+# 7.x 默认关闭 security，所以走 http、不需要用户名密码
+es:
+  uris: http://127.0.0.1:9200
+  # 菜品索引名
+  dish-index: dish_index
+  # 连接超时（秒）
+  connect-timeout: 3
+  # 读超时（秒）
+  socket-timeout: 30
+
+  recall:
+    # ES 侧一次召回多少条候选进「粗排池」，应用层在此基础上精排 + 分页
+    top-n: 200
+    # 用户最多可选几种食材（防止 must 里拼出几十个 term 拖慢查询）
+    max-ingredients: 10
+
+  # ---------- 直出判定阈值 ----------
+  # 三条同时满足才算「命中已有菜品」，直接用库里那道菜，不调 AI。
+  # 这是确定性规则而不是概率，同样输入必须得到同样结果。
+  judge:
+    # 食材覆盖率：命中食材数 / 用户所选食材数
+    min-similarity: 0.8
+    # 评价人数下限：人太少时分数不可信
+    min-rating-count: 10
+    # 威尔逊下界得分下限（约等于 5 分制的 4.2 分），抗小样本刷分
+    min-rating-wilson: 0.84
+
+  # ---------- 应用层综合分权重 ----------
+  # 综合分 = w1 * 覆盖率 + w2 * 威尔逊分 + w3 * 收藏热度，三者之和建议为 1
+  score:
+    weight-similarity: 0.5
+    weight-wilson: 0.3
+    weight-collect: 0.2
+    # 收藏热度归一化基准：log1p(collectCount) / log1p(该值)
+    collect-baseline: 1000.0

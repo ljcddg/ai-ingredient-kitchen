@@ -107,6 +107,14 @@ public class DishEsSyncService {
         doc.setCollectCount(dish.getCollectCount());
         doc.setViewCount(dish.getViewCount());
 
+        // 冷启动：搜索默认只召回 rank_level=2（已晋级）的菜，
+        // 所以这个值必须同步进索引，否则过滤条件会把所有菜都滤掉
+        doc.setRankLevel(dish.getRankLevel());
+        doc.setDishScore(toDouble(dish.getDishScore()));
+        doc.setPushCount(dish.getPushCount());
+        doc.setLikeCount(dish.getLikeCount());
+        doc.setCookCount(dish.getCookCount());
+
         doc.setEnergyKcal(toDouble(dish.getEnergyKcal()));
         doc.setPublishTime(formatTime(dish.getPublishTime()));
         doc.setTasteTags(splitTaste(dish.getTasteTag()));

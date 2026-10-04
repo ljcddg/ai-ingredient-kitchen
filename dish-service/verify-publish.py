@@ -21,6 +21,7 @@
     python dish-service/verify-publish.py
 """
 import json
+import os
 import random
 import string
 import sys
@@ -284,12 +285,24 @@ check('发布不存在的菜被拒', body.get('code') != 200, True)
 print('  提示：%s' % (body.get('message') or ''))
 
 # ======================================================================
-section('8. 索引全量重建（运维接口）')
+section('8. 运维接口的权限（需要管理员）')
+# 说明文档要求"索引重建、食材转正、内容下架等接口在后端执行管理员授权"。
+# 这里先验证普通用户确实被挡住 —— 这条断言本身就是一张"接口权限测试"记录。
 st, body = call('POST', '/api/dish/ai/es/reindex', token=token_a)
-d = body.get('data') or {}
-check('全量重建接口可用', st, 200)
-check('重建后已发布条数 >= 1', (d.get('published') or 0) >= 1, True)
-print('  重建结果：%s' % d)
+check('普通用户调运维接口被拒（403）', body.get('code'), 403)
+print('  提示：%s' % (body.get('message') or ''))
+
+# 管理员路径需要一个管理员账号的 token：本机把 t_user.role 置 1 后登录即可。
+# 通过环境变量传入，没传就跳过（不硬编码账号，避免脚本里躺着一个提权后门）。
+admin_token = os.environ.get('ADMIN_TOKEN')
+if admin_token:
+    st, body = call('POST', '/api/dish/ai/es/reindex', token=admin_token)
+    d = body.get('data') or {}
+    check('管理员全量重建接口可用', st, 200)
+    check('重建后已发布条数 >= 1', (d.get('published') or 0) >= 1, True)
+    print('  重建结果：%s' % d)
+else:
+    print('  跳过管理员路径：设好 ADMIN_TOKEN 环境变量（管理员登录后的 token）再跑')
 
 time.sleep(1.0)
 st, body = call('POST', '/api/dish/search',

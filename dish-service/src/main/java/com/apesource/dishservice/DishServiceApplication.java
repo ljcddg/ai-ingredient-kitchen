@@ -1,6 +1,7 @@
 package com.apesource.dishservice;
 
 import com.apesource.dishservice.config.EsProperties;
+import com.apesource.dishservice.recommend.RecommendProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,7 +22,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableConfigurationProperties(EsProperties.class)
+@EnableConfigurationProperties({EsProperties.class, RecommendProperties.class})
 // 菜品索引的定时全量兜底需要它（DishEsSyncListener.scheduledReindex）
 @EnableScheduling
 public class DishServiceApplication {

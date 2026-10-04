@@ -104,6 +104,15 @@ public class DishDetailView {
         /** 营养来源说明，如"AI 估算，仅供参考" */
         private String source;
 
+        /**
+         * 营养来源代码：1 = AI 估算，2 = 按食材成分表本地计算。
+         *
+         * 列表页（DishCardView）给的就是这个代码，详情页也必须给同一个口径 ——
+         * 否则同一道菜在列表里写"按成分表计算"、点进去写"AI 估算"，
+         * 用户没法判断该信哪一个。前端用同一个映射表渲染两者。
+         */
+        private Integer nutritionSource;
+
         /** 是否通过本地校验（前端可以不展示，但它决定了这份数据可不可信） */
         private Boolean verified;
     }

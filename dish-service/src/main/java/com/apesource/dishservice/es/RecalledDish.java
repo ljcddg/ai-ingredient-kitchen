@@ -34,9 +34,27 @@ public class RecalledDish {
     /** 食材覆盖率 = hitCount / 用户所选食材数，取值 0~1 */
     private double similarity;
 
-    /** 应用层综合分，由 similarity / 威尔逊分 / 收藏热度三部分加权得到 */
+    /** 应用层综合分，由满足率 / 利用率 / 质量分 / 收藏热度加权、再减缺料惩罚得到 */
     private double finalScore;
 
-    /** 是否满足「直出」的全部条件（覆盖率 + 评价人数 + 威尔逊分） */
+    /** 是否满足「直出」的全部条件（缺料 + 评价人数 + 质量分） */
     private boolean directEligible;
+
+    /** 走的是哪条质量路径（"充分评价" / "少量高分"），便于事后核对宽松通道 */
+    private String directPath;
+
+    /** 主料满足率 = |U∩R| / |R|，衡量菜谱要求的主料齐不齐 */
+    private double satisfactionRate;
+
+    /** 主料利用率 = |U∩R| / |U|，衡量手边的食材被用掉多少 */
+    private double utilizationRate;
+
+    /** 还缺几样主料 */
+    private int missingCount;
+
+    /** 已具备的主料名（给页面展示"你有这些"） */
+    private java.util.List<String> matchedIngredients;
+
+    /** 缺失的主料名（给页面展示"还差这些"，并解释为什么没直出） */
+    private java.util.List<String> missingIngredients;
 }

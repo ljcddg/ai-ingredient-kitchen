@@ -59,16 +59,19 @@
 | jjwt | 0.12.5 | 拆成 api / impl / jackson 三包 |
 | Redisson | 3.26.1 | 内置 `redisson-spring-data-32`，匹配 Boot 3.2.x |
 | MySQL 驱动 | 8.3.0 | 显式写 version，否则覆盖 Boot BOM 的管理 |
-| Elasticsearch（服务端） | 7.16.2（本机解压版） | 见下方说明 |
+| Elasticsearch（服务端） | 8.16.0（Docker 容器 `es`） | 见下方说明 |
 | Ollama | gemma4:e2b（5.1B，Q4_K_M） | 本地推理，一道菜 12~26 秒 |
 
 ### ⚠️ 为什么没用 Spring Data Elasticsearch
 
-Spring Data ES 5.2.x（Boot 3.2.4 唯一能用的版本）官方兼容目标是 **ES 8.11.1**，对本机的 **7.16.2 明确不保证**。
+Spring Data ES 5.2.x（Boot 3.2.4 唯一能用的版本）官方兼容目标是 **ES 8.11.1**；现在的服务端是 **8.16.0**，比 8.11.1 更接近，但仍不是官方钉死的那个版本。
 降回支持 7.x 的 4.4.x 又会破坏 Spring Framework 6.1 兼容 —— 跨不过 Boot 3 这条线。
 
 **选择**：不引任何 ES 依赖，直接用 Spring 6.1 自带的 `RestClient` 发 JSON DSL。
-ES 7.x 与 8.x 的 REST 层查询 DSL 基本一致，所以将来服务端升到 8.x，**业务代码一行都不用改**。
+它的价值是**零版本耦合** —— 同一份代码在 7.x 和 8.x 上都能跑：
+服务端从 **7.16.2 换到 8.16.0，业务代码一行都没改**，这个判断事后被验证是有效的。
+补充一个事实：ES 8 接受手写客户端发来的普通 `application/json`；只有官方 7.x Java 客户端才强制要求
+`application/vnd.elasticsearch+json;compatible-with=7` 那种 vendor 头，所以这次切换不需要动代码。
 代价是放弃 Repository 抽象 —— 而这里本来就要手写 DSL，实际没有损失。
 
 ---
@@ -397,9 +400,15 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 | `POST` | `/api/dish/ai/dish/{dishId}/unpublish` | 撤回（同步删索引） |
 | `GET` | `/api/dish/ai/dish/{dishId}/publish-check` | 发布前校验（预检） |
 | `GET` | `/api/dish/ai/rank?type=hot\|top\|latest` | 榜单 |
-| `POST` | `/api/dish/ai/es/reindex` | 全量重建索引（**当前无权限校验，对外前必须加**） |
-| `POST` | `/api/dish/ai/ingredients/promote` | 食材候选转正 |
-| `GET` | `/api/dish/ai/ingredients/candidates` | 候选食材列表 |
+| `POST` | `/api/dish/ai/es/reindex` | 🔒 全量重建索引 |
+| `POST` | `/api/dish/ai/admin/dish/{dishId}/unpublish` | 🔒 管理员强制下架 |
+| `GET` | `/api/dish/ai/ingredients/candidates` | 🔒 待审食材候选清单（按热度倒序） |
+| `POST` | `/api/dish/ai/ingredients/candidates/approve` | 🔒 审核通过 → 转正成正式食材 |
+| `POST` | `/api/dish/ai/ingredients/candidates/reject` | 🔒 审核拒绝（理由必填） |
+| `GET` | `/api/dish/ai/ingredients/candidates/reviewed` | 🔒 已审核历史（谁、何时、为什么） |
+
+🔒 = 需要管理员角色（`t_user.role = 1`），由 `@AdminOnly` + `AdminAuthInterceptor`
+在业务服务内**回源查库**判定，不信任请求头（请求头可伪造，权限判断不能信它）。
 
 ---
 
@@ -407,7 +416,7 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 
 | # | 决策点 | 选择 | 放弃了什么 | 理由 |
 |---|---|---|---|---|
-| 1 | ES 客户端 | 手写 `RestClient` | Spring Data 的 Repository 抽象 | Spring Data ES 5.2.x 只兼容 ES 8.11.1，本机 7.16.2 不保证；DSL 本来就要手写 |
+| 1 | ES 客户端 | 手写 `RestClient` | Spring Data 的 Repository 抽象 | Spring Data ES 5.2.x 的目标是 ES 8.11.1，服务端 8.16.0 仍不是官方钉死的版本；手写 RestClient 零版本耦合（7.16.2 → 8.16.0 业务代码一行未改）；DSL 本来就要手写 |
 | 2 | 生成调度 | 自建内存队列 | MQ 的可靠性 / 天然分布式 | MQ 表达不了"改顺序 / 取消排队"；单实例下自建更简单可控 |
 | 3 | 并发度 | 默认 1 | 吞吐 | 本地单模型串行最稳，且实测不慢 |
 | 4 | 营养来源 | AI 估算 + 标注「仅供参考」 | 本地精确计算 | 食材可自由输入，主数据不可能全覆盖；本地计算降级为后台校验 |
@@ -468,12 +477,12 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 
 | 类别 | 问题 | 影响 | 处理建议 |
 |---|---|---|---|
-| 功能缺口 | **AI 自补的食材未过归一化**（AI 自己加的「鸡蛋」拿不到主数据 ID） | 该食材进不了倒排索引，营养只能标"估算" | 生成后补一遍 `IngredientResolver` |
+| 功能缺口 | ~~**AI 自补的食材未过归一化**（AI 自己加的「鸡蛋」拿不到主数据 ID）~~ **已修（2026-10-02）** | 原影响：该食材进不了倒排索引，营养只能标"估算" | `DishDraftWriter` 现在会回退 `IngredientDirectory.resolveId()`（正式名 + 别名 + 去空白/大小写）；历史行由 `sql/migration-05-ingredient-id-backfill.sql` 补（6 行 → 0 行）；加载改为"正式名先登记、别名后登记"，冲突打 warn |
 | 功能缺口 | 账号中心未做（改昵称 / 改密码 / 旧 token 失效 / 手机验证码） | 用户无法自主维护账号 | 需动网关（token 带 `iat` + 比对 Redis 记录改密时间戳），**必须单独做**，改坏等于全线 401 |
 | 架构 | 生成队列是**单实例内存队列** | 无法水平扩容；重启会中断任务 | 迁 Redis ZSet 做分布式队列，语义可完全对齐 |
 | 架构 | 前端用**轮询**（1.5s）而非 SSE | 有无效请求开销 | 改 SSE + Ollama 流式输出，顺带解决"执行中取消不省资源" |
 | 性能 | 本地单模型、并发度 1 | 是全局吞吐瓶颈 | 换更大 GPU / 模型，或接云端 API |
-| 安全 | `POST /ai/es/reindex` 与食材转正接口**无权限校验** | 对外暴露可被滥用 | 对外前加管理员校验 |
+| 安全 | 业务服务不能被限制为"只允许网关访问" | 直连可伪造 `X-User-Id` 冒充普通用户（**但拿不到管理员权限**） | 部署时用网络策略只放行网关 |
 | 运维 | 数据源 / Redis 密码是 `root/root` 占位；Seata 已建库建表但未部署 | 不能直接上生产 | 配置外置 + 部署 Seata |
 | 一致性 | ES 与 MySQL 之间是最终一致 | 有秒级窗口 | 已用 `AFTER_COMMIT` + 每日全量兜底 |
 

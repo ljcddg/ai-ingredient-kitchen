@@ -1,0 +1,76 @@
+{
+  "ran_at": "2026-10-02T00:28:49",
+  "fixed_conditions": {
+    "app_queue_concurrency": "ai.queue.concurrency = 2",
+    "ollama_parallel": "OLLAMA_NUM_PARALLEL = 1",
+    "context_length": "40960",
+    "model": "gemma4:e2b",
+    "hardware": "RTX 4060 Laptop 8G / 本机单实例"
+  },
+  "levels": [
+    {
+      "level": "sequential",
+      "concurrent": false,
+      "submitted": 2,
+      "completed": 2,
+      "wall_seconds": 762.5,
+      "throughput_per_min": 0.16,
+      "latency_p50_ms": 308549,
+      "latency_p95_ms": 447814,
+      "latency_mean_ms": 378182,
+      "queue_wait_max_ms": 239,
+      "queue_wait_mean_ms": 120,
+      "failure_count": 0,
+      "failure_rate": 0.0,
+      "mean_attempts": 1.5,
+      "tasks": [
+        {
+          "task_id": "2105691609488113665",
+          "status": 2,
+          "cost_ms": 447575,
+          "queue_wait_ms": 239,
+          "error_msg": ""
+        },
+        {
+          "task_id": "2105693503543525377",
+          "status": 2,
+          "cost_ms": 308549,
+          "queue_wait_ms": 0,
+          "error_msg": ""
+        }
+      ]
+    },
+    {
+      "level": "concurrent",
+      "concurrent": true,
+      "submitted": 2,
+      "completed": 2,
+      "wall_seconds": 391.0,
+      "throughput_per_min": 0.31,
+      "latency_p50_ms": 262444,
+      "latency_p95_ms": 388536,
+      "latency_mean_ms": 325490,
+      "queue_wait_max_ms": 0,
+      "queue_wait_mean_ms": 0,
+      "failure_count": 1,
+      "failure_rate": 0.5,
+      "mean_attempts": 1.5,
+      "tasks": [
+        {
+          "task_id": "2105694807724605442",
+          "status": 3,
+          "cost_ms": 388536,
+          "queue_wait_ms": 0,
+          "error_msg": "AI 没能用「牛奶、柠檬」想出合适的做法，换个食材组合或口味再试试"
+        },
+        {
+          "task_id": "2105694808051761154",
+          "status": 2,
+          "cost_ms": 262444,
+          "queue_wait_ms": 0,
+          "error_msg": ""
+        }
+      ]
+    }
+  ]
+}

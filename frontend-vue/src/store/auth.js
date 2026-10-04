@@ -18,7 +18,9 @@ export const authState = reactive({
   token: localStorage.getItem(STORAGE_KEYS.TOKEN) || '',
   userId: '',
   username: '',
-  nickname: ''
+  nickname: '',
+  /** 角色：0-普通用户，1-管理员（与后端 AuthConstants 对齐） */
+  role: 0
 })
 
 // 启动时从 localStorage 恢复用户信息（避免刷新后顶栏空一下）
@@ -31,6 +33,7 @@ export const authState = reactive({
     authState.userId = info.userId != null ? String(info.userId) : ''
     authState.username = info.username || ''
     authState.nickname = info.nickname || ''
+    authState.role = Number(info.role || 0)
   } catch (e) {
     localStorage.removeItem(STORAGE_KEYS.USER_INFO)
   }
@@ -38,18 +41,30 @@ export const authState = reactive({
 
 export const isLoggedIn = computed(() => !!authState.token)
 
+/**
+ * 是否管理员。
+ *
+ * 【这只是界面层的开关，不是安全边界】
+ * 真正的权限在后端：管理接口一律 fail-closed（不是管理员直接 403）。
+ * 前端拿角色只为了两件事：别把普通用户带进一个全是 403 的页面、
+ * 以及决定要不要显示「管理」入口。
+ */
+export const isAdmin = computed(() => Number(authState.role) === 1)
+
 /** 登录成功后落盘 */
 export function saveLogin(data) {
   authState.token = data.token || ''
   authState.userId = data.userId != null ? String(data.userId) : ''
   authState.username = data.username || ''
   authState.nickname = data.nickname || ''
+  authState.role = Number(data.role || 0)
 
   localStorage.setItem(STORAGE_KEYS.TOKEN, authState.token)
   localStorage.setItem(STORAGE_KEYS.USER_INFO, JSON.stringify({
     userId: authState.userId,
     username: authState.username,
-    nickname: authState.nickname
+    nickname: authState.nickname,
+    role: authState.role
   }))
 }
 
@@ -59,6 +74,7 @@ export function clearLogin() {
   authState.userId = ''
   authState.username = ''
   authState.nickname = ''
+  authState.role = 0
   localStorage.removeItem(STORAGE_KEYS.TOKEN)
   localStorage.removeItem(STORAGE_KEYS.USER_INFO)
 }

@@ -3,10 +3,12 @@ package com.apesource.dishservice.service;
 import com.apesource.commonservice.exception.BusinessException;
 import com.apesource.dishservice.ai.AiTaskStatus;
 import com.apesource.dishservice.ai.CancelOutcome;
+import com.apesource.dishservice.ai.DegradedModeGuard;
 import com.apesource.dishservice.ai.DishTaskQueue;
 import com.apesource.dishservice.ai.EnqueueResult;
 import com.apesource.dishservice.dto.DishDetailView;
 import com.apesource.dishservice.dto.DishGeneratePayload;
+import com.apesource.dishservice.dto.GenerateConstraints;
 import com.apesource.dishservice.dto.DishGenerateRequest;
 import com.apesource.dishservice.dto.DishStep;
 import com.apesource.dishservice.dto.DishTaskView;
@@ -30,9 +32,11 @@ import java.security.MessageDigest;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 菜品生成的门面 —— 前端所有和"AI 做菜"有关的操作都从这里进。
@@ -65,6 +69,12 @@ public class DishGenerateService {
      */
     private final DishInteractionService interactionService;
 
+    /** 约束自检要按名字/别名比对（"点选牛肉、忌口写牛里脊"也要能对上） */
+    private final IngredientDirectory directory;
+
+    /** 检索故障时的生成限流（说明文档第四节） */
+    private final DegradedModeGuard degradedModeGuard;
+
     // ================================================================== 提交
 
     /**
@@ -82,8 +92,15 @@ public class DishGenerateService {
         int servings = request.getServings() == null ? 2 : Math.max(1, Math.min(8, request.getServings()));
         List<String> tastes = request.getTastes() == null ? List.of() : request.getTastes();
 
-        DishGeneratePayload payload = new DishGeneratePayload(ingredients, tastes, servings);
-        String signature = signatureOf(ingredients, tastes, servings);
+        GenerateConstraints constraints = request.toConstraints();
+        // 自相矛盾的条件在调模型之前就拒掉：否则必然失败，还要白跑满重试预算
+        // （默认 2 次，实测单次生成几十秒到几分钟，用户就是干等）
+        rejectContradictoryConstraints(ingredients, constraints);
+
+        DishGeneratePayload payload = new DishGeneratePayload(ingredients, tastes, servings, constraints);
+        // 约束必须进签名：否则"忌口牛肉"和"没有忌口"两次提交会被单飞判成同一个请求，
+        // 第二次直接复用第一次的任务 —— 用户以为忌口生效了，其实拿到的是别人的结果
+        String signature = signatureOf(ingredients, tastes, servings, payload.constraintsOrNone());
 
         // 单飞：同一个用户、同样的输入，短时间内重复提交直接复用已有任务
         AiGenerateTask existing = findActiveBySignature(userId, signature);
@@ -91,6 +108,10 @@ public class DishGenerateService {
             log.info("命中单飞：复用任务 {}（signature={}）", existing.getId(), signature);
             return toView(existing, null);
         }
+
+        // 降级配额：检索引擎不可用时限制生成频率（说明文档第四节）。
+        // 放在单飞之后：命中单飞并没有新建任务，不该算作用了一次配额。
+        degradedModeGuard.checkGenerationQuota(userId);
 
         AiGenerateTask task = new AiGenerateTask();
         task.setUserId(userId);
@@ -113,8 +134,74 @@ public class DishGenerateService {
         return toView(task, enqueued.position());
     }
 
-    // ================================================================== 我的任务
+    /**
+     * 约束自检：把「无论模型怎么生成都不可能满足」的组合在提交阶段就拒掉。
+     *
+     * <p><b>为什么必须在这里拦，而不是等校验器去发现：</b>
+     * 这类请求在生成阶段的结果是<b>必然失败</b>，而且会老老实实跑满重试预算
+     * （默认 2 次；实测单次生成几十秒到几分钟）。用户干等几分钟，
+     * 最后拿到的还是一句"生成失败"——而真正的原因是条件本身矛盾，
+     * 说清楚他改一下就能立刻重试。
+     *
+     * <p>两类冲突：
+     * <ol>
+     *   <li><b>必用 ∩ 禁用 ≠ ∅</b>：同一个食材既要求用上、又不许出现；</li>
+     *   <li><b>手边食材 ∩ 禁用 ≠ ∅</b>：校验器要求"用户提供的每样食材都要用上"，
+     *       所以只要其中一样被忌口，这个请求同样无解。</li>
+     * </ol>
+     * 比对同时看 ID 与名字（含别名），否则"点选牛肉、忌口写「牛里脊」"会漏过去。
+     */
+    private void rejectContradictoryConstraints(List<IngredientRef> ingredients, GenerateConstraints c) {
+        if (c == null || c.noConstraint()) {
+            return;
+        }
+        Set<Long> excludeIds = c.excludeIdSet();
+        Set<String> excludeKeys = new LinkedHashSet<>();
+        for (String name : c.excludeNames()) {
+            excludeKeys.add(IngredientDirectory.key(name));
+        }
 
+        for (IngredientRef ref : ingredients) {
+            if (ref == null) {
+                continue;
+            }
+            if (isExcluded(ref.id(), ref.name(), excludeIds, excludeKeys)) {
+                throw new BusinessException("「" + ref.name() + "」在你的忌口清单里，"
+                        + "而生成结果必须用上你提供的每样食材，请把它从食材中去掉再试");
+            }
+        }
+
+        for (Long id : c.mustUseIdSet()) {
+            String name = directory.nameOf(id);
+            if (isExcluded(id, name, excludeIds, excludeKeys)) {
+                throw new BusinessException("「" + (name != null ? name : ("食材#" + id))
+                        + "」既要求必用、又在忌口清单里，两者只能留一个");
+            }
+        }
+        for (String name : c.mustUseNames()) {
+            if (isExcluded(directory.resolveId(name), name, excludeIds, excludeKeys)) {
+                throw new BusinessException("「" + name + "」既要求必用、又在忌口清单里，两者只能留一个");
+            }
+        }
+    }
+
+    /** 这个食材（按 ID 与名字两条路）是否落在忌口清单里 */
+    private boolean isExcluded(Long id, String name, Set<Long> excludeIds, Set<String> excludeKeys) {
+        if (id != null && id > 0 && excludeIds.contains(id)) {
+            return true;
+        }
+        String key = IngredientDirectory.key(name);
+        if (key == null) {
+            return false;
+        }
+        if (excludeKeys.contains(key)) {
+            return true;
+        }
+        Long resolved = directory.resolveId(name);
+        return resolved != null && resolved > 0 && excludeIds.contains(resolved);
+    }
+
+    // ================================================================== 我的任务
     /** 我的任务列表（最近的在前），带实时排队位置 */
     public List<DishTaskView> myTasks(long userId) {
         List<AiGenerateTask> tasks = taskMapper.selectList(
@@ -170,7 +257,19 @@ public class DishGenerateService {
                                 AiTaskStatus.PENDING.getCode(), AiTaskStatus.RUNNING.getCode())
                         .set(AiGenerateTask::getStatus, AiTaskStatus.CANCELLED.getCode())) > 0;
 
-        log.info("用户 {} 取消任务 {}：队列结果={}，DB 更新={}", userId, taskId, outcome, updated);
+        if (!updated) {
+            // 竞争失败：影响 0 行说明状态已经不是"排队中/生成中"。
+            // 最常见的情况是"生成恰好在这一瞬间完成" —— 此时如实告诉用户，
+            // 而不是回一句"已取消"让他以为取消生效了，结果发现菜还是出来了。
+            AiGenerateTask latest = taskMapper.selectById(taskId);
+            String latestText = latest == null
+                    ? "结束"
+                    : AiTaskStatus.of(latest.getStatus()).getText();
+            log.info("用户 {} 取消任务 {} 未生效：状态已变为 {}", userId, taskId, latestText);
+            return "任务已" + latestText + "，取消没有生效";
+        }
+
+        log.info("用户 {} 取消任务 {}：队列结果={}", userId, taskId, outcome);
         return outcome == CancelOutcome.CANCELLED_WAITING ? "已取消（尚未开始）" : "已取消";
     }
 
@@ -322,6 +421,8 @@ public class DishGenerateService {
             n.setFiberGram(toInt(dish.getFiberG()));
             n.setSodiumMg(toInt(dish.getSodiumMg()));
             n.setSource(dish.getNutritionSource() == 1 ? "AI 估算，仅供参考" : "按食材精确计算");
+            // 代码和文案都给：前端按代码取映射表，保证列表页/详情页口径一致
+            n.setNutritionSource(dish.getNutritionSource());
             n.setVerified(Objects.equals(dish.getNutritionVerified(), 1));
             view.setNutrition(n);
         }
@@ -432,19 +533,44 @@ public class DishGenerateService {
     }
 
     /**
-     * 请求签名：食材名排序 + 口味排序 + 人数，取 MD5。
+     * 请求签名：食材名排序 + 口味排序 + 人数 + 约束，取 MD5。
      *
      * <p>**食材要先排序**，否则用户换一下点选顺序就会算出不同的签名，
      * 单飞就失效了（而实际上那就是同一个请求）。
      */
-    private String signatureOf(List<IngredientRef> ingredients, List<String> tastes, int servings) {
+    private String signatureOf(List<IngredientRef> ingredients, List<String> tastes, int servings,
+                               GenerateConstraints constraints) {
         String joined = ingredients.stream()
                 .map(IngredientRef::name)
                 .filter(Objects::nonNull)
                 .sorted()
                 .reduce("", (a, b) -> a + "|" + b);
         String tasteKey = tastes.stream().sorted().reduce("", (a, b) -> a + "|" + b);
-        return md5(joined + "#" + tasteKey + "#" + servings);
+        return md5(joined + "#" + tasteKey + "#" + servings + "#" + constraintsKey(constraints));
+    }
+
+    /**
+     * 约束的规范化串。
+     *
+     * <p>同样要排序：约束列表的顺序不影响语义，但会影响签名 ——
+     * 排序后，「忌口牛肉、香菜」和「忌口香菜、牛肉」才算同一个请求。
+     */
+    private String constraintsKey(GenerateConstraints c) {
+        if (c == null || c.noConstraint()) {
+            return "";
+        }
+        return sortedIds(c.mustUseIdSet()) + "/" + sortedNames(c.mustUseNames())
+                + "/" + sortedIds(c.excludeIdSet()) + "/" + sortedNames(c.excludeNames())
+                + "/" + (c.maxCookTimeMin() == null ? "" : c.maxCookTimeMin())
+                + "/" + sortedNames(c.equipmentNames());
+    }
+
+    private String sortedIds(java.util.Collection<Long> ids) {
+        return ids.stream().sorted().map(String::valueOf).reduce("", (a, b) -> a + "," + b);
+    }
+
+    private String sortedNames(java.util.Collection<String> names) {
+        return names.stream().sorted().reduce("", (a, b) -> a + "," + b);
     }
 
     private String md5(String text) {

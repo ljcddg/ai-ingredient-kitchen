@@ -39,6 +39,36 @@ public class DishCardView {
     private Integer ratingCount;
     private Integer collectCount;
 
+    // ---- 冷启动：推荐池 / 排行榜 ----
+
+    /** 冷启动分级：0-未进池，1-推荐池，2-排行榜。前端据此显示「推荐中 / 已上榜」徽章 */
+    private Integer rankLevel;
+
+    /** 综合得分（百分制）。冷启动排行榜按它排序，与 ratingAvg 不是一回事 */
+    private Double dishScore;
+
+    private Integer likeCount;
+
+    /** 试做打卡数 */
+    private Integer cookCount;
+
+    /** 推流次数。作者在自己的菜品列表里可见，用来展示冷启动进度 */
+    private Integer pushCount;
+
+    /** 查看次数。作者可见 */
+    private Integer viewCount;
+
+    /** 作者 ID。前端据此判断"这是我的菜"，决定要不要显示冷启动数据 */
+    private Long creatorId;
+
+    /**
+     * 推荐流专用：{@code full}-全匹配 / {@code partial}-部分匹配 / {@code random}-随机补齐。
+     * 其他列表里这个字段是 null。
+     *
+     * <p>它让推荐逻辑"可见"—— 用户能看懂这道菜为什么出现在面前。
+     */
+    private String matchType;
+
     /** 菜品创建时间（已格式化的字符串） */
     private String createTime;
 

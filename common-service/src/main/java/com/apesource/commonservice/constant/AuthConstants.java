@@ -35,6 +35,20 @@ public final class AuthConstants {
     /** 网关透传给下游服务的「用户名」请求头 */
     public static final String HEADER_USERNAME = "X-Username";
 
+    /**
+     * 角色：普通用户。
+     * <p>
+     * 与 {@code t_user.role} 的取值一一对应。之所以也放在公共模块，
+     * 理由和 claim key 完全一样：写角色的地方（account-service 注册时给默认值）
+     * 与读角色的地方（dish-service 鉴权、前端按角色显示管理入口）
+     * 必须共用同一套常量，否则哪天把管理员改成 2，改一边漏一边，
+     * 表现就是「明明设成管理员了，管理接口还是 403」。
+     */
+    public static final int ROLE_USER = 0;
+
+    /** 角色：管理员。索引重建、食材转正、内容下架等运维接口要求这个角色 */
+    public static final int ROLE_ADMIN = 1;
+
     /** token 前缀，HTTP 规范要求写成 {@code Authorization: Bearer <token>} */
     public static final String TOKEN_PREFIX = "Bearer ";
 }

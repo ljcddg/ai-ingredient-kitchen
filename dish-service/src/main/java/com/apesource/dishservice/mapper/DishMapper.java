@@ -53,6 +53,9 @@ public interface DishMapper extends BaseMapper<Dish> {
                    ROUND(energy_kcal) AS energyKcal,
                    rating_avg AS ratingAvg, rating_count AS ratingCount,
                    collect_count AS collectCount,
+                   rank_level AS rankLevel, dish_score AS dishScore,
+                   like_count AS likeCount, cook_count AS cookCount,
+                   push_count AS pushCount,
                    DATE_FORMAT(create_time, '%Y-%m-%d') AS createTime
             FROM t_dish
             WHERE deleted = 0 AND status = 1
@@ -71,6 +74,12 @@ public interface DishMapper extends BaseMapper<Dish> {
      *
      * <p>{@code rating_count >= 1} 是在此基础上再加一道：一条评价都没有的菜
      * 威尔逊值是 0，本来也排不上来，加上这个条件可以让 SQL 少扫一批行。
+     *
+     * <p><b>{@code rank_level >= 2} 是接入冷启动机制后加的。</b>
+     * 不加这道条件的话，一道刚发布进推荐池的新菜（rank_level=1）只要有人打两个好评，
+     * 威尔逊分就不低，会直接跳上高分榜 —— 等于绕过了「推流达标才晋级」的冷启动流程，
+     * 晋级机制就形同虚设了。加上它之后，新菜必须先走完推荐池验证才能进这个榜。
+     * 存量已发布菜在迁移时统一置为 rank_level=2，所以历史数据不受影响。
      */
     @Select("""
             SELECT id, name, summary, cover_url AS coverUrl, source, status,
@@ -79,9 +88,12 @@ public interface DishMapper extends BaseMapper<Dish> {
                    ROUND(energy_kcal) AS energyKcal,
                    rating_avg AS ratingAvg, rating_count AS ratingCount,
                    collect_count AS collectCount,
+                   rank_level AS rankLevel, dish_score AS dishScore,
+                   like_count AS likeCount, cook_count AS cookCount,
+                   push_count AS pushCount,
                    DATE_FORMAT(create_time, '%Y-%m-%d') AS createTime
             FROM t_dish
-            WHERE deleted = 0 AND status = 1 AND rating_count >= 1
+            WHERE deleted = 0 AND status = 1 AND rating_count >= 1 AND rank_level >= 2
             ORDER BY rating_wilson DESC, rating_count DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
@@ -95,6 +107,9 @@ public interface DishMapper extends BaseMapper<Dish> {
                    ROUND(energy_kcal) AS energyKcal,
                    rating_avg AS ratingAvg, rating_count AS ratingCount,
                    collect_count AS collectCount,
+                   rank_level AS rankLevel, dish_score AS dishScore,
+                   like_count AS likeCount, cook_count AS cookCount,
+                   push_count AS pushCount,
                    DATE_FORMAT(create_time, '%Y-%m-%d') AS createTime
             FROM t_dish
             WHERE deleted = 0 AND status = 1

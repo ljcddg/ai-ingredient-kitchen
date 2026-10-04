@@ -7,7 +7,13 @@
 
 ## 一、版本与依赖
 
-### ⚠️ 如果你手上的是 ES 7.16.2（先读这段）
+### ⚠️ 当时手上的是 ES 7.16.2（历史记录，先读这段）
+
+> **状态更新**：这一节记录的是当时的服务端环境 —— 本机解压版 ES 7.16.2，该环境**已退役、不会再启动**。
+> 现在 ES 只跑在 Docker 里：名为 `es` 的容器（`docker.1ms.run/elasticsearch:8.16.0`，单节点、无 security、纯 http）。
+> 当时"不引 Spring Data ES、手写 `RestClient`"（下面方案 B）这个判断**事后被验证是有效的**：
+> 从 7.16.2 换到 8.16.0，**业务代码一行都没改**。
+> 下面的内容保留原样，作为当时的决策与踩坑记录。
 
 **Boot 3.2.4 + Spring Data ES 5.2 + ES 7.16.2 是官方没有任何保证的组合**，三个原因：
 
@@ -24,7 +30,7 @@
   7.16 那版是 **beta**（随 7.16 首发，7.17 才 GA）
 - ES 7.16 已于 2022 年停止维护，7.17 是 7.x 的最后一个 minor
 
-**三条路**
+**当时的三条路**
 
 | 方案 | 服务端 | 客户端 | 代价 |
 |---|---|---|---|
@@ -75,18 +81,25 @@ Repository 抽象 —— 而你要写的本来就是手写 DSL，对当前场景
 
 ### 本地起 ES（Docker）
 
+**项目现在跑的就是这个容器**：容器名 `es`，镜像 `docker.1ms.run/elasticsearch:8.16.0`
+（与 `elasticsearch:8.16.0` 是同一个镜像）。宿主端口映射 `9200:9200`、`9300:9300`，
+连接地址仍是 `http://127.0.0.1:9200` —— **业务配置无需改动**。
+数据落在名为 `es_data` 的数据卷里，集群名 `docker-cluster`。
+
 ```bash
-docker run -d --name es811 \
-  -p 9200:9200 \
+docker run -d --name es \
+  -p 9200:9200 -p 9300:9300 \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
-  -e "ES_JAVA_OPTS=-Xms512m -Xmx512m" \
-  docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+  -e "ES_JAVA_OPTS=-Xms1g -Xmx1g" \
+  docker.1ms.run/elasticsearch:8.16.0
 ```
 
 - **`xpack.security.enabled=false` 必须加**：ES 8.x 默认开启安全认证 + 自签 HTTPS，
   不加的话客户端连不上，会报 SSL / 401 一类让人摸不着头脑的错。本地学习环境关掉最省事。
-- 内存给 512m~1g 就够，别把 32G 机器的一半喂给它。
+- **漏掉这两个环境变量会被误判成"网络不通"**：现在这个容器是显式关掉 security 的，所以 http 免密可用；
+  重建容器时若漏了 `discovery.type` / `xpack.security.enabled`，症状就是 TLS 握手失败或 401。
+- 内存给 1g 就够，别把 32G 机器的一半喂给它。
 
 ### 配置（Nacos 侧 `dish-service.yaml`）
 

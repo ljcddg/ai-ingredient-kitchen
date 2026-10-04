@@ -8,6 +8,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器。
@@ -36,6 +38,25 @@ public class GlobalExceptionHandler {
         FieldError fieldError = e.getBindingResult().getFieldError();
         String message = fieldError == null ? "参数校验失败" : fieldError.getDefaultMessage();
         return Result.fail(400, message);
+    }
+
+    /**
+     * 路径不存在：404 而不是 500。
+     * <p>
+     * 不单独处理的话，兜底会把「路径写错了」也打成 500 + 完整堆栈，
+     * 调用方分不清是自己写错还是服务故障（dish-service 那边实测踩到过）。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Result<Void> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("接口不存在：path={}", e.getResourcePath());
+        return Result.fail(404, "接口不存在：" + e.getResourcePath());
+    }
+
+    /** 兼容 throwExceptionIfNoHandlerFound=true 的情况 */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public Result<Void> handleNoHandlerFound(NoHandlerFoundException e) {
+        log.warn("接口不存在：{} {}", e.getHttpMethod(), e.getRequestURL());
+        return Result.fail(404, "接口不存在：" + e.getRequestURL());
     }
 
     /**

@@ -52,7 +52,7 @@ echo   dish-service   local
 echo --------------------------------------------------
 echo   JAR     : %SERVICE_JAR%
 echo   HTTP    : http://localhost:8082
-echo   ES      : http://localhost:9200   (需先启动 ES 7.16.2)
+echo   ES      : http://localhost:9200   (需先启动 Docker 容器 es)
 echo   Nacos   : http://localhost:8848
 echo   MySQL   : localhost:3306/project0914
 echo --------------------------------------------------

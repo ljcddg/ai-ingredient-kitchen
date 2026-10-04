@@ -26,6 +26,11 @@
 | 10 | `t_tag` | 标签表 | dish-service |
 | 11 | `t_dish_tag` | 菜品-标签关联表 | dish-service |
 | 12 | `t_user_ingredient_pref` | 用户食材偏好画像 | dish-service |
+| 13 | `t_ai_generation_record` | AI 生成记录（可复现 / 可评价） | dish-service |
+| 14 | `t_es_sync_task` | ES 索引同步待办（可重试 / 可补偿） | dish-service |
+
+> 13、14 是改进阶段新增的表，见第十节；`t_user.role`、`t_ingredient_candidate` 的审核三列、
+> `t_dish.nutrition_source` / `nutrition_verified` 同样是这批迁移加上去的。
 
 > **关于制作步骤**：不单独建表，存在 `t_dish.step_json` 里。
 > 判断依据是**是否需要参与召回或计算** —— 步骤和食材不同，它只做展示，
@@ -220,7 +225,7 @@
 |---|---|---|---|
 | `id` | `BIGINT` | PK | 主键 |
 | `dish_id` | `BIGINT` | NOT NULL | 菜品 ID |
-| `ingredient_id` | `BIGINT` | NULL | 食材主数据 ID；**用户自由输入且未归一的食材为 NULL** |
+| `ingredient_id` | `BIGINT` | NULL | 食材主数据 ID；落库时先按用户勾选的 ID，再回退 `IngredientDirectory.resolveId()`（正式名/别名/去空白），**真的表外食材才为 NULL**（此时只会被记进候选表等管理员转正）。历史遗留的空值见 `sql/migration-05-ingredient-id-backfill.sql` |
 | `ingredient_name` | `VARCHAR(50)` | NOT NULL | 食材名（冗余一份，保证自由输入食材也能正常展示） |
 | `amount` | `DECIMAL(10,2)` | NOT NULL | 基准份量下用量 |
 | `unit` | `VARCHAR(10)` | NOT NULL, DEFAULT 'g' | 单位（冗余自主数据，允许菜品级覆盖） |
@@ -538,3 +543,83 @@ ES 不可用时回落到这条路径，两条路产出的结构必须一致，�
 | `ingredientIds` | 召回直接失效 |
 
 详见 [`es/dish-search.md`](../es/dish-search.md)。
+
+---
+
+## 十、改进新增的表与字段（`sql/migration-01` ~ `06`）
+
+改进阶段的库变更全部走**可重复执行的迁移脚本**（MySQL 8 不支持
+`ADD COLUMN IF NOT EXISTS`，所以脚本先查 `information_schema` 再动态拼 DDL），
+每支脚本末尾都带一条核对 SQL。
+
+| 脚本 | 改了什么 | 为什么必须有 |
+|---|---|---|
+| `sql/migration-01-admin-role.sql` | `t_user.role TINYINT NOT NULL DEFAULT 0`（0 普通 / 1 管理员） | 原来只有 `status`（禁用/正常），任何登录用户都能调 `/ai/es/reindex` 重建全量索引、把候选食材批量转正 |
+| `sql/migration-02-candidate-review.sql` | `t_ingredient_candidate` 加 `reviewed_by` / `review_time` / `review_reason` | 「出现次数 ≥ 3 就自动转正」不等于名字有效：同一个错别字被几个人敲一样能刷到 3 次，然后污染归一化与营养基准。次数现在只用来**排待办顺序**，转正必须由管理员逐条判定并留痕 |
+| `sql/migration-03-generation-record.sql` | 新表 `t_ai_generation_record` | 换个模型/改句提示词之后，老结果要还能解释得通：记录 `model` / `prompt_version`（系统提示词 MD5 前 8 位）/ `temperature` / `max_attempts` / `attempts` / `cost_ms` / `format_ok` / `constraint_ok` / `validation_errors` / `raw_output`（截断） / `reference_dish_ids` / `nutrition_source` |
+| `sql/migration-04-es-sync-task.sql` | 新表 `t_es_sync_task` | ES 写入不能只在事务里"顺手做一次"：失败要有退避重试与人工补偿入口 |
+| `sql/migration-05-ingredient-id-backfill.sql` | 纯数据回填（不改表结构）：把"名字其实命中主数据、`ingredient_id` 却是空"的明细行补上 ID | `DishDraftWriter` 原来只在**用户勾选的列表**里按名字找 ID，于是 AI 自己补的食材、以及用户手敲的食材一律以 `ingredient_id = NULL` 落库：进不了按 ID 的召回、营养查不到成分表（整道菜被标"AI 估算"）、还会被误记进候选表。应用侧已改为回退 `IngredientDirectory.resolveId()`，这支脚本只补**已经落库**的历史行（开发库实测 6 行 → 0 行）。只补"唯一能对上"的：正式名精确相同，或别名命中且该别名只属于一条主数据；表外食材（紫米/迷迭香/高脚鸟蛋/食用油…）不会被误补。执行后要跑 `POST /api/dish/ai/es/reindex` 与 `POST /api/dish/ai/admin/nutrition/recompute` |
+| `sql/migration-06-recommend-push-log.sql` | 补建 `t_dish_push_log`（`CREATE TABLE IF NOT EXISTS`，幂等） | 冷启动的推流日志表当初是手工建的、没落成脚本，随数据恢复一起丢了；而推荐候选查询里有对它的 `NOT EXISTS` 24 小时去重子查询 → 推荐页整页 `500 服务器开小差了`（`Table 'project0914.t_dish_push_log' doesn't exist`）。`t_dish` 的冷启动字段与 `idx_rank_level_score` 都在，只缺这张表。**教训：新表必须进 `sql/`**。 |
+
+### `t_ai_generation_record` — AI 生成记录
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | `BIGINT` PK | 雪花 ID |
+| `task_id` | `BIGINT` | 对应 `t_ai_generate_task.id`，**`UNIQUE KEY uk_task`** |
+| `user_id` | `BIGINT` | 发起用户 |
+| `status` | `TINYINT` | 终态：2 成功 / 3 失败 / 4 用户取消（生成其实已完成，只是结果被丢弃） |
+| `format_ok` / `constraint_ok` | `TINYINT` | **分两档**记录：格式不合格是"模型没按格式说"，约束不合格是"模型没听用户的话"，改进方向完全不同，合成一个"失败率"就没法用 |
+| `raw_output` | `MEDIUMTEXT` | 最后一次的原始输出（截断 20000 字符） |
+| `reference_dish_ids` | `VARCHAR(255)` | 检索增强生成时注入了哪几道参考菜（逗号分隔） |
+| `nutrition_source` | `TINYINT` | 1 AI 估算 / 2 本地计算 |
+| 索引 | | `idx_create(create_time)`、`idx_model(model, create_time)` |
+| 约束 | | `UNIQUE KEY uk_task(task_id)`：一个任务只留一条，重复执行不会写两条 |
+
+### `t_es_sync_task` — 索引同步待办
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | `BIGINT` PK | 雪花 ID |
+| `dish_id` | `BIGINT` | **`UNIQUE KEY uk_dish`**：一道菜只有一条待办，反复变更只刷新它，不堆积 |
+| `version` | `DATETIME` | 触发时的 `update_time`，用于追溯是哪次变更引发的 |
+| `status` | `TINYINT` | 0 待同步 / 1 已完成 / 2 失败待重试 / 3 已放弃（需人工介入） |
+| `attempts` | `INT` | 已尝试次数（**成功时也要 +1**，否则一次成功会显示"尝试 0 次"） |
+| `next_retry_at` | `DATETIME` | 退避用：失败后按 5 / 15 / 45 / 120 秒推后；5 次用尽转"已放弃" |
+| `last_error` | `VARCHAR(500)` | 最后一次失败原因（管理员界面上直接看得到） |
+| 索引 | | `idx_due(status, next_retry_at)`：后台任务按它扫到点的待办 |
+
+> **幂等性来自"任务不表达写还是删"**：待办里没有"这次要写入还是删除"这种意图，
+> 同步器每次按菜品**当前**状态决定动作 —— 查不到或非已发布就 delete。
+> 所以撤回后遗留的旧任务执行时只会删，不会把已撤回的菜重新塞回索引。
+
+### `t_dish_push_log` — 推荐流推流日志
+
+它只回答一个问题：**这道菜最近推给过这个用户吗？** 用来做 24 小时去重 ——
+同一个人短时间反复刷到同一道菜，会让推荐流看起来像坏了，也会让 `push_count` 虚高。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | `BIGINT` PK | 雪花 ID |
+| `dish_id` | `BIGINT` | 菜品 ID |
+| `user_id` | `BIGINT` | 被推给的用户 |
+| `push_time` | `DATETIME` | **最近一次**推给该用户的时间（默认 `CURRENT_TIMESTAMP`） |
+| 索引 | | `UNIQUE KEY uk_dish_user(dish_id, user_id)`：一人一菜只留一行，重复推流走 `INSERT … ON DUPLICATE KEY UPDATE push_time = VALUES(push_time)` 刷新时间，而不是每次插一条（后者会让表随刷新次数成倍膨胀）<br>`KEY idx_user_time(user_id, push_time)`：去重子查询按它走 |
+
+**24 小时这个窗口是查询条件，不是唯一键**：唯一键负责"只留一行"，
+时间窗口负责"多久之后可以再推"。表大小 ≈ 用户数 × 菜数，可控。
+
+推荐候选里的实际写法（`RecommendMapper`）：
+
+```sql
+AND NOT EXISTS (
+  SELECT 1 FROM t_dish_push_log l
+  WHERE l.user_id = #{userId} AND l.dish_id = d.id
+    AND l.push_time > NOW() - INTERVAL 24 HOUR
+)
+```
+
+> 建表脚本 `sql/migration-06-recommend-push-log.sql`。这张表曾经**只存在于
+> 某个手工执行的会话里**（`docs/cold-start-design.md:63` 有 DDL 但没有脚本），
+> 换库恢复数据后消失，于是推荐接口直接 500 —— 缺一张表不是"少个功能"，
+> 是把整条推荐流打挂。

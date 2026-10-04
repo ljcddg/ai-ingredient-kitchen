@@ -51,6 +51,26 @@ public class Dish {
     /** 状态：0-草稿(仅创建者可见)，1-已发布，2-审核拒绝，3-已下架 */
     private Integer status;
 
+    // ---- 冷启动分级常量 ----
+
+    /** 未进池：草稿或已下架，不参与推荐 */
+    public static final int RANK_LEVEL_NONE = 0;
+
+    /** 推荐池：刚发布，正在接受推流验证 */
+    public static final int RANK_LEVEL_POOL = 1;
+
+    /** 排行榜：查看率达标，已晋级 */
+    public static final int RANK_LEVEL_RANK = 2;
+
+    /**
+     * 冷启动分级：0-未进池（草稿/下架），1-推荐池，2-排行榜。
+     *
+     * <p>发布即置 1（进推荐池接受推流验证）；每日定时任务把「查看率达标」的菜升到 2。
+     * 只有 {@code rank_level >= 2} 的菜才有资格进高分榜 —— 否则新菜刷两个好评
+     * 就能绕过冷启动直接上榜，晋级机制就形同虚设了。
+     */
+    private Integer rankLevel;
+
     /** 基准份量（人份），明细用量以此为准 */
     private Integer baseServing;
 
@@ -126,7 +146,25 @@ public class Dish {
 
     private BigDecimal ratingWilson;
 
+    /**
+     * 综合得分（百分制）：`评分归一 × 0.6 × 置信系数 + 互动率 × 0.4`，每日定时计算。
+     *
+     * <p>与 {@link #ratingWilson} 是两套东西，别混：
+     * 威尔逊是「纯评价维度、抗小样本」，用于高分榜与搜索直出判定；
+     * 这个是「评分 + 互动双维度」，只用于冷启动排行榜排序。
+     */
+    private BigDecimal dishScore;
+
     private Integer collectCount;
+
+    /** 推流次数：菜品出现在用户推荐流里就 +1（后端返回推荐流时批量累加） */
+    private Integer pushCount;
+
+    /** 点赞数 */
+    private Integer likeCount;
+
+    /** 试做打卡数：用户照着做过并打卡 */
+    private Integer cookCount;
 
     private Integer viewCount;
 

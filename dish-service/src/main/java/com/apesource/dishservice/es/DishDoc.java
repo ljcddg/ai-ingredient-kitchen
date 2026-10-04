@@ -91,6 +91,28 @@ public class DishDoc {
     /** 浏览数 */
     private Integer viewCount;
 
+    // ---- 冷启动推荐池 ----
+
+    /**
+     * 冷启动分级：0-未进池，1-推荐池，2-排行榜。
+     *
+     * <p>搜索默认只召回 2 —— 推荐池里的菜还没被验证过，
+     * 不该出现在搜索结果里，它们要靠推荐流拿曝光。
+     */
+    private Integer rankLevel;
+
+    /** 综合得分（百分制）：评分与互动加权，冷启动榜排序用 */
+    private Double dishScore;
+
+    /** 推流次数 */
+    private Integer pushCount;
+
+    /** 点赞数 */
+    private Integer likeCount;
+
+    /** 试做打卡数 */
+    private Integer cookCount;
+
     /** 每份热量（kcal，本地计算） */
     private Double energyKcal;
 

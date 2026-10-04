@@ -7,6 +7,7 @@ import com.apesource.accountservice.dto.RegisterRequest;
 import com.apesource.accountservice.entity.User;
 import com.apesource.accountservice.mapper.UserMapper;
 import com.apesource.accountservice.service.UserService;
+import com.apesource.commonservice.constant.AuthConstants;
 import com.apesource.commonservice.exception.BusinessException;
 import com.apesource.commonservice.util.JwtUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -75,6 +76,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 ? username
                 : request.getNickname());
         user.setStatus(STATUS_ENABLED);
+        // 角色显式给默认值：DB 有默认值 0 兜底，但读代码时不必去翻 DDL 才知道新用户是什么角色
+        user.setRole(AuthConstants.ROLE_USER);
 
         save(user);
 
@@ -108,6 +111,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername());
-        return new LoginResponse(token, user.getId(), user.getUsername(), user.getNickname());
+        return new LoginResponse(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
     }
 }

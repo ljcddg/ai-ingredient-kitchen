@@ -32,7 +32,7 @@ public class DishRankController {
     public Result<DishRankService.RankPage> rank(
             @RequestParam(name = "type", defaultValue = "hot") String type,
             @RequestParam(name = "page", defaultValue = "1") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
+            @RequestParam(name = "size", defaultValue = "10") int size) {
         return Result.success(rankService.rank(type, page, size));
     }
 }
