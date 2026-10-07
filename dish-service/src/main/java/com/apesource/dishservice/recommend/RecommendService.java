@@ -151,15 +151,13 @@ public class RecommendService {
         return new RecommendPage(safePage, safeSize, ordered.size(), ordered);
     }
 
-    /**
-     * 上报查看：用户点进详情页时调用。
+    /*
+     * 浏览计数已迁出：见 DishViewCounter。
      *
-     * <p>不能挂在列表接口上 —— 那会把"划过屏幕"也算成查看，
-     * 查看率就失去意义了。
+     * 放在这里的问题是它只覆盖"从推荐流点进详情"这一条路，
+     * 而 view_count 是互动率的分母，点赞/收藏/打卡却统计全部入口 ——
+     * 分母偏小会让互动率虚高。现在统一由菜品详情接口计数。
      */
-    public void reportView(Long dishId) {
-        recommendMapper.addViewCount(dishId);
-    }
 
     /**
      * 上报互动。

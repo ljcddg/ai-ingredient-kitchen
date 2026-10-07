@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -45,6 +46,12 @@ public interface DishMapper extends BaseMapper<Dish> {
      *
      * <p>权重为什么这么给：收藏是"我想做"，是用户用行动投的票；
      * 评价是"我做过了"，两者都算热度，但收藏的意图更直接。
+     *
+     * <p><b>{@code rank_level >= 2} 是 2026-10-07 补上的。</b>
+     * 热门榜是"大家都在做"的质量信号，未晋级的新菜（rank_level=1）不该出现在这里——
+     * 否则一道刚发布的菜只要被作者的朋友集中收藏就能登榜，等于绕过了
+     * 「推荐池 → 真实流量验证 → 晋级」这条冷启动链路。
+     * 高分榜早就加了这道条件，热门榜漏了。
      */
     @Select("""
             SELECT id, name, summary, cover_url AS coverUrl, source, status,
@@ -58,7 +65,7 @@ public interface DishMapper extends BaseMapper<Dish> {
                    push_count AS pushCount,
                    DATE_FORMAT(create_time, '%Y-%m-%d') AS createTime
             FROM t_dish
-            WHERE deleted = 0 AND status = 1
+            WHERE deleted = 0 AND status = 1 AND rank_level >= 2
             ORDER BY (collect_count * 3 + rating_count * 2) DESC, publish_time DESC
             LIMIT #{limit} OFFSET #{offset}
             """)
@@ -99,7 +106,17 @@ public interface DishMapper extends BaseMapper<Dish> {
             """)
     List<DishCardView> selectTopRank(@Param("limit") int limit, @Param("offset") int offset);
 
-    /** 最新榜：按发布时间倒序 —— 给"刚做出来的菜"一个曝光机会 */
+    /**
+     * 最新榜：按发布时间倒序 —— 给"刚做出来的菜"一个曝光机会。
+     *
+     * <p><b>这里刻意不加 {@code rank_level >= 2}。</b>
+     * 热门榜和高分榜是"质量信号"，必须过滤掉未晋级的新菜；
+     * 但最新榜的全部意义就是让人看到刚发布的菜，加了这道条件它就成了空架子。
+     *
+     * <p>代价要清楚：ES 搜索只召回 {@code rankLevel = 2}，
+     * 所以最新榜里会出现「榜单有、搜索搜不到」的菜。这是有意保留的不一致——
+     * 最新榜本身就是冷启动的曝光位之一，不是质量榜。
+     */
     @Select("""
             SELECT id, name, summary, cover_url AS coverUrl, source, status,
                    difficulty, prep_time_min AS prepTimeMin, cook_time_min AS cookTimeMin,
@@ -118,10 +135,41 @@ public interface DishMapper extends BaseMapper<Dish> {
             """)
     List<DishCardView> selectLatestRank(@Param("limit") int limit, @Param("offset") int offset);
 
-    /** 高分榜的计数要带 {@code rating_count >= 1}，和上面那条查询保持一致，否则分页会多出一页空数据 */
+    /**
+     * 高分榜的计数。
+     *
+     * <p>条件必须和 {@link #selectTopRank} <b>逐字对齐</b>，否则会出现
+     * "总数说有 3 页、翻到第 3 页却是空的"。
+     *
+     * <p><b>2026-10-07 补上 {@code rank_level >= 2}：</b>上面那条查询一直带着这个条件，
+     * 计数却没带 —— 注释里写了"二者必须一致"，实际漏了。
+     * 结果是 total 里混进了未晋级的新菜，尾部翻出空页。
+     */
     @Select("""
             SELECT COUNT(*) FROM t_dish
-            WHERE deleted = 0 AND status = 1 AND rating_count >= 1
+            WHERE deleted = 0 AND status = 1 AND rating_count >= 1 AND rank_level >= 2
             """)
     long countRated();
+
+    /**
+     * 浏览数 +1。
+     *
+     * <p><b>2026-10-07 从 RecommendMapper 搬到这里，并加上作者排除。</b>
+     *
+     * <p>为什么搬：浏览是菜品域的事，长在推荐模块里导致只有推荐流这一个入口会计数，
+     * 从搜索、榜单、收藏夹点进详情都不算 —— 而 {@code view_count} 是互动率的分母，
+     * 分母只统计一个入口、分子（点赞/收藏/打卡）统计全部入口，互动率就系统性虚高了。
+     *
+     * <p>为什么排除作者：{@code creator_id != userId} 与推荐流的取数口径保持一致。
+     * 作者自己反复刷新详情页不该给自己刷浏览数，否则查看率这个晋级指标就不可信。
+     *
+     * <p>{@code status = 1} 顺带保证草稿不计入（草稿只有作者能看，本就被上一条排除了，
+     * 但留着双保险：万一以后草稿对他人可见，这条能挡住）。
+     */
+    @Update("""
+            UPDATE t_dish SET view_count = view_count + 1
+            WHERE id = #{dishId} AND deleted = 0 AND status = 1
+              AND (creator_id IS NULL OR creator_id &lt;&gt; #{userId})
+            """)
+    int addViewCount(@Param("dishId") Long dishId, @Param("userId") Long userId);
 }

@@ -80,9 +80,12 @@ public interface RecommendMapper {
     @Update("UPDATE t_dish SET push_count = push_count + #{times} WHERE id = #{dishId}")
     int addPushCountTimes(@Param("dishId") Long dishId, @Param("times") int times);
 
-    /** 上报查看：用户点进详情页 +1。只有已发布的菜才计数 */
-    @Update("UPDATE t_dish SET view_count = view_count + 1 WHERE id = #{dishId} AND deleted = 0 AND status = 1")
-    int addViewCount(@Param("dishId") Long dishId);
+    /*
+     * 浏览计数 addViewCount 已于 2026-10-07 移到 DishMapper。
+     * 原因：它原本只有推荐流一个入口在调，导致 view_count（互动率的分母）
+     * 只统计推荐来源，而点赞/收藏/打卡统计的是全部入口 —— 互动率系统性虚高。
+     * 现在统一由 DishViewCounter 在菜品详情接口里计数，覆盖所有入口。
+     */
 
     @Update("UPDATE t_dish SET like_count = like_count + 1 WHERE id = #{dishId} AND deleted = 0 AND status = 1")
     int addLikeCount(@Param("dishId") Long dishId);

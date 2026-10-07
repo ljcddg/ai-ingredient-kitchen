@@ -29,6 +29,14 @@ public class DishRankService {
     /** 已发布 */
     private static final int STATUS_PUBLISHED = 1;
 
+    /**
+     * 能进质量榜（热门 / 高分）的最低等级：已晋级。
+     *
+     * <p>推荐池里的新菜（rank_level = 1）还没经过真实流量验证，
+     * 不进热门榜和高分榜；最新榜不受此限（它是新菜的曝光位）。
+     */
+    private static final int RANK_LEVEL_ON_BOARD = 2;
+
     /** 单页上限。挡掉 ?size=100000 这种把库拖垮的请求 */
     private static final int MAX_PAGE_SIZE = 50;
 
@@ -130,11 +138,20 @@ public class DishRankService {
         };
 
         long total = switch (rankType) {
-            // 高分榜的计数条件和查询本身必须一致（都带 rating_count >= 1），
-            // 否则会出现"总数说有 3 页、翻到第 3 页却是空的"
+            // 高分榜：countRated() 已与 selectTopRank 对齐（rating_count >= 1 且 rank_level >= 2）
             case TOP -> dishMapper.countRated();
             case COLD -> recommendMapper.countColdRank();
-            case HOT, LATEST -> {
+            // 热门榜自己刚加了 rank_level >= 2，计数必须跟着加 ——
+            // 不然就是「总数说有 3 页、翻到第 3 页却是空的」同一个坑
+            case HOT -> {
+                Long c = dishMapper.selectCount(
+                        Wrappers.<Dish>lambdaQuery()
+                                .eq(Dish::getStatus, STATUS_PUBLISHED)
+                                .ge(Dish::getRankLevel, RANK_LEVEL_ON_BOARD));
+                yield c == null ? 0L : c;
+            }
+            // 最新榜不按 rank_level 过滤（它是新菜的曝光位），计数同样不加
+            case LATEST -> {
                 Long c = dishMapper.selectCount(
                         Wrappers.<Dish>lambdaQuery().eq(Dish::getStatus, STATUS_PUBLISHED));
                 yield c == null ? 0L : c;

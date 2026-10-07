@@ -126,6 +126,30 @@ export const AuthApi = {
   }
 }
 
+/**
+ * 发现流的查询串。
+ *
+ * 浏览模式和决策模式共用同一套条件（食材 + 情境筛选），
+ * 只有分页那一项不同：浏览用 page/size，决策用 offset。
+ * 公共部分抽在这里，免得两个方法各写一遍、改一处漏一处。
+ *
+ * @param {object} cond 食材与筛选条件
+ * @param {string} tail 分页参数（已拼好）
+ */
+function discoverQuery(cond, tail) {
+  const ids = (cond.ingredientIds || []).filter(Boolean)
+  const names = (cond.ingredientNames || []).filter(Boolean)
+  const q = []
+  if (ids.length) q.push('ingredientIds=' + ids.join(','))
+  // 名字可能含中文/空格，必须 encode
+  if (names.length) q.push('ingredientNames=' + encodeURIComponent(names.join(',')))
+  if (cond.maxCookTimeMin) q.push('maxCookTimeMin=' + cond.maxCookTimeMin)
+  if (cond.maxDifficulty) q.push('maxDifficulty=' + cond.maxDifficulty)
+  if (cond.serving) q.push('serving=' + cond.serving)
+  q.push(tail)
+  return '?' + q.join('&')
+}
+
 export const DishApi = {
   // ================================================================ 召回
 
@@ -258,7 +282,15 @@ export const DishApi = {
     return request(url, { auth: true, service: 'dish' })
   },
 
-  /** 上报查看：用户点进详情页时调一次。查看率是晋级的核心指标，时机必须准 */
+  /**
+   * 【已废弃】上报查看。
+   *
+   * 2026-10-07 起浏览计数改由详情接口统一负责（DishViewCounter），
+   * 后端这个端点已不再累加。留着只是为了不让老前端报错，新代码不要调用 ——
+   * 否则推荐流点进详情会被算两次。
+   *
+   * @deprecated 详情接口已自动计数，无需再调
+   */
   reportView(dishId) {
     return request('/ai/recommend/' + dishId + '/view', { method: 'POST', auth: true, service: 'dish' })
   },
@@ -268,6 +300,34 @@ export const DishApi = {
     return request('/ai/recommend/' + dishId + '/interact?type=' + encodeURIComponent(type), {
       method: 'POST', auth: true, service: 'dish'
     })
+  },
+
+  // ================================================================ 发现流
+
+  /**
+   * 浏览模式：一屏列表。
+   *
+   * 每条都带匹配档位（齐活/差一点/还差 N 样）和缺料清单 ——
+   * 旧榜单只给名次，用户看完不知道自己做得了做不了。
+   *
+   * @param {object} cond  { ingredientIds, ingredientNames, maxCookTimeMin, maxDifficulty, serving }
+   */
+  discoverBrowse(cond, page, size) {
+    return request('/ai/discover/browse' + discoverQuery(cond,
+      'page=' + (page || 1) + '&size=' + (size || 10)), { auth: true, service: 'dish' })
+  },
+
+  /**
+   * 决策模式：一次备一批，"换一个"从这批里依次取。
+   *
+   * 为什么不是每次只取一道：每次重新请求会因为排序的微小抖动重复出同一道菜，
+   * 用户会以为"换一个"坏了。一次取一批、前端本地推进，顺序就锁死了。
+   *
+   * @param {number} offset 从第几道开始取；这批用完后再取下一批时传 20、40……
+   */
+  discoverDecide(cond, offset) {
+    return request('/ai/discover/decide' + discoverQuery(cond,
+      'offset=' + (offset || 0)), { auth: true, service: 'dish' })
   },
 
   /** 收藏（幂等，重复点不会让收藏数虚增） */

@@ -49,7 +49,22 @@ public class DishSearchRepository {
      */
     public List<RecalledDish> recall(List<Long> ingredientIds, List<String> freeNames,
                                      List<String> tasteTags) {
-        String body = dslBuilder.buildRecallBody(ingredientIds, freeNames, tasteTags);
+        return recall(ingredientIds, freeNames, tasteTags, false);
+    }
+
+    /**
+     * 按食材组合召回候选菜品。
+     *
+     * @param ingredientIds 已去重排序的食材 ID（有主数据 ID 的那部分），可空
+     * @param freeNames     自由输入的食材名（食材表之外、没有 ID 的那部分），可空
+     * @param tasteTags     口味标签，可空
+     * @param includePool   是否包含推荐池的新菜（rankLevel=1）。
+     *                      搜索传 false（保持原行为），发现流传 true（新菜在这里拿曝光）
+     * @return 候选列表；ES 不可用或索引不存在时返回空列表
+     */
+    public List<RecalledDish> recall(List<Long> ingredientIds, List<String> freeNames,
+                                     List<String> tasteTags, boolean includePool) {
+        String body = dslBuilder.buildRecallBody(ingredientIds, freeNames, tasteTags, includePool);
         log.debug("ES 召回 DSL = {}", body);
 
         String responseJson;

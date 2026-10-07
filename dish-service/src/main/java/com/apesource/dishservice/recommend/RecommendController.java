@@ -49,14 +49,18 @@ public class RecommendController {
     }
 
     /**
-     * 上报查看：用户点进详情页时调用一次。
+     * 【已废弃】浏览上报。
      *
-     * <p>查看率是晋级的核心指标，所以这个上报的时机必须准确 ——
-     * 挂在列表接口上会把"划过屏幕"也算成查看。
+     * <p>计数已迁到菜品详情接口（{@code DishViewCounter}），覆盖全部入口。
+     * 这个端点留着只是为了不让还在调它的前端报错，本体不再做任何事 ——
+     * 真让它继续计数的话，推荐流点进详情会被算两次（这里一次、详情接口一次）。
+     *
+     * <p>前端改造完成后，连同调用一起删掉。
      */
+    @Deprecated
     @PostMapping("/{dishId}/view")
     public Result<Void> view(@PathVariable Long dishId) {
-        recommendService.reportView(dishId);
+        log.debug("废弃端点 /ai/recommend/{}/view 被调用，浏览计数已由详情接口负责", dishId);
         return Result.success();
     }
 

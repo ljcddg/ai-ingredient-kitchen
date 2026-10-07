@@ -1,0 +1,485 @@
+/* ============================================================
+   发现页专属样式
+   ------------------------------------------------------------
+   所有选择器都限定在 .page-discover 之下，不污染其他页面。
+   设计令牌全部取自 app.css（--glass / --ink / --line / --accent / --r-lg …），
+   不自己发明了颜色，免得深浅色模式切换时跑偏。
+   布局沿用推荐页的双栏工作台：左侧选食材，右侧出结果。
+   ============================================================ */
+
+/* .fx-bg 是 fixed + z-index:0，使用页必须自己抬起来，否则整页被盖住且毫无报错 */
+.page-discover .page-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.page-discover .discover-grid {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .page-discover .discover-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------------- 左栏：食材选择 ---------------- */
+
+/* overflow 必须同时给 hidden 和 clip：只给 hidden 会让整页虚高约 790px */
+.page-discover .picker {
+  overflow: hidden;
+  overflow: clip;
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  padding: 16px;
+}
+
+.page-discover .picker-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.page-discover .picker-title {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--ink);
+}
+
+.page-discover .picker-hint {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.page-discover .picked-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.page-discover .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.page-discover .chip:hover {
+  background: var(--line);
+}
+
+.page-discover .chip-free {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.page-discover .chip-x {
+  font-style: normal;
+  opacity: 0.55;
+}
+
+.page-discover .ing-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.page-discover .ing-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.page-discover .ing-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.page-discover .search-miss {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+
+.page-discover .ing-groups {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.page-discover .ing-group {
+  margin-bottom: 10px;
+}
+
+.page-discover .ing-group-name {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+
+.page-discover .ing-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.page-discover .ing-item {
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-discover .ing-item:hover {
+  border-color: var(--line-2);
+}
+
+.page-discover .ing-item.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.page-discover .free-label {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+
+.page-discover .free-row {
+  display: flex;
+  gap: 8px;
+  position: relative;
+}
+
+.page-discover .suggest {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+.page-discover .suggest li {
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.page-discover .suggest li.on,
+.page-discover .suggest li:hover {
+  background: var(--line);
+}
+
+/* ---------------- 右栏：结果 ---------------- */
+
+.page-discover .results {
+  min-width: 0;
+}
+
+.page-discover .mode-seg {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--glass);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+
+.page-discover .mode-btn {
+  padding: 6px 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color .16s var(--ease), background .16s var(--ease);
+}
+
+.page-discover .mode-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.page-discover .filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+}
+
+.page-discover .filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.page-discover .filter select {
+  height: 30px;
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+/* ---------------- 浏览模式列表 ---------------- */
+
+.page-discover .dish-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.page-discover .dish-card {
+  padding: 14px 16px;
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+}
+
+.page-discover .card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.page-discover .dish-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.page-discover .dish-name:hover {
+  text-decoration: underline;
+}
+
+.page-discover .badge {
+  flex: none;
+  padding: 2px 9px;
+  font-size: 12px;
+  border-radius: 999px;
+}
+
+/* 三档角标：齐了最醒目，差一点次之，缺得多只做中性提示 */
+.page-discover .badge-ready {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.page-discover .badge-close {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.page-discover .badge-far {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.page-discover .dish-reason {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.page-discover .dish-miss {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.page-discover .miss-soft {
+  opacity: 0.85;
+}
+
+.page-discover .dish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.page-discover .tag {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+
+.page-discover .list-more {
+  margin-top: 14px;
+  text-align: center;
+}
+
+/* ---------------- 决策模式 ---------------- */
+
+.page-discover .decide-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-discover .decide-card {
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.page-discover .decide-name {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.page-discover .decide-reason {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+.page-discover .decide-miss {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.page-discover .decide-miss-ok {
+  color: var(--accent);
+}
+
+.page-discover .decide-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.page-discover .decide-count {
+  margin: 16px 0 0;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.page-discover .decide-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* ---------------- 骨架 / 空态 / 错误 ---------------- */
+
+.page-discover .skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--glass);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+}
+
+.page-discover .sk-line {
+  height: 14px;
+  border-radius: 6px;
+  background: var(--line);
+}
+
+.page-discover .sk-title {
+  height: 20px;
+  width: 40%;
+}
+
+.page-discover .sk-short {
+  width: 60%;
+}
+
+.page-discover .empty,
+.page-discover .err-box {
+  padding: 28px 20px;
+  text-align: center;
+  background: var(--glass);
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  border-radius: var(--r-lg);
+}
+
+.page-discover .empty-title,
+.page-discover .err-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.page-discover .empty-text,
+.page-discover .err-text {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.page-discover .err-box .secondary-btn {
+  margin-top: 14px;
+}

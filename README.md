@@ -219,6 +219,41 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 
 **计数一律按明细表重算**，绝不用 affected rows 做加减。
 
+### 6. 发现流：从「排名」到「决策」
+
+旧的四个榜单各自排序（热门 / 高分 / 最新 / 冷启动），用户要在 tab 之间来回切去找想要的东西。
+问题不在公式，在**问题定义**：模块回答的是「哪道菜排第一」，而用户想问的是「我今天做什么」。
+
+2026-10-07 重构为一条流水线。**下面这三个改进是串联关系，不是并列**：
+
+```
+输入（手边食材 + 情境 + 用户）
+   ↓
+信号层：食材匹配（深）· 质量分（中）· 情境（浅）· 个性化（空实现）
+   ↓
+排序层：feedScore 加权合成（权重经 Nacos 下发）
+   ↓
+呈现层：├─ 浏览模式（列表 + 筛选器）
+        └─ 决策模式（一屏一道，"换一个"取下一位）
+```
+
+只有呈现层的两种模式是并列的，它们共用上游全部结果。
+
+**模块深度是非对称的** —— 力气花在别人没有的东西上：
+
+| 模块 | 深度 | 理由 |
+|---|---|---|
+| 食材匹配 | **深** | 唯一独有的信号；输出三档位 + 可执行的缺料清单，而不只是一个分数 |
+| 质量分 | 中 | 威尔逊下界已是标准答案，再堆公式的边际收益极低 |
+| 情境 | **浅** | 实测 112 道菜里 75 道是 2 人份、91 道不辣，维度高度集中，撑不起复杂模型 |
+| 个性化 | 空实现 | `taste_tag` 87% 有值但极散（家常19、酱香9、清淡9…），硬算只会得到噪声 |
+
+**冷启动顺带完成了一次收敛**：它不再是独立榜单，而是排序的一个输入。
+`EsDslBuilder.buildRecallBody` 加了 `includePool` 开关，发现流传 `true` 就召回推荐池的新菜
+（`rankLevel=1`），搜索仍传 `false` —— 旧行为一点没变。
+
+详见 [`docs/discover-redesign.md`](docs/discover-redesign.md)。
+
 ---
 
 ## 关键设计决策与取舍
@@ -314,10 +349,26 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `GET` | `/api/dish/ai/dish/{dishId}` | 菜品详情（营养 / 步骤 / 大厨建议 / 评分 / 评论） |
 | `POST` | `/api/dish/ai/dish/manual/preview` | **手写菜谱试算**：只按食材成分表算营养、只报「还差什么」，不入库 |
 | `POST` | `/api/dish/ai/dish/manual` | **手写菜谱入库**：`source=3`、营养走本地计算；够发布门槛就自动发布，不够就留草稿并回原因 |
-| `GET` | `/api/dish/ai/recommend` | 推荐流一屏（冷启动候选池 + 24h 去重；`matchType` 说明这道菜为什么被推） |
-| `POST` | `/api/dish/ai/recommend/{dishId}/view` | 上报查看（查看率是晋级的核心指标，所以挂在详情页而不是列表接口上） |
+| `GET` | `/api/dish/ai/recommend` | 推荐流一屏（**旧入口**，新页面已改用 `/ai/discover`） |
+| `POST` | `/api/dish/ai/recommend/{dishId}/view` | **已废弃**：浏览计数改由详情接口统一负责，该端点不再累加 |
 | `POST` | `/api/dish/ai/recommend/{dishId}/interact?type=like\|collect\|cook` | 上报互动 |
 
+</details>
+
+<details>
+<summary><b>发现流</b>（dish-service，2026-10-07 新增，取代推荐页与榜单页）</summary>
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/dish/ai/discover/browse` | 浏览模式：一屏列表，每条带匹配档位（齐活 / 差一点 / 缺得多）+ 缺料清单 + 推荐理由 |
+| `GET` | `/api/dish/ai/discover/decide` | 决策模式：一次备一批，"换一个"从这批里依次取 |
+
+两个端点**共用同一套排序结果**，只在"一次给几条"上分叉 —— 所以决策模式看到的第一道，
+和浏览模式列表里排第一的必然是同一道。
+
+公共参数：`ingredientIds`、`ingredientNames`（食材表之外的自由输入）、
+`maxCookTimeMin`、`maxDifficulty`、`serving`；
+浏览模式另加 `page` / `size`，决策模式另加 `offset`。
 </details>
 
 <details>
@@ -373,13 +424,17 @@ ai-ingredient-kitchen/
 ├── common-service/            # 公共模块：Result / JwtUtil / 全局序列化
 ├── account-service/           # 账号服务 :8081
 ├── dish-service/              # 菜品服务 :8082（业务核心）
-│   └── src/main/java/.../es/  # ES DSL 组装与查询
+│   └── src/main/java/.../
+│       ├── es/                # ES DSL 组装与查询
+│       ├── discover/          # 发现流：信号层 → 排序层 → 浏览 / 决策两种呈现
+│       ├── recommend/job/     # 冷启动晋级与算分（后台定时任务，不对用户呈现）
+│       └── service/           # 检索 / 发布 / 互动 / 榜单（旧，保留做对照）
 ├── gateway/                   # 网关 :7000
 ├── frontend-vue/              # Vue3 前端（Vite 6）
 ├── nacos-config/              # Nacos 配置留档副本
 ├── es/                        # 索引 mapping / 测试数据 / 验证脚本
 ├── sql/                       # 建表语句（结构，不含数据）
-└── docs/                      # 架构文档 / 数据库说明 / 面试要点
+└── docs/                      # 架构文档 / 数据库说明 / 发现流重构方案 / 面试要点
 ```
 
 ---
@@ -507,6 +562,8 @@ python es/eval/fill-arm-b.py 5
 | 性能 | 模型调用超时阈值设小会把「并发下变慢」误判成「卡死」 | 240s 时一次 2 vs 4 的实验 6/6 任务全灭 | 已提到 **600s**；阈值必须大于并发下的单任务上限，否则测的是阈值不是系统 |
 | 运维 | 数据源 / Redis 密码是 `root/root` 占位；Seata 已建库建表但未部署 | 不能直接上生产 | 配置外置 + 部署 Seata |
 | 一致性 | ES 与 MySQL 之间是最终一致 | 有秒级窗口 | `AFTER_COMMIT` 立即尝试一次 + `t_es_sync_task` 待办表（退避 5/15/45/120s，5 次后放弃）+ 管理员手动补偿 + 每日 04:00 全量核对；实测停掉 ES 后撤回仍成功，恢复后旧任务**只会删不会写回** |
+| 验证 | 发现流（2026-10-07 新增）**尚未端到端验证** | 后端编译通过、前端语法已校验，但没启服务跑过 | 推 `discover.*` 到 Nacos（`nacos-config/dish-service.yaml` 已留档未推）→ 启 dish-service + ES → 打开 `/discover`。旧的 `/rank` 与 `RankView.vue` 保留做对照，确认后删除 |
+| 架构 | 旧榜单（热门 / 高分 / 最新 / 冷启动）**仍与发现流并存** | 两套排序口径同时在库里，容易混淆 | 这是**有意保留**的：重构前后对比本身就是答辩素材。确认发现流没问题后删 `/rank` 路由 + `RankView.vue` + `rank.css` + 顶栏那一项 |
 
 ---
 

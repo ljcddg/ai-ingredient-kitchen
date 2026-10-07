@@ -18,7 +18,10 @@ const routes = [
   { path: '/kitchen', name: 'kitchen', component: () => import('../views/KitchenView.vue') },
   { path: '/dish/:id', name: 'dish', component: () => import('../views/DishView.vue'), props: true },
   { path: '/rank', name: 'rank', component: () => import('../views/RankView.vue') },
-  { path: '/recommend', name: 'recommend', component: () => import('../views/RecommendView.vue') },
+  // 发现页：取代旧的推荐页，把"选食材 → 出推荐"和榜单合并成一个入口
+  { path: '/discover', name: 'discover', component: () => import('../views/DiscoverView.vue') },
+  // 旧的推荐页地址重定向过来，收藏里存了老链接的人不至于 404
+  { path: '/recommend', redirect: '/discover' },
   { path: '/profile', name: 'profile', component: () => import('../views/ProfileView.vue') },
   { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { admin: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' }

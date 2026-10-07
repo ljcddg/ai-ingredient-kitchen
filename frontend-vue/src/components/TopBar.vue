@@ -20,8 +20,10 @@
       <nav class="nav" aria-label="主导航">
         <router-link class="nav-link" to="/kitchen" data-page="kitchen"
                      :aria-current="current === 'kitchen' ? 'page' : undefined">找菜</router-link>
-        <router-link class="nav-link" to="/recommend" data-page="recommend"
-                     :aria-current="current === 'recommend' ? 'page' : undefined">推荐</router-link>
+        <router-link class="nav-link" to="/discover" data-page="discover"
+                     :aria-current="current === 'discover' ? 'page' : undefined">发现</router-link>
+        <!-- 榜单页暂时保留，用来和新的发现流做对照——"重构前后对比"本身就是答辩素材。
+             确认新页没问题后，删掉这一行 + /rank 路由 + RankView.vue + rank.css -->
         <router-link class="nav-link" to="/rank" data-page="rank"
                      :aria-current="current === 'rank' ? 'page' : undefined">榜单</router-link>
         <router-link class="nav-link" to="/profile" data-page="profile"

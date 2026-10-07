@@ -5,6 +5,7 @@ import com.apesource.dishservice.dto.DishDetailView;
 import com.apesource.dishservice.dto.DishGenerateRequest;
 import com.apesource.dishservice.dto.DishTaskView;
 import com.apesource.dishservice.service.DishGenerateService;
+import com.apesource.dishservice.service.DishViewCounter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,11 @@ import java.util.Map;
 public class DishGenerateController {
 
     private final DishGenerateService service;
+
+    /**
+     * 浏览计数。挂在详情接口上——这是所有入口（搜索、榜单、收藏夹、推荐流）的汇聚点。
+     */
+    private final DishViewCounter dishViewCounter;
 
     /**
      * 提交一次生成请求 —— 立刻返回 taskId 和排队位置，不阻塞。
@@ -121,7 +127,13 @@ public class DishGenerateController {
     @GetMapping("/dish/{dishId}")
     public Result<DishDetailView> detail(@RequestHeader("X-User-Id") Long userId,
                                          @PathVariable("dishId") Long dishId) {
-        return Result.success(service.detail(dishId, userId));
+        DishDetailView detail = service.detail(dishId, userId);
+
+        // 放在查到详情之后：查不到（草稿且非作者）会先抛异常，走到这里说明真的看到了。
+        // 计数失败不影响返回——DishViewCounter 内部只更新、不抛异常。
+        dishViewCounter.countView(dishId, userId);
+
+        return Result.success(detail);
     }
 
     /** 调试用：看一眼队列里现在排着什么 */

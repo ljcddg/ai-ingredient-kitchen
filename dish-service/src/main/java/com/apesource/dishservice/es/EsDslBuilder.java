@@ -66,6 +66,20 @@ public class EsDslBuilder {
      */
     public String buildRecallBody(List<Long> ingredientIds, List<String> freeNames,
                                   List<String> tasteTags) {
+        return buildRecallBody(ingredientIds, freeNames, tasteTags, false);
+    }
+
+    /**
+     * 组装召回查询体。
+     *
+     * @param ingredientIds 用户选中的食材 ID（调用前已去重排序），可空
+     * @param freeNames     用户自由输入的食材名（食材表之外、没有主数据 ID），可空
+     * @param tasteTags     口味标签，可空
+     * @param includePool   是否把推荐池里的新菜（rankLevel=1）也算进候选
+     * @return ES {@code _search} 的请求体 JSON
+     */
+    public String buildRecallBody(List<Long> ingredientIds, List<String> freeNames,
+                                  List<String> tasteTags, boolean includePool) {
         ObjectNode root = objectMapper.createObjectNode();
 
         ObjectNode functionScore = root.putObject("query").putObject("function_score");
@@ -75,11 +89,20 @@ public class EsDslBuilder {
         ArrayNode filters = bool.putArray("filter");
         filters.addObject().putObject("term").put("status", 1);
         filters.addObject().putObject("term").put("deleted", 0);
-        // 冷启动：搜索只召回已晋级（rankLevel=2）的菜。
-        // 推荐池里的新菜还没被验证过，它们的曝光走推荐流，不占搜索结果 ——
-        // 否则"搜得到但没人看过"的菜会挤掉真正被验证过的好菜。
+        // 冷启动分级：
+        //   搜索（includePool=false）只召回已晋级（rankLevel=2）的菜 ——
+        //     推荐池里的新菜还没被验证过，"搜得到但没人看过"会挤掉真正验证过的好菜。
+        //   发现流（includePool=true）额外带上 rankLevel=1 ——
+        //     那里本来就是新菜拿曝光的地方，冷启动机制借此从"一个独立榜单"
+        //     收敛为"排序的一个输入"：新菜混在正常候选里一起打分，
+        //     分数够高就冒头，不够高就沉底，不再需要单独给它开个榜。
         // 注意：索引里必须有这个字段，否则这条过滤会把所有文档都滤掉。
-        filters.addObject().putObject("term").put("rankLevel", 2);
+        if (includePool) {
+            ArrayNode levels = filters.addObject().putObject("terms").putArray("rankLevel");
+            levels.add(1).add(2);
+        } else {
+            filters.addObject().putObject("term").put("rankLevel", 2);
+        }
         if (tasteTags != null && !tasteTags.isEmpty()) {
             ArrayNode tagArray = filters.addObject().putObject("terms").putArray("tasteTags");
             tasteTags.forEach(tagArray::add);
