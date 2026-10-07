@@ -17,6 +17,24 @@
    食材网格，结果找菜页跟着变了」这种事不会发生。
    ============================================================ */
 
+/* ---------- 页面锁高（工作台模式） ---------- */
+/*
+ * 和找菜页同一套：整页不滚，左右两栏各自在自己的容器里滚。
+ * 左栏因此永远钉在屏幕原位上 —— 不然在左栏里滚到底，
+ * 滚动链会传给文档把整页带跑，左栏就"跑"了。
+ */
+.page-recommend{
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;   /* 移动端地址栏收/展时取动态视口高，避免底部被裁 */
+    overflow: hidden;
+}
+
+/* 顶栏是这个 flex 列的固定头：不伸缩，永远 60px，
+   把剩下的高度整块让给工作台 */
+.page-recommend > .topbar{ flex: none; }
+
 /* ---------- 工作台两栏 ---------- */
 /*
  * position + z-index 不能删：.fx-bg 是 fixed + z-index:0（定位元素），
@@ -28,17 +46,29 @@
     display: grid;
     grid-template-columns: 340px minmax(0, 1fr);
     gap: 20px;
+    width: 100%;
     max-width: 1240px;
     margin: 0 auto;
-    padding: 24px 20px 72px;
-    align-items: start;
+    /* flex 子项 + min-height:0：撑满顶栏之外的全部高度，且能收缩 */
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 24px 20px 28px;
+    /* 两栏等高 —— 右栏要自己滚，必须先有个确定的高度 */
+    align-items: stretch;
     animation: fxRise .42s var(--ease) both;
 }
 
 @media (max-width: 980px) {
+    .page-recommend{
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
     .page-recommend .workbench{
         grid-template-columns: minmax(0, 1fr);
         padding: 16px 14px 64px;
+        align-items: start;
+        flex: none;
     }
 }
 
@@ -53,17 +83,17 @@
 }
 
 .page-recommend .picker{
-    position: sticky;
-    top: 84px;
+    /* 不再需要 sticky：父级 .workbench 已经锁死在视口内，它本来就不会动 */
+    position: static;
     display: flex;
     flex-direction: column;
-    max-height: calc(100vh - 108px);
+    height: 100%;
+    min-height: 0;
     padding: 18px;
     /* 面板自己不能滚，要让内部的 .picker-scroll 滚 ——
        否则底部固定的提交按钮会跟着一起滚走。
        用 clip 而不是 hidden：clip 只裁剪、不创建新的滚动容器，
-       不会破坏 .picker 自身 sticky 的参照，也不会在内部元素获得焦点时
-       让面板自己滚动。下面一行是给不支持 clip 的浏览器兜底。 */
+       也不会在内部元素获得焦点时让面板自己滚动。下面一行是给旧浏览器兜底。 */
     overflow: hidden;
     overflow: clip;
 }
@@ -73,6 +103,10 @@
     /* flex 子项默认不收缩，少了这行内部滚动不会生效 */
     min-height: 0;
     overflow-y: auto;
+    /* 【关键】把滚动关在面板里：没有这行，食材列表滚到底之后
+       滚动会继续传给文档，把整页一起带着滚 —— 左栏就"跑"了。
+       contain 让这一层滚到底就停住，不外溢。 */
+    overscroll-behavior: contain;
     /* 负边距让滚动条贴到面板边缘，不占内容宽度 */
     margin: 0 -18px;
     padding: 0 18px;
@@ -111,12 +145,12 @@
 
 @media (max-width: 980px) {
     .page-recommend .picker{
-        position: static;
-        max-height: none;
+        height: auto;
         display: block;
     }
     .page-recommend .picker-scroll{
         overflow-y: visible;
+        overscroll-behavior: auto;
         margin: 0;
         padding: 0;
     }
@@ -443,7 +477,50 @@
 }
 
 /* ---------- 右栏结果 ---------- */
-.page-recommend .results{ min-width: 0; }
+/*
+ * 右栏是一列：页头 + 滚动体 + 分页器。
+ * 「整个组件不滚动、内部可以滚动」指的就是这条：
+ * .results 自己高度锁死不动，滚的是里面的 .results-body，
+ * 分页器钉在最底部，翻页按钮永远在同一个位置。
+ */
+.page-recommend .results{
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.page-recommend .results-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    /* 滚到底就停住，不外溢给文档 */
+    overscroll-behavior: contain;
+    /* 给滚动条留位置，免得贴住卡片边缘 */
+    padding-right: 4px;
+}
+
+.page-recommend .results-body::-webkit-scrollbar{ width: 8px; }
+.page-recommend .results-body::-webkit-scrollbar-track{ background: transparent; }
+.page-recommend .results-body::-webkit-scrollbar-thumb{
+    background: var(--line-2);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+}
+
+/* 页头是右栏的固定部分：flex 子项默认可收缩，内容一多会被压扁 */
+.page-recommend .results > .page-head{ flex: none; }
+
+@media (max-width: 980px) {
+    .page-recommend .results{ height: auto; }
+    .page-recommend .results-body{
+        overflow-y: visible;
+        overscroll-behavior: auto;
+        padding-right: 0;
+    }
+}
 
 .page-recommend .rec-list{
     margin: 0;
@@ -541,12 +618,6 @@
 }
 
 /* ---------- 换一批 ---------- */
-.page-recommend .rec-more{
-    margin-top: 18px;
-    display: flex;
-    justify-content: center;
-}
-
 /* 窄屏：收掉点赞按钮的内边距，让菜名和角标先站住 */
 @media (max-width: 560px){
     .page-recommend .rank-item{ padding: 12px 14px; gap: 10px; }

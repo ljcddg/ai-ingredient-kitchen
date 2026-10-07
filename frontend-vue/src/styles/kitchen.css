@@ -10,6 +10,29 @@
    到时候「改了怎么没生效」会非常难查。
    ============================================================ */
 
+/* ---------- 页面锁高（工作台模式） ---------- */
+/*
+ * 为什么要锁死整页高度：左栏原来是 sticky + 内部滚动，
+ * 只要文档本身还能滚，用户在左栏里滚到底之后滚动链就会传给文档，
+ * 整页被带着往上滚 —— 左栏就"跑"了（实测就是这个现象）。
+ *
+ * 所以改成：整页不滚，左右两栏各自在自己的容器里滚。
+ * 左栏因此永远钉在屏幕原位上，用户的抱怨正是「滚动时它会跑」。
+ * 注意「取消滚动」取消的是这种"左右互相带跑"的滚动，
+ * 不是把滚动条藏起来 —— 两栏内部该滚还是滚。
+ */
+.page-kitchen{
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;   /* 移动端地址栏收/展时取动态视口高，避免底部被裁 */
+    overflow: hidden;
+}
+
+/* 顶栏是这个 flex 列的固定头：不伸缩，永远 60px，
+   把剩下的高度整块让给工作台 */
+.page-kitchen > .topbar{ flex: none; }
+
 /* ---------- 工作台两栏 ---------- */
 /*
  * position + z-index 不能删：.fx-bg 是 fixed + z-index:0（定位元素），
@@ -21,17 +44,29 @@
     display: grid;
     grid-template-columns: 392px minmax(0, 1fr);
     gap: 20px;
+    width: 100%;
     max-width: 1240px;
     margin: 0 auto;
-    padding: 24px 20px 72px;
-    align-items: start;
+    /* flex 子项 + min-height:0：撑满顶栏之外的全部高度，且能收缩 */
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 24px 20px 28px;
+    /* 两栏等高 —— 右栏要自己滚，必须先有个确定的高度 */
+    align-items: stretch;
     animation: fxRise .42s var(--ease) both;
 }
 
 @media (max-width: 980px) {
+    .page-kitchen{
+        height: auto;
+        min-height: 100dvh;
+        overflow: visible;
+    }
     .page-kitchen .workbench{
         grid-template-columns: minmax(0, 1fr);
         padding: 16px 14px 64px;
+        align-items: start;
+        flex: none;
     }
 }
 
@@ -46,15 +81,13 @@
 }
 
 .page-kitchen .picker{
-    position: sticky;
-    top: 84px;
-    /* 左栏内容比视口高时，单纯的 sticky 会让它的底部永远滚不到：
-       元素顶部粘住之后，超出视口的那部分既不随页面滚上来、也不在视口里，
-       结果就是「开始找菜」按钮一直看不见。
-       所以把面板拆成「字段区内部滚动 + 按钮固定在底部」两段。 */
+    /* 不再需要 sticky：父级 .workbench 已经锁死在视口内，它本来就不会动。
+       留着 sticky 反而在超长内容时产生"元素比参照高"的怪行为。 */
+    position: static;
     display: flex;
     flex-direction: column;
-    max-height: calc(100dvh - 104px);
+    height: 100%;
+    min-height: 0;
     padding: 18px 18px 16px;
     /* 【必须】阻止左栏的滚动内容把整页撑高。
        .picker-scroll 里的内容（88 种食材，约 1900px）虽然被它自己的
@@ -62,8 +95,8 @@
        于是文档 scrollHeight 虚高约 790px —— 症状就是「鼠标能一直往下滚，
        底下却什么都没有」。实测修复后 1742px -> 952px。
        用 clip 而不是 hidden：clip 只裁剪、不创建新的滚动容器，
-       不会影响 .picker 自身 sticky 的参照，也不会在内部元素获得焦点时
-       让面板自己滚动。下面一行是给不支持 clip 的浏览器兜底。 */
+       也不会在内部元素获得焦点时让面板自己滚动。
+       下面一行是给不支持 clip 的浏览器兜底。 */
     overflow: hidden;
     overflow: clip;
 }
@@ -73,6 +106,10 @@
     /* flex 子项默认不收缩，少了这行内部滚动不会生效 */
     min-height: 0;
     overflow-y: auto;
+    /* 【关键】把滚动关在面板里：没有这行，食物列表滚到底之后
+       滚动会继续传给文档，把整页一起带着滚 —— 左栏就"跑"了。
+       contain 让这一层滚到底就停住，不外溢。 */
+    overscroll-behavior: contain;
     /* 负边距让滚动条贴到面板边缘，不占内容宽度 */
     margin: 0 -18px;
     padding: 0 18px;
@@ -95,12 +132,12 @@
 
 @media (max-width: 980px) {
     .page-kitchen .picker{
-        position: static;
-        max-height: none;
+        height: auto;
         display: block;
     }
     .page-kitchen .picker-scroll{
         overflow-y: visible;
+        overscroll-behavior: auto;
         margin: 0;
         padding: 0;
     }
@@ -422,7 +459,8 @@
 }
 
 /* ---------- 结果区 ---------- */
-.page-kitchen .results{ min-width: 0; }
+/* .results 的完整定义在文件下方「右栏分栏」一节（它同时是 flex 容器），
+   这里不再重复声明，避免同一个选择器两处定义互相覆盖。 */
 
 .page-kitchen .result-head{
     display: flex;
@@ -707,7 +745,67 @@
    ============================================================ */
 /* grid 子项默认 min-width:auto，内容偏宽时会把整列撑破，
    所以这里必须显式压成 0。少了这行在窄屏上会出现横向滚动。 */
-.page-kitchen .right-col{ min-width: 0; }
+.page-kitchen .right-col{
+    min-width: 0;
+    /* 右栏自己是一列：任务区在上、结果区在下。
+       高度由 .workbench 的 stretch 给到，内部再分「固定头 + 滚动体 + 固定分页器」 */
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%;
+    min-height: 0;
+}
+
+/* 任务区：任务多的时候自己滚，不能把结果区挤没
+   （它是"进行中"的提示，重要性排在结果之后）。
+   max-height 兜底：任务一多它会按内容高度占到很大，
+   结果区虽然有 min-height:0 但会真的被压到看不见。 */
+.page-kitchen #taskSection{
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: min(420px, 45%);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/* 结果区：整体不滚，内部滚动 —— 分页器钉在这一栏底部。
+   「右侧整个组件不要滚动、内部可以滚动」说的就是这条。 */
+.page-kitchen .results{
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* 滚动体：结果内容都在这层里滚 */
+.page-kitchen .results-body{
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* 给滚动条留出位置，免得贴住卡片边缘 */
+    padding-right: 4px;
+}
+
+.page-kitchen .results-body::-webkit-scrollbar{ width: 8px; }
+.page-kitchen .results-body::-webkit-scrollbar-track{ background: transparent; }
+.page-kitchen .results-body::-webkit-scrollbar-thumb{
+    background: var(--line-2);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+}
+
+@media (max-width: 980px) {
+    .page-kitchen .right-col{ height: auto; }
+    .page-kitchen #taskSection{ max-height: none; overflow-y: visible; }
+    .page-kitchen .results-body{
+        overflow-y: visible;
+        overscroll-behavior: auto;
+        padding-right: 0;
+    }
+}
 
 /* ============================================================
    自由输入食材

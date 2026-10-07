@@ -153,6 +153,9 @@
           </div>
         </div>
 
+        <!-- 结果体：右栏唯一滚动的部分。
+             分页器写在它外面，所以翻页按钮钉在底部不动，不会跟着列表滚走 -->
+        <div class="results-body">
         <div id="panel" role="region" aria-live="polite">
           <div v-if="view === 'skeleton'" class="skeleton">
             <div class="sk-line sk-title"></div>
@@ -164,7 +167,7 @@
           <div v-else-if="view === 'error'" class="err-box">
             <p class="err-title">没能加载推荐</p>
             <p class="err-text">{{ errorMessage }}</p>
-            <button class="secondary-btn" type="button" id="retryBtn" @click="load(true)">再试一次</button>
+            <button class="secondary-btn" type="button" id="retryBtn" @click="loadBatch(batch)">再试一次</button>
           </div>
 
           <div v-else-if="view === 'empty'" class="empty">
@@ -207,12 +210,32 @@
                 >{{ item.likeCount || 0 }} 赞</button>
               </li>
             </ul>
-
-            <div class="rec-more">
-              <button class="secondary-btn" type="button" id="moreBtn" @click="nextBatch">换一批</button>
-            </div>
           </template>
         </div>
+        </div>
+
+        <!-- 分页器：钉在右栏底部。
+             为什么是分页而不是「换一批」加无限滚：
+             右栏整体高度锁死、只有中间列表滚，翻页按钮就永远在同一位置，
+             不用先滚到底才找得到。页码还能直接跳回看过的批次。
+             注意这里翻的是"批次"—— 后端 24 小时内推过的菜会被排除，
+             所以每一批都是全新的菜，页码只在已加载的批次之间跳转。 -->
+        <nav v-if="showPager" class="pager" aria-label="推荐分页">
+          <button class="pager-btn" type="button" id="prevBatchBtn"
+                  :disabled="batch <= 1 || loading" @click="goBatch(batch - 1)">上一页</button>
+          <span class="pager-nums">
+            <template v-for="(n, i) in pageNumbers" :key="'pg' + i">
+              <span v-if="n === '…'" class="pager-gap">…</span>
+              <button v-else class="pager-num" type="button"
+                      :class="{ 'is-on': n === batch }"
+                      :aria-current="n === batch ? 'page' : undefined"
+                      :disabled="loading" @click="goBatch(n)">{{ n }}</button>
+            </template>
+          </span>
+          <button class="pager-btn" type="button" id="nextBatchBtn"
+                  :disabled="loading" @click="goBatch(batch + 1)">下一页</button>
+          <span class="pager-info">第 {{ batch }} 页 · 本页 {{ items.length }} 道</span>
+        </nav>
       </section>
     </main>
   </div>
@@ -267,14 +290,51 @@ const maxMissing = ref(2)
 
 // ---------- 结果状态 ----------
 const items = ref([])
-const page = ref(1)
 const view = ref('skeleton')         // skeleton | error | empty | list
 const errorMessage = ref('')
 const subtitle = ref('')
+const loading = ref(false)
+
+/* ---------------- 分页 ----------------
+   这里的分页和找菜页不一样，值得说清楚：
+
+   推荐接口没有 total（它是"凑满 size 为止"的流，不是有限结果集），
+   而且后端会把 24 小时内推过的菜排除掉 —— 所以同一个 page 重放一次，
+   拿到的会是另一批菜，不是原来那批。直接照搬"页码 = offset"会翻出乱序的内容。
+
+   所以做法是「批次缓存」：每批拿到就按批次号存下来，
+   页码只在【已加载的批次】之间跳，翻回前面几页直接用缓存不再请求；
+   在当前最后一批上再点「下一页」，才去拉一批新的。
+   这样页码既是导航又是加载入口，且回看不串味。 */
+const batch = ref(1)                 // 当前批次号（1 起）
+const loadedBatches = ref([])        // loadedBatches.value[i] = 第 i+1 批的 items
 /** 本次会话里点过赞的菜，只用于按钮置灰，刷新页面后会重置 */
 const liked = reactive(new Set())
 /** 上一次「按什么食材推荐」的口径，用来在副标题里说明这批菜是按谁找的 */
 const lastQuery = ref([])
+
+const showPager = computed(() => view.value === 'list')
+
+/** 页码序列：批次少时全列，多时收成 1 … n-1 n n+1 … N */
+const pageNumbers = computed(() => {
+  const total = loadedBatches.value.length
+  const cur = batch.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out = [1]
+  const from = Math.max(2, cur - 1)
+  const to = Math.min(total - 1, cur + 1)
+  if (from > 2) out.push('…')
+  for (let n = from; n <= to; n++) out.push(n)
+  if (to < total - 1) out.push('…')
+  out.push(total)
+  return out
+})
+
+/** 翻页后把列表滚回顶部，否则换了一批还停在旧位置，看不出变化 */
+function scrollResultsTop() {
+  const box = document.querySelector('.page-recommend .results-body')
+  if (box) box.scrollTop = 0
+}
 
 /* ---------- 食材选择：搜索 / 联想 / 选中 ---------- */
 
@@ -393,28 +453,58 @@ const subtitleText = computed(() => {
   return '按 ' + lastQuery.value.join('、') + ' 找的'
 })
 
-async function load(showSkeleton) {
-  if (showSkeleton) view.value = 'skeleton'
+/**
+ * 拉某一批推荐。
+ *
+ * @param n 批次号（= 后端的 page 参数）
+ */
+async function loadBatch(n) {
+  if (loading.value) return
+  loading.value = true
+  view.value = 'skeleton'
   try {
     const ids = [...selectedIds.value]
-    const data = await DishApi.recommendFeed(ids, page.value, PAGE_SIZE, freeIngredients.value)
-    items.value = data.items || []
-    view.value = items.value.length ? 'list' : 'empty'
+    const data = await DishApi.recommendFeed(ids, n, PAGE_SIZE, freeIngredients.value)
+    const list = data.items || []
+    // 按批次号定位写入，不用 push —— 顺序错了页码就会串
+    loadedBatches.value[n - 1] = list
+    batch.value = n
+    items.value = list
+    view.value = list.length ? 'list' : 'empty'
     lastQuery.value = ids.map(nameOfIngredient).concat(freeIngredients.value)
+    scrollResultsTop()
   } catch (e) {
     errorMessage.value = e.message || '未知错误'
     view.value = 'error'
+  } finally {
+    loading.value = false
   }
 }
 
+/** 换了食材条件：缓存作废，从第 1 批重来 */
 function reload() {
-  page.value = 1
-  load(true)
+  loadedBatches.value = []
+  batch.value = 1
+  items.value = []
+  loadBatch(1)
 }
 
-function nextBatch() {
-  page.value += 1
-  load(true)
+/**
+ * 跳到第 n 批。
+ * 已加载过 → 走缓存（不请求）；正好是下一批 → 拉新的；更远 → 忽略（不能跳空）。
+ */
+function goBatch(n) {
+  if (loading.value || n < 1) return
+  const loaded = loadedBatches.value.length
+  if (n <= loaded) {
+    batch.value = n
+    items.value = loadedBatches.value[n - 1] || []
+    view.value = items.value.length ? 'list' : 'empty'
+    scrollResultsTop()
+    return
+  }
+  if (n > loaded + 1) return
+  loadBatch(n)
 }
 
 /** 点进详情：先上报查看再跳转。上报失败不影响跳转 —— 计数丢一次不要紧 */
@@ -440,5 +530,5 @@ async function like(item) {
   }
 }
 
-onMounted(() => load(true))
+onMounted(() => loadBatch(1))
 </script>

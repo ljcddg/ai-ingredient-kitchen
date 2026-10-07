@@ -281,8 +281,13 @@
         </section>
 
         <!-- 结果区。aria-live 让结果刷新时屏幕阅读器能播报
-             （任务区没有放在 aria-live 里，否则轮询会一直打断播报） -->
+             （任务区没有放在 aria-live 里，否则轮询会一直打断播报）
+
+             结构：results 是 flex 列 —— 中间 .results-body 自己滚，
+             底部分页器钉住不动。这样翻页按钮永远在同一个位置，
+             不用先滚到底才找得到。 -->
         <section class="results" id="results" aria-labelledby="resultTitle" aria-live="polite">
+         <div class="results-body">
           <!-- 还没开始 -->
           <template v-if="resultView === 'empty'">
             <div class="result-head"><h2 class="result-title" id="resultTitle">结果</h2></div>
@@ -309,7 +314,7 @@
             <div class="err-box">
               <p class="err-title">请求失败</p>
               <p class="err-text">{{ resultError }}</p>
-              <button class="secondary-btn" id="retryBtn" type="button" @click="doSearch">重试</button>
+              <button class="secondary-btn" id="retryBtn" type="button" @click="doSearch()">重试</button>
             </div>
           </template>
 
@@ -340,7 +345,9 @@
               </div>
             </div>
 
-            <article v-if="result.best" class="dish-main">
+            <!-- best 是"全局最优"（后端取 ranked[0]，与页码无关），每页都会回传。
+                 所以只在第 1 页用它做大卡片，翻到后面几页时它就成了重复项 -->
+            <article v-if="result.best && page === 1" class="dish-main">
               <h3 class="dish-name">{{ result.best.name }}</h3>
               <div class="hit-row">
                 <span class="hit-label">命中 {{ result.best.hitCount }} / {{ totalRequested }} 种食材</span>
@@ -363,7 +370,7 @@
               <p v-if="result.best.reason" class="cand-sub">{{ result.best.reason }}</p>
               <div class="dish-stats">
                 <div v-if="result.best.ratingCount > 0">
-                  <span class="stat-value">{{ result.best.ratingAvg || 0 }}</span>
+                  <span class="stat-value">{{ Number(result.best.ratingAvg || 0).toFixed(1) }}</span>
                   <span class="stat-label">{{ result.best.ratingCount }} 人评价</span>
                 </div>
                 <div v-if="result.best.collectCount > 0">
@@ -390,7 +397,7 @@
             </article>
 
             <template v-if="restCandidates.length">
-              <h3 class="subhead">其他可以做的</h3>
+              <h3 class="subhead">{{ page === 1 ? '其他可以做的' : '更多候选' }}</h3>
               <ul class="cand-list">
                 <li v-for="(c, ci) in restCandidates" :key="c.dishId || ('c' + ci)" class="cand">
                   <router-link v-if="c.dishId" class="cand-link" :to="'/dish/' + c.dishId">
@@ -431,6 +438,25 @@
                       @click="submitGenerate">让 AI 生成一道</button>
             </div>
           </template>
+         </div>
+
+          <!-- 分页器：钉在右栏底部，不跟着 .results-body 滚 -->
+          <nav v-if="showPager" class="pager" aria-label="结果分页">
+            <button class="pager-btn" type="button" id="prevPageBtn"
+                    :disabled="page <= 1 || loading" @click="goPage(page - 1)">上一页</button>
+            <span class="pager-nums">
+              <template v-for="(n, i) in pageNumbers" :key="'pg' + i">
+                <span v-if="n === '…'" class="pager-gap">…</span>
+                <button v-else class="pager-num" type="button"
+                        :class="{ 'is-on': n === page }"
+                        :aria-current="n === page ? 'page' : undefined"
+                        :disabled="loading" @click="goPage(n)">{{ n }}</button>
+              </template>
+            </span>
+            <button class="pager-btn" type="button" id="nextPageBtn"
+                    :disabled="page >= pageCount || loading" @click="goPage(page + 1)">下一页</button>
+            <span class="pager-info">共 {{ result.total }} 道 · {{ page }}/{{ pageCount }} 页</span>
+          </nav>
         </section>
       </div>
     </main>
@@ -890,6 +916,40 @@ const result = ref(null)
 const resultView = ref('empty')   // empty | skeleton | error | result
 const resultError = ref('')
 
+/* ---------------- 分页 ----------------
+   后端 /search 本身就是分页的（回传 total / page / size + 当前页 candidates），
+   best 是 ranked[0] —— 全局最优、与页码无关，所以第 1 页之后不再重复展示它。
+   分页代替了"滚到底加载更多"：右栏锁死高度，只有中间列表滚，翻页按钮钉在底部。 */
+const PAGE_SIZE = 10
+const page = ref(1)
+
+const pageCount = computed(() => {
+  const t = (result.value && result.value.total) || 0
+  return Math.max(1, Math.ceil(t / PAGE_SIZE))
+})
+
+/** 候选不足一页时不显示分页器 —— 一个只有「1」的分页器只是噪音 */
+const showPager = computed(() =>
+  resultView.value === 'result' && !!result.value && result.value.total > PAGE_SIZE)
+
+/**
+ * 页码序列：页数少时全列，多时收成 1 … n-1 n n+1 … N。
+ * 始终保留首尾两页 —— 用户想跳到"最后一页看看最差的是什么"是很自然的需求。
+ */
+const pageNumbers = computed(() => {
+  const total = pageCount.value
+  const cur = page.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const out = [1]
+  const from = Math.max(2, cur - 1)
+  const to = Math.min(total - 1, cur + 1)
+  if (from > 2) out.push('…')
+  for (let n = from; n <= to; n++) out.push(n)
+  if (to < total - 1) out.push('…')
+  out.push(total)
+  return out
+})
+
 const totalRequested = computed(() => (result.value && result.value.requestedIngredientCount) || 1)
 
 const resultTitle = computed(() => {
@@ -905,20 +965,33 @@ const restCandidates = computed(() => {
   const d = result.value
   if (!d) return []
   const all = d.candidates || []
-  return d.best ? all.filter(c => c.dishId !== d.best.dishId) : all
+  // best 只在第 1 页以大卡片出现，所以第 1 页要把它从候选列表里剔掉避免重复；
+  // 后面几页它本来也不会出现在结果里（它是 ranked[0]，属于第 1 页）
+  return page.value === 1 && d.best ? all.filter(c => c.dishId !== d.best.dishId) : all
 })
 
 /** 评价数用小括号收进分数里，让整行只出现一个间隔符 */
 function candSub(c) {
   const bits = []
-  if (c.ratingCount > 0) bits.push(c.ratingAvg + ' 分（' + c.ratingCount + ' 人）')
+  // 必须 toFixed(1)：ratingAvg 是 double，直接拼字符串会漏出
+  // 4.199999999999999 这种浮点尾巴（推荐页早就这么处理了，这里漏了）
+  if (c.ratingCount > 0) bits.push(Number(c.ratingAvg || 0).toFixed(1) + ' 分（' + c.ratingCount + ' 人）')
   if (c.cookTimeMin) bits.push(c.cookTimeMin + ' 分钟')
   if (c.missingCount > 0) bits.push(missingText(c))
   return bits.join(' · ')
 }
 
-async function doSearch() {
+/**
+ * 执行检索。
+ *
+ * @param targetPage 目标页码。不传 = 从头搜（点了「开始找菜」或改了条件），
+ *                   传数字 = 翻页（条件不变，只换 page）。
+ *                   注意模板里 `@click="doSearch"` 会把事件对象传进来，
+ *                   所以这里用 typeof 兜住，不能直接当数字用。
+ */
+async function doSearch(targetPage) {
   if (loading.value || pickedCount.value === 0) return
+  const want = typeof targetPage === 'number' ? targetPage : 1
   loading.value = true
   resultView.value = 'skeleton'
   try {
@@ -936,10 +1009,12 @@ async function doSearch() {
       // 否则用户看到一堆"看着不错但做不了"的菜，还得自己逐条排除
       excludeIngredients: [...excludeNames.value],
       maxCookTimeMin: maxCookTimeMin.value || null,
-      page: 1,
-      size: 10
+      page: want,
+      size: PAGE_SIZE
     })
     result.value = data
+    // 页码以后端回传的为准（后端会把非法页码夹回合法范围）
+    page.value = data.page || want
     resultView.value = 'result'
   } catch (e) {
     resultError.value = e.message || '未知错误'
@@ -947,6 +1022,14 @@ async function doSearch() {
   } finally {
     loading.value = false
   }
+}
+
+/** 翻页：条件不变，只换页码。滚回结果区顶部，否则翻完页还停在旧位置看不出变化 */
+function goPage(n) {
+  if (n < 1 || n > pageCount.value || n === page.value || loading.value) return
+  doSearch(n)
+  const box = document.querySelector('.page-kitchen .results-body')
+  if (box) box.scrollTop = 0
 }
 
 /* ---------------- 提交 AI 生成 ---------------- */
