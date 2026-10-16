@@ -1,0 +1,238 @@
+"""生成器 —— AiDishGenerator.generate 的 Python 移植。
+
+整个流程是「约定 + 约束 + 校验 + 重试」四件事叠起来的：
+  系统提示词（说清要什么）
+      ↓
+  format=json（约束解码，保证是合法 JSON，不会裹 ```json 代码块）
+      ↓
+  反序列化 → 校验器逐字段检查
+      ↓ 不合格
+  把"哪里不合格"原样追加进提示词，重试一次
+      ↓ 仍不合格
+  抛 DishGenerationException，Java 侧把任务标记失败
+
+关于营养：AI 给的营养值会展示给用户（标注"仅供参考"），同时这里会用
+「食材主数据 × 用量」本地算一份做对比 —— 偏差过大说明这次生成可疑，
+把 nutritionVerified 置 false。这是用户看不到的那道保险。
+本地算的那份（localNutrition）也随响应返回，Java 落库时直接用它，
+不用再算一遍。
+"""
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import List, Optional
+
+from . import nutrition, ollama_client
+from .config import Config
+from .directory import Directory
+from .prompt import (build_user_prompt, load_system_prompt, md5_prefix,
+                     render_references)
+from .schemas import (Constraints, DishDraft, GenerateRequest, IngredientRef)
+from .validator import DraftValidator, ValidationResult
+
+logger = logging.getLogger(__name__)
+
+
+class DishGenerationException(Exception):
+    """生成失败。kind 决定 Java 侧 error_msg 的归因与用户可见信息。"""
+
+    def __init__(self, message: str, kind: str, attempts: int,
+                 raw_output: Optional[str], validation: Optional[ValidationResult],
+                 meta: "GenerationMeta"):
+        super().__init__(message)
+        self.message = message
+        self.kind = kind
+        self.attempts = attempts
+        self.raw_output = raw_output
+        self.validation = validation
+        self.meta = meta
+
+
+@dataclass
+class GenerationMeta:
+    """这次生成用的"配方"。
+
+    为什么必须记下来：换了模型、改了提示词、调了温度之后，老结果的解释力
+    就完全不同了。不记这些，"上个月准确率 80%"这种结论根本站不住脚 ——
+    因为没人知道那 80% 是哪一版提示词跑出来的。
+    """
+
+    model: str
+    prompt_version: str
+    temperature: float
+    max_attempts: int
+    reference_dish_ids: List[int] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "model": self.model,
+            "promptVersion": self.prompt_version,
+            "temperature": self.temperature,
+            "maxAttempts": self.max_attempts,
+            # ID 一律字符串传输（项目铁律：Long 序列化成字符串）
+            "referenceDishIds": [str(i) for i in self.reference_dish_ids],
+        }
+
+
+@dataclass
+class GenerateResult:
+    draft: DishDraft
+    nutrition_verified: bool
+    cost_ms: int
+    attempts: int
+    raw_output: str
+    validation: ValidationResult
+    meta: GenerationMeta
+    local_nutrition: nutrition.Result
+
+
+class DishGenerator:
+    """有状态（提示词缓存 + 并发信号量），线程安全。"""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.system_prompt, self.prompt_version = load_system_prompt()
+        # 同时发往 Ollama 的调用上限：与 dish-service 队列并发度对齐。
+        # Ollama 并行度为 1，多了也只是分时复用同一个模型实例，
+        # 还会把单次调用拖到超时。超出的请求在信号量上排队。
+        self.model_gate = threading.BoundedSemaphore(
+            max(1, config.concurrency.max_parallel_model_calls))
+        logger.info("生成器已就绪：模型=%s，提示词版本=%s，最大尝试=%d，超时=%ds",
+                    config.ollama.model, self.prompt_version,
+                    config.generate.max_attempts,
+                    config.generate.attempt_timeout_seconds)
+
+    # ------------------------------------------------------------------ 主流程
+
+    def generate(self, request: GenerateRequest) -> GenerateResult:
+        start = time.monotonic()
+        options = request.options
+        directory = Directory(request.directory)
+        validator = DraftValidator(directory)
+
+        references = request.references or []
+        reference_ids = [ref.dish_id for ref in references if ref.dish_id is not None]
+        if references:
+            logger.info("本次生成注入 %d 条参考菜谱：%s", len(references),
+                        [ref.name for ref in references])
+
+        user_prompt = build_user_prompt(request, directory) + render_references(references)
+        required_names = [ref.name.strip() for ref in request.ingredients
+                          if ref.name is not None and ref.name.strip()]
+
+        logger.info("开始生成：requestId=%s，食材 %d 项，口味 %s，人数 %d，参考菜谱 %d 条，"
+                    "主数据 %d 条，最多尝试 %d 次",
+                    request.request_id, len(request.ingredients), request.tastes or "无",
+                    request.servings, len(references), directory.size(), options.max_attempts)
+
+        last_problems: List[str] = []
+        last_raw_output: Optional[str] = None
+        last_validation: Optional[ValidationResult] = None
+        attempts = max(1, options.max_attempts)
+        meta = GenerationMeta(options.model, self.prompt_version,
+                              options.temperature, attempts, reference_ids)
+
+        for attempt in range(1, attempts + 1):
+            logger.info("第 %d/%d 次：调用模型%s", attempt, attempts,
+                        "（带上次的问题重试）" if last_problems else "")
+            try:
+                json_text = self._call_model(user_prompt, last_problems, options)
+            except ollama_client.OllamaError as e:
+                # 超时/调不通这类已经是"能给用户看的结论"了，原样保留消息，
+                # 只把记录需要的上下文补上（试了几次、上次输出是什么）
+                raise DishGenerationException(str(e), e.kind, attempt - 1,
+                                              last_raw_output, last_validation, meta)
+            last_raw_output = json_text
+
+            try:
+                draft = DishDraft.from_dict(json.loads(json_text))
+            except Exception as e:
+                last_problems = [f"输出的 JSON 无法解析：{ollama_client.brief(e)}"]
+                # 解析不了就是纯粹的格式问题，约束根本没机会被判
+                last_validation = ValidationResult(last_problems, [])
+                logger.warning("第 %d/%d 次：JSON 解析失败 - %s",
+                               attempt, attempts, ollama_client.brief(e))
+                continue
+
+            validation = validator.validate_detailed(draft, request)
+            if validation.passed():
+                local = nutrition.calculate(nutrition.local_items(draft),
+                                            request.servings, directory)
+                nutrition_verified = nutrition.verify_nutrition(
+                    draft, request.servings,
+                    self.config.generate.nutrition_tolerance, directory)
+                cost_ms = int((time.monotonic() - start) * 1000)
+                logger.info("第 %d/%d 次生成通过校验：name=%s，耗时 %d ms，营养校验=%s",
+                            attempt, attempts, draft.name, cost_ms, nutrition_verified)
+                logger.info("本地营养：%s", nutrition.describe(local))
+                return GenerateResult(draft, nutrition_verified, cost_ms, attempt,
+                                      json_text, validation, meta, local)
+
+            last_problems = validation.problems
+            last_validation = validation
+            logger.warning("第 %d/%d 次生成未通过校验（格式问题 %d 项 / 约束问题 %d 项）：%s",
+                           attempt, attempts,
+                           len(validation.problems) - len(validation.constraint_problems),
+                           len(validation.constraint_problems),
+                           "；".join(validation.problems))
+
+        # 详细原因留给日志：字段级的说明（prepTimeMin=0 不在 2~60 之间）是给重试提示词
+        # 和开发者看的，直接甩给用户等于没说。但与"用户自己提的条件"相关的那些要挑出来
+        # 附上：条件自相矛盾时（既要求用牛肉、又忌口牛肉），不说清楚用户只会一遍遍重试。
+        logger.warning("生成失败：%d 次尝试都没通过校验，最后一次的问题：%s",
+                       attempts, "；".join(last_problems))
+        message = ("AI 没能用「" + describe(required_names)
+                   + "」想出合适的做法，换个食材组合或口味再试试"
+                   + constraint_hint(last_problems))
+        raise DishGenerationException(message, "validation_exhausted", attempts,
+                                      last_raw_output, last_validation, meta)
+
+    # ------------------------------------------------------------------ 调模型
+
+    def _call_model(self, user_prompt: str, previous_problems: List[str],
+                    options) -> str:
+        user_text = user_prompt
+        if previous_problems:
+            # 把上次的问题原样告诉它。实测小模型对"具体哪里错了"是有反应的，
+            # 但对"格式错误"这种笼统说法没反应 —— 所以校验器的报错必须具体。
+            lines = ["\n\n上一次的输出存在下列问题，请全部修正后重新输出："]
+            lines.extend("\n- " + p for p in previous_problems)
+            user_text = user_prompt + "".join(lines)
+
+        waiting_since = time.monotonic()
+        with self.model_gate:
+            waited_ms = int((time.monotonic() - waiting_since) * 1000)
+            if waited_ms >= 100:
+                logger.info("排队等待模型槽位 %d ms（并发上限 %d）",
+                            waited_ms, self.config.concurrency.max_parallel_model_calls)
+            return ollama_client.chat(
+                base_url=self.config.ollama.base_url,
+                model=options.model,
+                system_prompt=self.system_prompt,
+                user_prompt=user_text,
+                temperature=options.temperature,
+                timeout_seconds=options.timeout_seconds,
+            )
+
+
+# ------------------------------------------------------------------ 消息 helpers
+
+
+def constraint_hint(problems: List[str]) -> str:
+    """从校验问题里挑出"和用户条件有关"的那些，附给用户看。"""
+    prefixes = ("用户要求必用", "出现了用户禁用", "用到了用户没有", "总耗时")
+    hit = [p for p in problems if p.startswith(prefixes)]
+    return "" if not hit else "；与你的条件有关：" + "；".join(hit)
+
+
+def describe(names: List[str]) -> str:
+    """把食材列表说成一句人话；太长了就只提前两个，免得报错信息一屏都是菜名。"""
+    if not names:
+        return "这组食材"
+    if len(names) <= 3:
+        return "、".join(names)
+    return f"{names[0]}、{names[1]} 等 {len(names)} 种食材"

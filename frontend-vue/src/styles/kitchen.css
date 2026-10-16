@@ -756,16 +756,23 @@
     min-height: 0;
 }
 
-/* 任务区：任务多的时候自己滚，不能把结果区挤没
-   （它是"进行中"的提示，重要性排在结果之后）。
-   max-height 兜底：任务一多它会按内容高度占到很大，
-   结果区虽然有 min-height:0 但会真的被压到看不见。 */
+/* 任务区：固定高度大面板（2026-10-16 定稿，斌宝拍板）——
+   任务卡始终占右栏 42%（笔记本上约 300px），不再随内容塌成一条标题栏。
+   卡片撑满这块区域：标题钉在上面，任务列表在内部滚；
+   没有进行中任务时由占位行撑住视觉（见 .task-empty）。
+   容量核算：单用户最多 5 条排队，约 5×64px + 标题 + 分组行 ≈ 450px，
+   42% ≈ 300px 装不下时列表自己滚，不会把结果区挤没。 */
 .page-kitchen #taskSection{
-    flex: 0 1 auto;
+    flex: 0 0 42%;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+}
+.page-kitchen #taskSection .card{
+    flex: 1 1 auto;
     min-height: 0;
-    max-height: min(420px, 45%);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
 }
 
 /* 结果区：整体不滚，内部滚动 —— 分页器钉在这一栏底部。
@@ -799,7 +806,10 @@
 
 @media (max-width: 980px) {
     .page-kitchen .right-col{ height: auto; }
-    .page-kitchen #taskSection{ max-height: none; overflow-y: visible; }
+    /* 固定高度面板只在宽屏成立：窄屏回退自然流，面板高度随内容 */
+    .page-kitchen #taskSection{ flex: none; min-height: 0; overflow: visible; }
+    .page-kitchen #taskSection .card{ display: block; }
+    .page-kitchen #taskSection .task-list{ overflow-y: visible; }
     .page-kitchen .results-body{
         overflow-y: visible;
         overscroll-behavior: auto;
@@ -952,6 +962,26 @@
     margin: 0;
     padding: 0;
     list-style: none;
+    /* 固定高度面板：标题钉在卡片顶部，任务列表在这里自己滚 */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+/* 没有进行中任务时的占位行：撑住固定高度面板的视觉，
+   不然面板里只剩标题一条会显得又空又矮 */
+.page-kitchen .task-empty{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 130px;
+    margin: 4px 0 10px;
+    padding: 16px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-sm);
+    color: var(--ink-2);
+    font-size: 13px;
+    text-align: center;
 }
 /* 已结束那一段的折叠行。它本身是个 <li>，夹在任务行之间，
    所以做成「分组分隔」的样式，而不是又一条任务 */

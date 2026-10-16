@@ -1,6 +1,7 @@
 package com.apesource.dishservice;
 
 import com.apesource.dishservice.config.EsProperties;
+import com.apesource.dishservice.discover.DiscoverProperties;
 import com.apesource.dishservice.recommend.RecommendProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -22,7 +23,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableConfigurationProperties({EsProperties.class, RecommendProperties.class})
+// DiscoverProperties 必须在这登记：它只标了 @ConfigurationProperties 没标 @Component，
+// 漏了它启动就炸（No qualifying bean of type DiscoverProperties）——
+// 这个坑 2026-10-16 修：发现流代码写完只跑了单测没起过服务，编译期看不出来
+@EnableConfigurationProperties({EsProperties.class, RecommendProperties.class, DiscoverProperties.class})
 // 菜品索引的定时全量兜底需要它（DishEsSyncListener.scheduledReindex）
 @EnableScheduling
 public class DishServiceApplication {

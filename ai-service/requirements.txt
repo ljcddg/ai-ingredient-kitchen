@@ -1,0 +1,27 @@
+# AI 推理中心（Phase 1：LLM 菜谱生成）
+# 安装：pip install -r requirements.txt
+flask>=3.0,<4.0
+requests>=2.31,<3
+gunicorn>=21.2,<24
+pyyaml>=6.0,<7
+pytest>=8.0,<9
+
+# ---------- YOLO 视觉识别（Phase 3）----------
+# 2026-10-16 环境现状（本机 Python 3.12.10 + RTX 4060 Laptop 8G）：
+#   ✅ torch 2.6.0+cu124 / torchvision 0.21.0+cu124 已装（本地 whl，CUDA 实测可用）
+#   ✅ 权重已归位：yolo_model/weights/yolov8n.pt
+#   ⬜ ultralytics 8.4.177 及剩余依赖未装（装的时候一条命令即可，见下）
+#
+# torch/torchvision 是 cu124 定制版，PyPI 上没有，必须用本地 whl：
+#   D:\explorer\NeatDM\torch-2.6.0+cu124-cp312-cp312-win_amd64.whl
+#   D:\explorer\NeatDM\torchvision-0.21.0+cu124-cp312-cp312-win_amd64.whl
+# 补装步骤（whl 已在 venv 里的话只需第二步）：
+#   pip install <上面两个 whl 的路径>
+#   pip install -i https://pypi.tuna.tsinghua.edu.cn/simple ultralytics==8.4.177
+#     （直连 PyPI 不稳，走镜像；opencv 用 headless 版即可，服务端不需要 GUI）
+#
+# ultralytics==8.4.177
+#
+# 注意：代码里加载权重一律写 yolo_model/weights/yolov8n.pt 相对路径，
+# 不要写裸名 'yolov8n.pt' —— 那样 ultralytics 会尝试联网下载。
+

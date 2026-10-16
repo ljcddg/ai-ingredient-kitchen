@@ -1,0 +1,128 @@
+/* ============================================================
+   登录页 · 冰箱伙伴小剧场（2026-10-16 新增）
+
+   品牌区左下角站着四只食材小伙伴（番茄 / 青菜 / 茄子 / 黄瓜），
+   跟着登录表单的输入演小剧场：
+     idle —— 原地轻轻摇晃，等你回来
+     peek —— 正在输入用户名：一个个伸长脖子凑过来偷看
+     hide —— 正在输入密码：集体转过身，用叶子捂住眼睛
+
+   驱动方式：LoginView 把 data-mood 挂在 .mascot-crew 上
+   （idle / peek / hide 三态），这里只负责"长什么样、怎么动"。
+   表单逻辑零改动，纯展示层。
+
+   ⚠️ SVG 里的 CSS transform 必须配 transform-box: fill-box，
+   否则 transform-origin 的百分比是相对整个 viewBox 的，
+   "以脚底为轴伸脖子"会变成鬼畜。
+   ============================================================ */
+
+/* ---------- 容器 ---------- */
+.page-login .mascot-zone{
+    margin-top: 26px;
+}
+.page-login .mascot-crew{
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;               /* 靠近一些：一队小家伙挤在一起更有戏 */
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.page-login .mascot{
+    width: 76px;            /* 2026-10-16 斌宝反馈"有点小"：64 → 76 */
+    height: 76px;
+    flex: none;
+}
+.page-login .mascot svg{
+    width: 100%;
+    height: 100%;
+    overflow: visible;      /* 伸脖子时身体可以探出画框 */
+}
+.page-login .mascot-note{
+    margin: 10px 0 0 2px;
+    font-size: 12.5px;
+    color: color-mix(in srgb, var(--ink-2) 82%, transparent);
+    letter-spacing: .02em;
+    min-height: 1.4em;      /* 三句文案高度接近，防跳动 */
+}
+
+/* ---------- 通用部件 ---------- */
+.mascot .m-bob,
+.mascot .m-body,
+.mascot .m-hands,
+.mascot .m-pupil{
+    transform-box: fill-box;
+}
+
+/* idle：原地轻轻摇晃（错开相位，像排队小碎步） */
+.mascot .m-bob{
+    animation: mascotBob 2.8s ease-in-out infinite;
+    transform-origin: 50% 100%;
+}
+.page-login .mascot:nth-child(2) .m-bob{ animation-delay: .35s; }
+.page-login .mascot:nth-child(3) .m-bob{ animation-delay: .7s; }
+.page-login .mascot:nth-child(4) .m-bob{ animation-delay: 1.05s; }
+
+@keyframes mascotBob{
+    0%, 100%{ transform: translateY(0); }
+    50%     { transform: translateY(-3px); }
+}
+
+/* 状态切换的"弹簧感"：transform 打在 .m-body 上（内层），跟 .m-bob（外层）互不打架 */
+.mascot .m-body{
+    transform-origin: 50% 100%;     /* 以脚底为轴 —— 伸脖子就是从根上探出去 */
+    transition: transform .5s cubic-bezier(.34, 1.56, .64, 1);
+}
+.mascot .m-eyes-open{ transition: opacity .18s ease; }
+.mascot .m-eyes-closed{ opacity: 0; transition: opacity .18s ease; }
+.mascot .m-pupil{ transition: transform .4s ease; }
+.mascot .m-hands{
+    transform-origin: 50% 50%;
+    opacity: 0;
+    transform: translateY(10px);    /* 平时垂在脸颊旁，看不见 */
+    transition: transform .32s ease, opacity .28s ease;
+}
+
+/* 接力节奏：一个接一个伸脖子 / 捂眼，比整齐划一可爱 */
+.page-login .mascot:nth-child(2) .m-body,
+.page-login .mascot:nth-child(2) .m-hands{ transition-delay: .07s; }
+.page-login .mascot:nth-child(3) .m-body,
+.page-login .mascot:nth-child(3) .m-hands{ transition-delay: .14s; }
+.page-login .mascot:nth-child(4) .m-body,
+.page-login .mascot:nth-child(4) .m-hands{ transition-delay: .21s; }
+
+/* ---------- peek：输入用户名 —— 伸长脖子凑过来看 ---------- */
+.page-login .mascot-crew[data-mood="peek"] .m-body{
+    /* 身体向右（表单方向）探出去，还踮了踮脚 */
+    transform: translateX(18px) rotate(14deg) scaleY(1.08);
+}
+.page-login .mascot-crew[data-mood="peek"] .m-pupil{
+    /* 眼珠齐刷刷看向右边 */
+    transform: translateX(2.6px);
+}
+
+/* ---------- hide：输入密码 —— 转身 + 叶子捂眼 ---------- */
+.page-login .mascot-crew[data-mood="hide"] .m-body{
+    /* 身体往回缩一点、侧过去半张脸，配合捂眼就是"背过去不让看" */
+    transform: rotate(-9deg) translateX(-8px);
+}
+.page-login .mascot-crew[data-mood="hide"] .m-eyes-open{ opacity: 0; }
+.page-login .mascot-crew[data-mood="hide"] .m-eyes-closed{ opacity: 1; }
+.page-login .mascot-crew[data-mood="hide"] .m-hands{
+    opacity: 1;
+    transform: translateY(0);       /* 叶子举到眼睛上 */
+}
+
+/* ---------- 动画关怀 ---------- */
+@media (prefers-reduced-motion: reduce){
+    .page-login .mascot .m-bob{ animation: none; }
+    .page-login .mascot .m-body,
+    .page-login .mascot .m-hands,
+    .page-login .mascot .m-pupil{ transition: none; }
+}
+
+/* ---------- 窄屏：伙伴缩小一排，别挤坏品牌区 ---------- */
+@media (max-width: 980px){
+    .page-login .mascot{ width: 52px; height: 52px; }
+    .page-login .mascot-zone{ margin-top: 18px; }
+}

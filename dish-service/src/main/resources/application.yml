@@ -13,6 +13,15 @@ spring:
           model: gemma4:e2b
           temperature: 0.7
 
+  # ---------- AI 服务拆分（Phase 1，2026-10-15）----------
+  # ai.generate.mode 决定用哪个生成器：
+  #   local（默认）= 本文件上面的 Spring AI + Ollama，进程内直连；
+  #   remote       = Python ai-service（Flask，默认 http://127.0.0.1:8090），
+  #                  只认 HTTP 契约，不关心背后是什么模型。
+  # 开关与 ai.remote.* 地址放 Nacos 的 dish-service.yaml，改完重启即生效，
+  # 不用改代码、不用重新打包；出事把 mode 切回 local 即可回滚。
+  # ai.remote.base-url / token / read-timeout-seconds 的默认值在 RemoteProperties。
+
   # ---------- Nacos 配置中心 ----------
   # Boot 3 + SCA 2023 用 spring.config.import 导入 Nacos 配置，不需要 bootstrap.yml。
   # optional: 前缀表示 Nacos 上暂时没有这份配置也能启动，便于本地先跑起来。

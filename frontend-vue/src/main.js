@@ -13,6 +13,7 @@ import { setUnauthorizedHandler } from './api.js'
 import './styles/fx-bg.css'   // 流光背景层（内页共用）
 import './styles/app.css'     // 全局：令牌 / body / 顶栏 / 按钮 / 卡片 / Toast
 import './styles/style.css'   // 登录页专属
+import './styles/login-mascot.css' // 登录页 · 冰箱伙伴小剧场
 import './styles/kitchen.css' // 找菜工作台
 import './styles/dish.css'    // 菜品详情
 import './styles/rank.css'    // 榜单

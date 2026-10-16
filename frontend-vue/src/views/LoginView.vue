@@ -67,6 +67,144 @@
           </ul>
         </div>
 
+        <!-- ==================== 冰箱伙伴小剧场 ==================== -->
+        <!-- 跟着表单演：输用户名 → 伸脖子偷看；输密码 → 转身用叶子捂眼。
+             纯展示层（aria-hidden），焦点状态驱动，表单逻辑零改动。
+             脸部坐标四只统一，动画规则才能共用一份 -->
+        <div class="mascot-zone" aria-hidden="true">
+          <ul class="mascot-crew" :data-mood="mascotMood">
+
+            <!-- 番茄 -->
+            <li class="mascot">
+              <svg viewBox="0 0 80 80">
+                <ellipse class="m-shadow" cx="40" cy="73" rx="17" ry="3.2" fill="rgba(31,27,24,.14)"/>
+                <g class="m-bob">
+                  <g class="m-body">
+                    <circle cx="40" cy="47" r="21" fill="#e8564d"/>
+                    <ellipse cx="32" cy="39" rx="6" ry="4" fill="rgba(255,255,255,.35)"/>
+                    <path d="M40 30c-7 0-11-4-10-8 5-2 9 0 10 3 1-3 5-5 10-3 1 4-3 8-10 8Z" fill="#3f9d4e"/>
+                    <rect x="38.8" y="20" width="2.4" height="7" rx="1.2" fill="#2f7d3c"/>
+                    <g class="m-face">
+                      <g class="m-eyes-open">
+                        <circle cx="33" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="34" cy="48" r="2" fill="#33272b"/>
+                        <circle cx="47" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="48" cy="48" r="2" fill="#33272b"/>
+                      </g>
+                      <g class="m-eyes-closed" opacity="0">
+                        <path d="M29.2 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                        <path d="M44.7 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                      </g>
+                      <path class="m-mouth" d="M36.5 55.5q3.5 2.6 7 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <g class="m-hands">
+                      <ellipse cx="30.5" cy="48.5" rx="7.4" ry="4.6" fill="#3f9d4e" transform="rotate(-26 30.5 48.5)"/>
+                      <ellipse cx="49.5" cy="48.5" rx="7.4" ry="4.6" fill="#3f9d4e" transform="rotate(26 49.5 48.5)"/>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+            </li>
+
+            <!-- 青菜 -->
+            <li class="mascot">
+              <svg viewBox="0 0 80 80">
+                <ellipse class="m-shadow" cx="40" cy="73" rx="17" ry="3.2" fill="rgba(31,27,24,.14)"/>
+                <g class="m-bob">
+                  <g class="m-body">
+                    <ellipse cx="29" cy="32" rx="8" ry="11" fill="#3d9a4b" transform="rotate(-18 29 32)"/>
+                    <ellipse cx="51" cy="32" rx="8" ry="11" fill="#3d9a4b" transform="rotate(18 51 32)"/>
+                    <ellipse cx="40" cy="28" rx="9" ry="13" fill="#4fae5a"/>
+                    <path d="M27 42c0-4 5.5-7 13-7s13 3 13 7l-2.6 25c-.4 3.4-4.8 5.6-10.4 5.6s-10-2.2-10.4-5.6l-2.6-25Z" fill="#eef5e7"/>
+                    <g class="m-face">
+                      <g class="m-eyes-open">
+                        <circle cx="33" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="34" cy="48" r="2" fill="#33272b"/>
+                        <circle cx="47" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="48" cy="48" r="2" fill="#33272b"/>
+                      </g>
+                      <g class="m-eyes-closed" opacity="0">
+                        <path d="M29.2 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                        <path d="M44.7 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                      </g>
+                      <path class="m-mouth" d="M36.5 55.5q3.5 2.6 7 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <g class="m-hands">
+                      <ellipse cx="30.5" cy="48.5" rx="7.4" ry="4.6" fill="#3f9d4e" transform="rotate(-26 30.5 48.5)"/>
+                      <ellipse cx="49.5" cy="48.5" rx="7.4" ry="4.6" fill="#3f9d4e" transform="rotate(26 49.5 48.5)"/>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+            </li>
+
+            <!-- 茄子 -->
+            <li class="mascot">
+              <svg viewBox="0 0 80 80">
+                <ellipse class="m-shadow" cx="40" cy="73" rx="17" ry="3.2" fill="rgba(31,27,24,.14)"/>
+                <g class="m-bob">
+                  <g class="m-body">
+                    <ellipse cx="41" cy="50" rx="15" ry="20" fill="#7a4fae" transform="rotate(-9 41 50)"/>
+                    <ellipse cx="34" cy="42" rx="4" ry="7" fill="rgba(255,255,255,.22)" transform="rotate(-9 34 42)"/>
+                    <path d="M33 35c2-3.4 5-5.4 8-5.4s6 2 8 5.4c-3 2-5 3-8 3s-5-1-8-3Z" fill="#3f9d4e"/>
+                    <rect x="39.6" y="24" width="2.4" height="7" rx="1.2" fill="#2f7d3c" transform="rotate(-9 40.8 27.5)"/>
+                    <g class="m-face">
+                      <g class="m-eyes-open">
+                        <circle cx="33" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="34" cy="48" r="2" fill="#33272b"/>
+                        <circle cx="47" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="48" cy="48" r="2" fill="#33272b"/>
+                      </g>
+                      <g class="m-eyes-closed" opacity="0">
+                        <path d="M29.2 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                        <path d="M44.7 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                      </g>
+                      <path class="m-mouth" d="M36.5 55.5q3.5 2.6 7 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <g class="m-hands">
+                      <ellipse cx="30.5" cy="48.5" rx="7.4" ry="4.6" fill="#4fae5a" transform="rotate(-26 30.5 48.5)"/>
+                      <ellipse cx="49.5" cy="48.5" rx="7.4" ry="4.6" fill="#4fae5a" transform="rotate(26 49.5 48.5)"/>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+            </li>
+
+            <!-- 黄瓜 -->
+            <li class="mascot">
+              <svg viewBox="0 0 80 80">
+                <ellipse class="m-shadow" cx="40" cy="73" rx="17" ry="3.2" fill="rgba(31,27,24,.14)"/>
+                <g class="m-bob">
+                  <g class="m-body">
+                    <rect x="30" y="24" width="20" height="46" rx="10" fill="#57a84f"/>
+                    <path d="M35.5 30v34M44.5 30v34" stroke="#7cc474" stroke-width="2" stroke-linecap="round" opacity=".65"/>
+                    <path d="M36 24c1.5-3 6.5-3 8 0-2.6 1-5.4 1-8 0Z" fill="#3f9d4e"/>
+                    <g class="m-face">
+                      <g class="m-eyes-open">
+                        <circle cx="33" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="34" cy="48" r="2" fill="#33272b"/>
+                        <circle cx="47" cy="48" r="4.4" fill="#fff"/>
+                        <circle class="m-pupil" cx="48" cy="48" r="2" fill="#33272b"/>
+                      </g>
+                      <g class="m-eyes-closed" opacity="0">
+                        <path d="M29.2 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                        <path d="M44.7 48c1.5 2.2 4.6 2.2 6.1 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                      </g>
+                      <path class="m-mouth" d="M36.5 55.5q3.5 2.6 7 0" stroke="#33272b" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <g class="m-hands">
+                      <ellipse cx="30.5" cy="48.5" rx="7.4" ry="4.6" fill="#3d7a3f" transform="rotate(-26 30.5 48.5)"/>
+                      <ellipse cx="49.5" cy="48.5" rx="7.4" ry="4.6" fill="#3d7a3f" transform="rotate(26 49.5 48.5)"/>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+            </li>
+
+          </ul>
+          <p class="mascot-note">{{ mascotNote }}</p>
+        </div>
+
         <div class="brand-deco deco-a"></div>
         <div class="brand-deco deco-b"></div>
       </aside>
@@ -96,7 +234,8 @@
                 </svg>
                 <input type="text" id="loginUsername" v-model="loginForm.username"
                        placeholder="请输入用户名" autocomplete="username"
-                       @input="errors.loginUsername = ''">
+                       @input="errors.loginUsername = ''"
+                       @focus="mascotPeek" @blur="mascotIdle">
               </div>
               <p class="field-error" data-error-for="loginUsername">{{ errors.loginUsername }}</p>
             </div>
@@ -113,7 +252,8 @@
                 <input :type="showLoginPwd ? 'text' : 'password'" id="loginPassword"
                        v-model="loginForm.password"
                        placeholder="请输入密码" autocomplete="current-password"
-                       @input="errors.loginPassword = ''">
+                       @input="errors.loginPassword = ''"
+                       @focus="mascotHide" @blur="mascotIdle">
                 <button type="button" class="eye-btn" :class="{ 'is-on': showLoginPwd }"
                         data-eye="loginPassword" :aria-label="showLoginPwd ? '隐藏密码' : '显示密码'"
                         @click="showLoginPwd = !showLoginPwd">
@@ -161,7 +301,8 @@
                 </svg>
                 <input type="text" id="regUsername" v-model="regForm.username"
                        placeholder="4-20 位，字母或数字" autocomplete="username"
-                       @input="errors.regUsername = ''">
+                       @input="errors.regUsername = ''"
+                       @focus="mascotPeek" @blur="mascotIdle">
               </div>
               <p class="field-hint">用于登录，注册后不可修改</p>
               <p class="field-error" data-error-for="regUsername">{{ errors.regUsername }}</p>
@@ -193,7 +334,8 @@
                 <input :type="showRegPwd ? 'text' : 'password'" id="regPassword"
                        v-model="regForm.password"
                        placeholder="6-32 位" autocomplete="new-password"
-                       @input="onRegPasswordInput">
+                       @input="onRegPasswordInput"
+                       @focus="mascotHide" @blur="mascotIdle">
                 <button type="button" class="eye-btn" :class="{ 'is-on': showRegPwd }"
                         data-eye="regPassword" :aria-label="showRegPwd ? '隐藏密码' : '显示密码'"
                         @click="showRegPwd = !showRegPwd">
@@ -229,7 +371,8 @@
                 <input :type="showRegConfirm ? 'text' : 'password'" id="regConfirm"
                        v-model="regForm.confirm"
                        placeholder="请再输入一次密码" autocomplete="new-password"
-                       @input="errors.regConfirm = ''">
+                       @input="errors.regConfirm = ''"
+                       @focus="mascotHide" @blur="mascotIdle">
                 <button type="button" class="eye-btn" :class="{ 'is-on': showRegConfirm }"
                         data-eye="regConfirm" :aria-label="showRegConfirm ? '隐藏密码' : '显示密码'"
                         @click="showRegConfirm = !showRegConfirm">
@@ -324,6 +467,21 @@ const router = useRouter()
 
 /* ---------------- 顶部装饰 ---------------- */
 const floaters = buildFloaters()
+
+/* ---------------- 冰箱伙伴小剧场 ----------------
+   三种心情：idle 摇摆等饭 / peek 输用户名时伸脖子偷看 / hide 输密码时捂眼背身。
+   纯展示层：输入框 focus/blur 驱动，表单逻辑零改动。
+   动画的"长什么样"在 styles/login-mascot.css，这里只管"什么时候演哪段"。 */
+const mascotMood = ref('idle')
+const mascotPeek = () => { mascotMood.value = 'peek' }
+const mascotHide = () => { mascotMood.value = 'hide' }
+const mascotIdle = () => { mascotMood.value = 'idle' }
+
+const mascotNote = computed(() => ({
+  idle: '冰箱里的伙伴们，等你回来开饭。',
+  peek: '用户名？让俺瞅瞅是哪位……',
+  hide: '密码不看不看！叶子都捂上了。'
+}[mascotMood.value]))
 
 /* ---------------- Tab ---------------- */
 // hash 指定优先，否则回到登录（与原生版一致）

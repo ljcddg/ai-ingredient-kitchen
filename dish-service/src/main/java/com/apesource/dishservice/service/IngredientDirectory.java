@@ -65,6 +65,15 @@ public class IngredientDirectory {
     /** 主数据 ID → 类目（蔬菜/肉类/主食/调料…），给"用量上限按类别定"提供依据 */
     private volatile Map<Long, String> categoryById = Map.of();
 
+    /**
+     * 主数据全量行。
+     *
+     * <p>目录自己只用到名字/类目/别名，但 {@link #snapshot()} 要导出营养六项
+     * （喂给 Python ai-service 做本地营养计算），所以把整行也缓存一份 ——
+     * 不然每次生成请求都要额外查一次库。
+     */
+    private volatile Map<Long, Ingredient> rowsById = Map.of();
+
     @PostConstruct
     void init() {
         refresh();
@@ -88,6 +97,7 @@ public class IngredientDirectory {
             Map<String, Long> keys = new HashMap<>(all.size() * 4);
             Set<Long> seasonings = new HashSet<>();
             Map<String, Long> seasoningKeyMap = new HashMap<>();
+            Map<Long, Ingredient> rows = new HashMap<>(all.size() * 2);
             List<String> collisions = new ArrayList<>();
 
             // 第一遍：正式名 + 类目 + 调料集合。
@@ -97,6 +107,7 @@ public class IngredientDirectory {
                 if (ing == null || ing.getId() == null) {
                     continue;
                 }
+                rows.put(ing.getId(), ing);
                 names.put(ing.getId(), ing.getName());
                 categories.put(ing.getId(), ing.getCategory());
                 putKey(keys, ing.getName(), ing.getId());
@@ -134,6 +145,7 @@ public class IngredientDirectory {
             this.seasoningIds = Set.copyOf(seasonings);
             this.seasoningKeys = Set.copyOf(seasoningKeyMap.keySet());
             this.categoryById = Map.copyOf(categories);
+            this.rowsById = Map.copyOf(rows);
             if (collisions.isEmpty()) {
                 log.info("食材目录已加载：{} 种食材（其中常备调料 {} 种），{} 个可归一化名称",
                         names.size(), seasonings.size(), keys.size());
@@ -191,6 +203,27 @@ public class IngredientDirectory {
     /** 当前缓存的食材数量，供健康检查/日志用 */
     public int size() {
         return nameById.size();
+    }
+
+    /**
+     * 导出主数据快照（喂给 Python ai-service 的"随请求注入"）。
+     *
+     * <p>ai-service 是无状态计算服务、不连业务库：它做食材归一（别名匹配）、
+     * 用量分档（类目）、本地营养计算（六项成分）全靠这份快照。只有几十到几百行，
+     * 每请求带一份的成本可以忽略，换来的是零缓存一致性问题 ——
+     * 食材转正后下一个请求就认得出来。
+     *
+     * <p>快照与目录同源同刷新：{@link #refresh()} 失败时保留上一份，
+     * 行为与目录本身一致（旧数据也比没有数据强）。
+     */
+    public List<IngredientSnapshot> snapshot() {
+        List<IngredientSnapshot> out = new ArrayList<>(rowsById.size());
+        for (Ingredient ing : rowsById.values()) {
+            out.add(new IngredientSnapshot(ing.getId(), ing.getName(), ing.getAlias(),
+                    ing.getCategory(), ing.getCalorie(), ing.getProtein(), ing.getFat(),
+                    ing.getCarb(), ing.getFiber(), ing.getSodium()));
+        }
+        return out;
     }
 
     /**

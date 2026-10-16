@@ -82,6 +82,12 @@ ai:
   generate:
     # 最多尝试几次（含首次）。2 = 失败重试 1 次
     max-attempts: 2
+    # 生成器二选一（2026-10-15 AI 服务拆分）：
+    #   local  = 现有 AiDishGenerator（Spring AI + Ollama，进程内直连）
+    #   remote = Python ai-service（Flask，默认 http://127.0.0.1:8090）
+    # 缺省按 local 处理 —— 没配这项时行为与拆分前逐字节一致。
+    # 切 remote 前先确认 ai-service 已起（GET http://127.0.0.1:8090/health）
+    mode: local
     # 生成温度。实测 0.7 有变化但不跑偏
     temperature: 0.7
     # 营养校验容差（本地算的值与 AI 给的值偏差超过这个比例就标记为未核实）
@@ -100,6 +106,18 @@ ai:
     # 降级配额：检索引擎不可用时，每个用户每小时最多提交几次生成。
     # 防止一次 ES 抖动把本地模型队列堵死（说明文档第四节）
     degraded-quota-per-hour: 5
+
+  # ---------- 远程 AI 服务（ai.generate.mode: remote 时才生效）----------
+  # ai-service 是 Flask 无状态计算服务，不走 Nacos 注册，地址在这里下发。
+  remote:
+    # ai-service 地址（本机默认 8090）
+    base-url: http://127.0.0.1:8090
+    # 服务间共享令牌（防误调）；为空不校验。ai-service 要对外暴露前必须配上
+    token: ""
+    # Java 侧读超时（秒）。必须大于 Python 内部两层超时（Ollama 600 < Flask 630），
+    # 留 30s 给序列化和网络余量 —— 改超时必须三层一起改，否则 Java 先断、
+    # Python 还在跑，错误信息全部错位
+    read-timeout-seconds: 660
 
 # ---------- 冷启动推荐池 ----------
 # 新发布的菜没有曝光，先推进推荐池接受真实流量验证，达标才晋级排行榜。

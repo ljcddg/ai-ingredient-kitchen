@@ -62,9 +62,12 @@ import java.util.stream.Collectors;
  * 同时这里会用「食材主数据 × 用量」本地算一份做对比 ——
  * 偏差过大说明这次生成可疑，把 {@code nutritionVerified} 置 false。
  * 这是用户看不到的那道保险。
+ *
+ * <p>本类不加 {@code @Component}：与 {@link RemoteDishGenerator} 由
+ * {@link DishGeneratorConfig} 按 {@code ai.generate.mode} 二选一注册成 bean，
+ * 两个实现只能有一个成为 {@link DishGenerator} bean（否则按类型注入歧义）。
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class AiDishGenerator implements DishGenerator {
 

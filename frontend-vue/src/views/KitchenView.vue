@@ -243,6 +243,11 @@
               <span class="task-hint" id="taskHint">{{ taskHint }}</span>
             </div>
             <ul class="task-list" id="taskList">
+              <!-- 固定高度面板的占位行：没有进行中的任务时撑住面板，
+                   不然卡片只剩标题一条，看着又空又矮 -->
+              <li v-if="!openTasks.length" class="task-empty">
+                没有进行中的任务。选好食材点「让 AI 做菜」，提交后会在这里排队，做完会亮起来。
+              </li>
               <!-- 进行中 + 刚做好还没看过的：都展开。
                    「完成」不等于「用户知道了」—— 先摆出来，
                    点进去看过（@view）之后才收进下面的折叠区 -->
