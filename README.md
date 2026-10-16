@@ -15,6 +15,8 @@
   <img alt="Redis" src="https://img.shields.io/badge/Redis-Redisson%203.26-DC382D?logo=redis&logoColor=white">
   <img alt="Vue" src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/LLM-Ollama%20local-000000">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="Flask" src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white">
 </p>
 
 ---
@@ -67,19 +69,22 @@
 
 ## 技术形态
 
-**Spring Cloud 微服务（4 模块）+ 双版本前端（原生 / Vue3）**
+**Spring Cloud 微服务（4 模块）+ Python 推理服务（ai-service）+ Vue3 前端**
 
 | 模块 | 端口 | 职责 | 关键内容 |
 |---|---|---|---|
 | `common-service` | — | 跨服务技术能力 | `Result<T>`、`BusinessException`、`JwtUtil`、全局 `Long → String` 序列化 |
 | `account-service` | 8081 | 账号与认证 | 注册 / 登录、BCrypt、Redisson 布隆过滤器、JWT 签发 |
-| `dish-service` | 8082 | **业务核心** | AI 生成队列、检索、发布、互动、榜单、ES 同步 |
+| `dish-service` | 8082 | **业务核心** | AI 任务队列与编排、检索、发布、互动、榜单、ES 同步 |
+| `ai-service` | 8090 | **推理中心**（Python） | 菜谱生成（提示词 + Ollama + 校验 + 重试）、营养计算；无状态，不连业务库，食材主数据随请求注入 |
 | `gateway` | 7000 | 统一入口 | JWT 鉴权过滤器、路由、CORS、`DedupeResponseHeader` |
 | `frontend-vue` | 5500 | 前端（Vue3 版） | 5 个页面，`/api` 反向代理到网关 |
 | `order-service` | — | 预留未放开 | 父 pom 中处于注释状态 |
 
-**依赖方向单向**：`account / dish / gateway → common`。
+**依赖方向单向**：`account / dish / gateway → common`，`dish → ai-service`（HTTP 调用，不走 Nacos 注册）。
 `common` 只放技术能力，**领域实体一律不进 common**（避免变成"什么都往里塞"的垃圾桶）。
+
+**推理边界**：`dish-service` 负责编排、检索、落库和任务队列；`ai-service` 负责提示词拼装、调模型、校验、重试和营养计算。Java 侧不直接调用模型。
 
 ### 版本矩阵（存在硬约束，改动前先看）
 
@@ -94,7 +99,8 @@
 | Redisson | 3.26.1 | 内置 `redisson-spring-data-32`，匹配 Boot 3.2.x |
 | MySQL 驱动 | 8.3.0 | 显式写 version，否则覆盖 Boot BOM 的管理 |
 | Elasticsearch | 8.16.0 | 只跑在 Docker（单节点、已关 security），见下方说明 |
-| Ollama | `gemma3:4b` 级别本地模型 | 本地推理，一道菜 12~26 秒 |
+| Ollama | `gemma4:e2b`（默认） | 本地推理；模型名在 `ai-service/config.yaml`，dish-service 经 Nacos `ai.remote.model` 随请求下发 |
+| Python | 3.12 / Flask 3.x | ai-service 依赖见 `ai-service/requirements.txt`，生产用 gunicorn 常驻 |
 
 ---
 
@@ -156,7 +162,7 @@ while (!interrupted) {
 |---|---|---|
 | ① 系统提示词 | 明确 JSON 结构 + 字段规则 + 用量范围 | 告诉它要什么 |
 | ② `format: "json"` | Ollama 的约束解码参数 | 实测有效：不加会裹 ` ```json ` 代码块 |
-| ③ 应用层校验 + 重试 | 逐字段校验类型/范围，不合格把**具体原因**拼回提示词重试 1 次 | 兜住小概率 |
+| ③ 应用层校验 + 重试 | ai-service 的 `validator.py` 逐字段校验类型/范围/约束，不合格把**具体原因**拼回提示词重试 1 次 | 兜住小概率 |
 
 > 失败信息要分两份：给用户的是人话（「AI 没能用『X』想出合适的做法，换个搭配再试试」），
 > 给模型的是字段级细节（「prepTimeMin=0 不在 2~60 之间」）。把后者展示给用户等于没说。
@@ -263,13 +269,14 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | 1 | ES 客户端 | 手写 `RestClient` | Spring Data 的 Repository 抽象 | Spring Data ES 5.2.x 的目标是 ES 8.11.1，服务端 8.16.0 仍不是官方钉死的版本；手写 RestClient 零版本耦合（7.16.2 → 8.16.0 业务代码一行未改）；DSL 本来就要手写 |
 | 2 | 生成调度 | 自建内存队列 | MQ 的可靠性 / 天然分布式 | MQ 表达不了「改顺序 / 取消排队」；单实例下自建更简单可控 |
 | 3 | 并发度 | 默认 1 | 吞吐 | 本地单模型串行最稳，且实测不慢 |
-| 4 | 营养来源 | AI 估算 + 标注「仅供参考」 | 本地精确计算 | 食材可自由输入，主数据不可能全覆盖；本地计算降级为后台校验 |
+| 4 | 营养来源 | 成分表本地计算为准，算不出来再退回 AI 估算并标注来源 | 纯 AI 估算 | 小模型估算偏差大（实测平均 181%）；覆盖率不足（< 80%）时不硬算，宁可标「估算」 |
 | 5 | 调料用量 | Plan A：AI 只答「要哪几样」 | AI 全权给用量 | 小模型给用量会幻觉（料酒 300g）；油热量漏掉会让整道菜热量差近一倍 |
 | 6 | 表外食材 | 候选表沉淀 + 3 次转正 | 直接进主数据 | 主数据是计算基准，垃圾输入会污染整个召回链路 |
 | 7 | 排序口径 | 威尔逊下界 | 平均分 | 平均分挡不住「1 人打 5 分」压过「100 人打 4.6 分」 |
 | 8 | 执行中取消 | 只做逻辑取消 | 立刻释放资源 | 需要流式 + 断连改造，收益不抵复杂度（明确记为优化项） |
 | 9 | 重启恢复 | 标记 `INTERRUPTED` | 自动重新入队 | 重放会产生重复草稿，让用户自己决定更安全 |
 | 10 | ID 传输 | 全部 `Long` → String | 少一次转换 | 雪花 ID 19 位超 JS 精度，不转就丢精度 |
+| 11 | 推理位置 | Python ai-service（HTTP） | Java 内嵌 Spring AI，dish-service 直连 Ollama | 提示词、校验、营养算法只维护一份；模型侧迭代不用重新打包 Java。代价是多一个服务，生成与营养计算的同步路径变成硬依赖 |
 
 ### ⚠️ 雪花 ID 必须序列化成字符串
 
@@ -414,6 +421,20 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 
 </details>
 
+<details>
+<summary><b>推理服务 ai-service</b>（Python，内部接口，不经网关，仅 dish-service 调用）</summary>
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `POST` | `/api/v1/generate` | 菜谱生成（同步）：食材 / 约束 / 主数据快照 / 参考菜谱 → 草稿 + 校验结果 + 本地营养 |
+| `POST` | `/api/v1/nutrition` | 批量营养计算：`directory` + `items[]` → 每道菜每人份营养与覆盖率 |
+| `GET` | `/health` | 探活：返回模型名、提示词版本、Ollama 是否可达 |
+| `GET` | `/api/v1/health` | 同上（契约保留的路径） |
+
+服务只监听 `127.0.0.1`。dish-service 会发送 `X-Ai-Token` 请求头，但 ai-service 目前还没有校验它（见「已知限制」）。
+
+</details>
+
 ---
 
 ## 目录结构
@@ -425,10 +446,16 @@ ai-ingredient-kitchen/
 ├── account-service/           # 账号服务 :8081
 ├── dish-service/              # 菜品服务 :8082（业务核心）
 │   └── src/main/java/.../
+│       ├── ai/                # 任务队列 / 生成编排 / 远程 ai-service 客户端
 │       ├── es/                # ES DSL 组装与查询
 │       ├── discover/          # 发现流：信号层 → 排序层 → 浏览 / 决策两种呈现
 │       ├── recommend/job/     # 冷启动晋级与算分（后台定时任务，不对用户呈现）
 │       └── service/           # 检索 / 发布 / 互动 / 榜单（旧，保留做对照）
+├── ai-service/                # 推理服务 :8090（Python）：提示词 / 调模型 / 校验 / 营养计算
+│   ├── app.py                 # Flask 应用工厂与入口
+│   ├── ai_service/            # routes / generator / validator / nutrition / ollama_client
+│   ├── prompts/               # 系统提示词（字段定义须与 dish-service 的 DishDraft 一致）
+│   └── tests/                 # pytest
 ├── gateway/                   # 网关 :7000
 ├── frontend-vue/              # Vue3 前端（Vite 6）
 ├── nacos-config/              # Nacos 配置留档副本
@@ -450,13 +477,29 @@ ai-ingredient-kitchen/
 | Nacos | `127.0.0.1:8848` | 配置中心 + 注册中心 |
 | Elasticsearch | `127.0.0.1:9200` | Docker 容器 `es`（8.16.0，单节点、已关 security、纯 http 免密） |
 | Ollama | `127.0.0.1:11434` | 需先 `ollama pull` 对应模型 |
+| ai-service | `127.0.0.1:8090` | Python 推理服务，依赖 Ollama；dish-service 的 `ai.generate.mode=remote` 时必须先启动 |
 
 ### 启动顺序
 
 ```
 MySQL / Redis / Nacos / Elasticsearch / Ollama
-        → gateway → account-service → dish-service → 前端
+        → ai-service → gateway → account-service → dish-service → 前端
 ```
+
+#### ai-service（Python）
+
+```bash
+cd ai-service
+pip install -r requirements.txt          # 首次
+ollama pull gemma4:e2b                   # 首次
+python app.py                            # 开发模式
+# Linux / macOS 常驻：gunicorn -w 2 --threads 8 -b 127.0.0.1:8090 app:app
+
+curl http://127.0.0.1:8090/health        # 确认 ollamaReachable 为 true
+```
+
+配置在 `ai-service/config.yaml`（Ollama 地址、模型、温度、重试次数、超时、并发上限），
+可用环境变量 `AI_SERVICE_CONFIG` 指定其他路径。测试：`pytest`（在 `ai-service/` 下运行）。
 
 ### ⚠️ 命令行启动的两条铁律
 
@@ -499,8 +542,8 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 | 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
 | 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
 | 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
-| 营养本地计算对照 | `dish-service/verify-p2-nutrition.py` | 10/10 断言 | 小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
-| 手写菜谱重名拦截（纯接口回归，约 5 秒） | `dish-service/verify-manual-dish.py` | 14 断言（PASS 14 / FAIL 0） | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」）；探针自建数据自己清 |
+| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 45 项（2026-10-16 通过） | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 手写菜谱重名拦截 | `dish-service` 的 `ManualDishWriterTest`（原 `verify-manual-dish.py` 已删除） | 12 个单元测试通过 | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」） |
 | 前端端到端（真实浏览器点按） | `frontend-vue/verify-vue.py` | **253 断言 / 0 失败** | 六个页面含管理台 + 手写菜谱（9i）+ 推荐页（9j）：断言前端**实际发出的请求体**（patch `fetch` 抓载荷），曾借此抓出管理台 10 个接口漏掉 `/ai` 前缀的真 bug |
 | 人工可操作性（盲评材料 + 汇总口径） | `es/eval/human-eval-kit.py` | `es/eval/human-eval/`（`blind-sheet.md` / `ratings-template.csv` / `answer-key.csv`，`score` 出 `human-eval-report.md`） | 工具已就绪并按假评分表验证过汇总与加权 kappa；**现有 7 条样本两臂各自困在一个提示词版本上，不能直接对比**，要下结论得补 B 臂样本 + ≥2 名真人评分 |
 
@@ -564,6 +607,9 @@ python es/eval/fill-arm-b.py 5
 | 一致性 | ES 与 MySQL 之间是最终一致 | 有秒级窗口 | `AFTER_COMMIT` 立即尝试一次 + `t_es_sync_task` 待办表（退避 5/15/45/120s，5 次后放弃）+ 管理员手动补偿 + 每日 04:00 全量核对；实测停掉 ES 后撤回仍成功，恢复后旧任务**只会删不会写回** |
 | 验证 | 发现流（2026-10-07 新增）**尚未端到端验证** | 后端编译通过、前端语法已校验，但没启服务跑过 | 推 `discover.*` 到 Nacos（`nacos-config/dish-service.yaml` 已留档未推）→ 启 dish-service + ES → 打开 `/discover`。旧的 `/rank` 与 `RankView.vue` 保留做对照，确认后删除 |
 | 架构 | 旧榜单（热门 / 高分 / 最新 / 冷启动）**仍与发现流并存** | 两套排序口径同时在库里，容易混淆 | 这是**有意保留**的：重构前后对比本身就是答辩素材。确认发现流没问题后删 `/rank` 路由 + `RankView.vue` + `rank.css` + 顶栏那一项 |
+| 安全 | ai-service 不校验 `X-Ai-Token` | dish-service 已发送该请求头，Python 端没有读取校验；目前只监听 `127.0.0.1` | 对外暴露前补上校验（Nacos 的 `ai.remote.token` 已预留） |
+| 运维 | Nacos 上的 `dish-service.yaml` 需手动同步 | 仓库里的 `nacos-config/` 只是留档副本，改动不会自动推送到 Nacos 服务端 | 改完后按「要跑人工评价时」一节的方式推送，并重启 dish-service |
+| 可用性 | ai-service 挂掉时菜谱生成失败；手写菜谱营养预览降级为「不可信」 | 生成与营养计算的同步路径对 ai-service 有硬依赖 | 预览降级已实现；生成链路可考虑排队重试 |
 
 ---
 
@@ -576,6 +622,8 @@ python es/eval/fill-arm-b.py 5
 | [docs/ai-kitchen.md](docs/ai-kitchen.md) | AI 做菜链路的细节实现 |
 | [docs/interview-prep.md](docs/interview-prep.md) | 面试讲解要点 |
 | [es/dish-search.md](es/dish-search.md) | Elasticsearch 检索方案详解 |
+| [docs/ai-service-split.md](docs/ai-service-split.md) | 推理拆分到 Python ai-service 的设计与接口契约 |
+| [docs/yolo-vision-design.md](docs/yolo-vision-design.md) | 视觉识别（YOLO）设计，尚未接入主流程 |
 
 ---
 
