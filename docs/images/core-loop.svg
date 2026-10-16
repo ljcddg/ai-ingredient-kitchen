@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" viewBox="0 0 680 470" font-family="'PingFang SC','Microsoft YaHei','Noto Sans SC',sans-serif">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#10B981"/>
+    </marker>
+  </defs>
+
+  <!-- 白底：保证 GitHub 深色主题下文字可读 -->
+  <rect x="0" y="0" width="680" height="470" rx="10" fill="#FFFFFF"/>
+
+  <!-- 用户入口 -->
+  <rect x="230" y="16" width="220" height="36" rx="18" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5"/>
+  <text x="340" y="39" text-anchor="middle" font-size="14" font-weight="600" fill="#4338CA">用户选 / 输入食材</text>
+  <line x1="340" y1="52" x2="340" y2="70" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <!-- ① 检索 -->
+  <rect x="150" y="72" width="380" height="44" rx="8" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+  <text x="340" y="99" text-anchor="middle" font-size="14.5" font-weight="700" fill="#0F172A">① 检索菜库（ES 粗排 + 应用层精排）</text>
+
+  <!-- 三路分支 -->
+  <path d="M200,116 V138 H128 V158" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+  <path d="M340,116 V158" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+  <path d="M480,116 V138 H560 V158" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+
+  <text x="128" y="150" text-anchor="middle" font-size="11.5" fill="#047857" font-weight="600">命中高质量</text>
+  <text x="340" y="150" text-anchor="middle" font-size="11.5" fill="#B45309" font-weight="600">质量不足</text>
+  <text x="560" y="150" text-anchor="middle" font-size="11.5" fill="#1D4ED8" font-weight="600">未命中</text>
+
+  <!-- 三个出口 -->
+  <rect x="40" y="160" width="176" height="42" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="1.5"/>
+  <text x="128" y="186" text-anchor="middle" font-size="13.5" font-weight="600" fill="#047857">直接返回（直出）</text>
+  <text x="128" y="222" text-anchor="middle" font-size="11" fill="#94A3B8">同输入同输出 · 零 AI 调用</text>
+
+  <rect x="230" y="160" width="220" height="42" rx="8" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+  <text x="340" y="186" text-anchor="middle" font-size="13" font-weight="600" fill="#B45309">返回 + 说明 missReason</text>
+  <text x="340" y="222" text-anchor="middle" font-size="11" fill="#94A3B8">确定性规则判定</text>
+
+  <rect x="455" y="160" width="210" height="42" rx="8" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+  <text x="560" y="186" text-anchor="middle" font-size="13" font-weight="600" fill="#1D4ED8">② AI 生成（排队执行）</text>
+
+  <!-- 生成链路向下 -->
+  <line x1="560" y1="202" x2="560" y2="234" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+  <rect x="455" y="236" width="210" height="42" rx="8" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5"/>
+  <text x="560" y="262" text-anchor="middle" font-size="13.5" fill="#0F172A">③ 落库为草稿 <tspan fill="#64748B" font-size="12">status 0</tspan></text>
+
+  <line x1="560" y1="278" x2="560" y2="310" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+  <rect x="455" y="312" width="210" height="42" rx="8" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5"/>
+  <text x="560" y="338" text-anchor="middle" font-size="13.5" fill="#0F172A">④ 校验 + 发布 <tspan fill="#047857" font-size="12" font-weight="600">→ 已发布 1</tspan></text>
+
+  <line x1="560" y1="354" x2="560" y2="386" stroke="#475569" stroke-width="1.5" marker-end="url(#ah)"/>
+  <rect x="430" y="388" width="240" height="46" rx="8" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+  <text x="550" y="408" text-anchor="middle" font-size="13.5" font-weight="600" fill="#0F172A">⑤ 进 ES 索引</text>
+  <text x="550" y="426" text-anchor="middle" font-size="11.5" fill="#475569">被检索 · 上榜 · 收藏 / 评分 / 评论</text>
+
+  <!-- 反哺闭环 -->
+  <path d="M430,411 H60 V94 H146" fill="none" stroke="#10B981" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#ahg)"/>
+  <text x="46" y="252" font-size="12" font-weight="600" fill="#047857" transform="rotate(-90 46 252)" text-anchor="middle">内容沉淀回菜库 · 反哺 ① 直出率 ↑</text>
+</svg>
