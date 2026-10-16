@@ -123,6 +123,6 @@
 
 /* ---------- 窄屏：伙伴缩小一排，别挤坏品牌区 ---------- */
 @media (max-width: 980px){
-    .page-login .mascot{ width: 52px; height: 52px; }
+    .page-login .mascot{ width: 60px; height: 60px; }
     .page-login .mascot-zone{ margin-top: 18px; }
 }

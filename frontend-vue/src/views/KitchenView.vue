@@ -228,6 +228,13 @@
           <button class="picker-secondary" id="manualOpenBtn" type="button" @click="openManual">
             手写菜谱（自己写一道）
           </button>
+          <!-- 拍照识菜：拍/选几张照片 → YOLO 认出食材 → 勾选 → 回到本页预填。
+               不开新窗口：这本来就属于"选手边食材"这一步的另一种输入方式。
+               设计文档 docs/yolo-vision-design.md §7 -->
+          <router-link class="picker-secondary" id="visionOpenBtn" to="/vision">
+            📷 拍照识菜（照片认食材）
+          </router-link>
+          <p v-if="visionNote" class="picker-note" id="pickerVisionNote">{{ visionNote }}</p>
           <p v-if="freeNote" class="picker-note" id="pickerFreeNote">{{ freeNote }}</p>
           <p class="submit-note" id="submitNote" :style="noteStyle">{{ noteText }}</p>
         </div>
@@ -611,6 +618,7 @@
      ② 生成：交给 AI 现场做（十几秒，异步排队）
    ============================================================ */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import FxBg from '../components/FxBg.vue'
 import TopBar from '../components/TopBar.vue'
 import TaskRow from '../components/TaskRow.vue'
@@ -635,6 +643,11 @@ const selectedIds = ref([])        // 从列表点选的食材 ID（数字）
 const freeIngredients = ref([])    // 自由输入的食材名
 const tastes = ref([])
 const servings = ref(2)
+
+/* ---------------- 识菜回填（/vision 页勾选后带回来的食材） ---------------- */
+const route = useRoute()
+const router = useRouter()
+const visionNote = ref('')         // 回填结果的一句话说明（放在选择区按钮下方）
 
 /* ---------------- 找菜模式与「更多条件」（P1-2 的两种模式 + P1-3 的生成约束） ----------------
    同一套条件同时作用于「找菜」和「让 AI 做」：
@@ -1462,9 +1475,47 @@ function onVisibilityChange() {
   }
 }
 
+/**
+ * 识菜回填：/kitchen?visionIds=101,102&visionFree=香蕉,土豆
+ *
+ * 识菜页（/vision）勾选后把两串结果带回来（docs/yolo-vision-design.md §6.4）：
+ *   映射成功的 ID   -> selectedIds（走主数据，能参与营养校验、能进倒排索引）
+ *   库里没有的标签  -> freeIngredients（走自由输入通道）
+ * 带回后立刻 replace 清掉 query：否则用户刷新或后退会重复带入一遍。
+ * 本地食材表里没有的 ID 直接丢弃 —— 避免脏 query 造出后端不认识的选中项。
+ */
+function applyVisionQuery() {
+  const rawIds = String(route.query.visionIds || '')
+    .split(',').map(s => s.trim()).filter(Boolean)
+  const rawFree = String(route.query.visionFree || '')
+    .split(',').map(s => s.trim()).filter(Boolean)
+  if (!rawIds.length && !rawFree.length) return
+
+  const localIds = new Set(allLocalIngredients().map(i => i.id))
+  const ids = rawIds.map(Number).filter(id => Number.isFinite(id) && localIds.has(id))
+  const dropped = rawIds.length - ids.length
+
+  ids.forEach(id => {
+    if (!selectedIds.value.includes(id)) selectedIds.value.push(id)
+  })
+  rawFree.forEach(name => {
+    if (!freeIngredients.value.includes(name)) freeIngredients.value.push(name)
+  })
+
+  const total = ids.length + rawFree.length
+  visionNote.value = total
+    ? `已从照片带入 ${total} 样食材` + (dropped ? `（另有 ${dropped} 样不在食材表里，已忽略）` : '')
+    : '照片里认出的食材都不在食材表里，请手动选择'
+
+  router.replace({ path: '/kitchen' })
+}
+
 onMounted(() => {
   document.addEventListener('click', onDocumentClick)
   document.addEventListener('visibilitychange', onVisibilityChange)
+
+  // 识菜页带回来的食材（有就预填好，没有就什么都不做）
+  applyVisionQuery()
 
   // 进页面先拉一次任务：可能上次的还在队列里，或者已经做完了
   loadTasks()
