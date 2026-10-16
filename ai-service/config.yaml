@@ -31,3 +31,18 @@ concurrency:
   # 同时发往 Ollama 的调用上限，与 dish-service 队列并发度对齐（Ollama 并行度 1，
   # 多了也只是分时复用同一个模型实例，还会把单次调用拖到超时）。超出的请求在信号量上排队。
   max_parallel_model_calls: 2
+
+# ---------- Phase 3：YOLO 图片识别（docs/yolo-vision-design.md §5）----------
+vision:
+  # 权重路径一律相对 ai-service 根目录 —— 写裸名 'yolov8n.pt' ultralytics 会联网下载。
+  # 换模型（COCO 预训练 → 89 类食材自训 best.pt）只改这个文件名，Java/前端零改动
+  weights: yolo_model/weights/yolov8n.pt
+  # auto = 有卡用卡（cuda:0）没卡用 CPU；显存被 Ollama 占满时可写死 cpu（秒级仍可用）
+  device: auto
+  # ultralytics 初筛阈值：低于它的框直接不返回。这只是初筛——
+  # 真正"丢弃/默认勾选"的阈值在 Java 侧 t_vision_label.min_confidence，按食材分别配
+  conf: 0.25
+  # 推理分辨率：yolov8n 训练用 640，保持即可
+  imgsz: 640
+  # 单次请求最多几张图（与 dish-service 的 ai.vision.max-images 对齐，两边一起改）
+  max_images: 9

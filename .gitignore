@@ -92,6 +92,17 @@ chrome-profile/
 *.rar
 *.7z
 
+# ---------- 识菜上传目录（运行期产物，禁入库） ----------
+# 用户上传的菜品照片与裁剪小图（ai.vision.upload-dir=uploads/vision）。
+# 图片后缀本就被上面的 *.jpg/*.png 规则忽略，这里显式列出目录，
+# 连带忽略可能产生的非图片临时文件。
+dish-service/uploads/
+
+# ---------- 本地备份与临时产物 ----------
+# 改版前的手动快照（如 backup/login-vue-2026-10-16/）与脚本输出目录
+backup/
+output/
+
 # ---------- 其他 ----------
 *.bak
 *.orig

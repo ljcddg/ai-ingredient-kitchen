@@ -16,6 +16,7 @@ from flask import Flask
 from ai_service.config import load_config
 from ai_service.generator import DishGenerator
 from ai_service.routes import bp, health as health_view
+from ai_service.vision import YoloDetector
 
 
 def create_app(config_path=None) -> Flask:
@@ -28,6 +29,9 @@ def create_app(config_path=None) -> Flask:
     app = Flask(__name__)
     app.config["AI_SERVICE"] = load_config(config_path)
     app.extensions["dish_generator"] = DishGenerator(app.config["AI_SERVICE"])
+    # YOLO 检测器：构造很轻（模型懒加载，首次识别请求才加载权重），
+    # 没装 ultralytics 时生成接口照样可用
+    app.extensions["yolo_detector"] = YoloDetector(app.config["AI_SERVICE"].vision)
     app.register_blueprint(bp)
     # 探活走根路径是惯例；/api/v1/health 也保留（契约里写的是这个）
     app.add_url_rule("/health", endpoint="health_root", view_func=health_view)

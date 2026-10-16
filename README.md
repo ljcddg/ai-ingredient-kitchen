@@ -3,6 +3,7 @@
 > 挑几样食材，系统先在菜库里找现成的 —— 命中高质量的做法直接返回；
 > 没有就让 AI 现场生成一道。生成结果经校验后可发布进公共菜库，
 > 被搜索、被排名、被收藏。
+> 懒得选食材？**拍张照片**，YOLO 认出图里有什么，勾选后直接进检索或生成。
 
 **用户既是消费者也是生产者**：AI 生成的内容会沉淀回菜库，菜库越厚、直出率越高、AI 调用越少。
 
@@ -15,6 +16,7 @@
   <img alt="Redis" src="https://img.shields.io/badge/Redis-Redisson%203.26-DC382D?logo=redis&logoColor=white">
   <img alt="Vue" src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/LLM-Ollama%20local-000000">
+  <img alt="YOLO" src="https://img.shields.io/badge/YOLO-v8n%20ultralytics-7B42BC">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
   <img alt="Flask" src="https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white">
 </p>
@@ -76,9 +78,9 @@
 | `common-service` | — | 跨服务技术能力 | `Result<T>`、`BusinessException`、`JwtUtil`、全局 `Long → String` 序列化 |
 | `account-service` | 8081 | 账号与认证 | 注册 / 登录、BCrypt、Redisson 布隆过滤器、JWT 签发 |
 | `dish-service` | 8082 | **业务核心** | AI 任务队列与编排、检索、发布、互动、榜单、ES 同步 |
-| `ai-service` | 8090 | **推理中心**（Python） | 菜谱生成（提示词 + Ollama + 校验 + 重试）、营养计算；无状态，不连业务库，食材主数据随请求注入 |
+| `ai-service` | 8090 | **推理中心**（Python） | 菜谱生成（提示词 + Ollama + 校验 + 重试）、营养计算、图片识菜（YOLO）；无状态，不连业务库，食材主数据随请求注入 |
 | `gateway` | 7000 | 统一入口 | JWT 鉴权过滤器、路由、CORS、`DedupeResponseHeader` |
-| `frontend-vue` | 5500 | 前端（Vue3 版） | 5 个页面，`/api` 反向代理到网关 |
+| `frontend-vue` | 5500 | 前端（Vue3 版） | 8 个页面（登录 / 工作台 / 识菜 / 详情 / 发现 / 榜单 / 我的 / 管理），`/api` 反向代理到网关 |
 | `order-service` | — | 预留未放开 | 父 pom 中处于注释状态 |
 
 **依赖方向单向**：`account / dish / gateway → common`，`dish → ai-service`（HTTP 调用，不走 Nacos 注册）。
@@ -101,6 +103,8 @@
 | Elasticsearch | 8.16.0 | 只跑在 Docker（单节点、已关 security），见下方说明 |
 | Ollama | `gemma4:e2b`（默认） | 本地推理；模型名在 `ai-service/config.yaml`，dish-service 经 Nacos `ai.remote.model` 随请求下发 |
 | Python | 3.12 / Flask 3.x | ai-service 依赖见 `ai-service/requirements.txt`，生产用 gunicorn 常驻 |
+| torch / torchvision | 2.6.0+cu124 / 0.21.0+cu124 | ai-service 识菜推理用；**cu124 定制版 PyPI 没有，必须本地 whl 装**（实测 RTX 4060 单图 4.4ms） |
+| ultralytics | 8.4.177 | YOLO 官方库；权重 `ai-service/yolo_model/weights/yolov8n.pt`（COCO 80 类预训练，中式食材类需自训数据集） |
 
 ---
 
@@ -260,6 +264,28 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 
 详见 [`docs/discover-redesign.md`](docs/discover-redesign.md)。
 
+### 7. 识菜：拍张照片，YOLO 认出图里有什么
+
+```
+用户上传 ≤9 张图片（dish-service 落盘，ASCII UUID 文件名）
+   → Java VisionClient 把 mediaPath 列表发给 ai-service /api/v1/vision/dishes
+   → Python YOLO 逐图检测：label + box + confidence（单图 GPU 4.4ms 级）
+   → Java VisionAggregator 两级映射：t_vision_label（COCO 英文名显式配）
+        → IngredientDirectory.resolveId()（覆盖自训后的中文名）
+        → 都不中进 unmappedLabels
+   → 前端候选网格（裁剪图 + 名称 + 数量 + 置信度，高置信默认勾选）
+   → 用户勾选：映射成功的进 ingredientIds，表外名字进 freeIngredients
+   → 一键带回工作台，走既有检索 / 生成链路
+```
+
+设计要点（详见 [`docs/yolo-vision-design.md`](docs/yolo-vision-design.md)，v2 代码已落地）：
+
+- **Python 只回答"图里有什么"**，label → 食材 ID 的映射在 Java 侧做 —— 与推理边界一致，
+  换权重（COCO 预训练 → 自训 best.pt）零代码改动
+- **识别是辅助不是权威**：勾选机制天然兜底误识别，`unmappedLabels` 明示没认出来的
+- 当前权重是 COCO 80 类预训练，**没有中式食材类**；89 类食材数据集训出 best.pt 后
+  放到 `yolo_model/weights/` 即生效，这是 Phase 3 剩下的主要工作
+
 ---
 
 ## 关键设计决策与取舍
@@ -319,6 +345,8 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `project0914` | `t_es_sync_task` | 索引同步待办（退避重试 + 人工补偿入口） |
 | `project0914` | `t_tag` / `t_dish_tag` | 标签 |
 | `project0914` | `t_ingredient_candidate` | 表外食材沉淀（3 次转正） |
+| `project0914` | `t_vision_label` | 识别 label → 食材映射（COCO 英文名显式配，如 `tomato` → 番茄；自训中文名走 `resolveId()`） |
+| `project0914` | `t_vision_detect_log` | 识别流水（requestId / 图 / 检出项 / 用户最终勾选），用于归因与后续统计 |
 | `project0914` | `t_user_ingredient_pref` | 用户食材偏好（已建表，待启用） |
 
 **通用约定**：主键统一 `IdType.ASSIGN_ID`（雪花）、`@TableLogic` 逻辑删除、
@@ -347,6 +375,7 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | `POST` | `/api/dish/search` | 食材检索：召回结果 + 覆盖率 + 是否直出 + missReason |
+| `POST` | `/api/dish/ai/vision/dishes` | **识菜**（multipart，≤9 张）→ 候选食材（置信度 / 数量 / 裁剪图）+ 未映射 label；勾选结果回填检索或生成 |
 | `POST` | `/api/dish/ai/dish` | 提交生成 → 立即返回 `taskId` + 排队位置 |
 | `GET` | `/api/dish/ai/tasks` | 我的任务列表（状态 / 位置 / 进度） |
 | `GET` | `/api/dish/ai/queue` | 队列总览 |
@@ -428,6 +457,7 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 |---|---|---|
 | `POST` | `/api/v1/generate` | 菜谱生成（同步）：食材 / 约束 / 主数据快照 / 参考菜谱 → 草稿 + 校验结果 + 本地营养 |
 | `POST` | `/api/v1/nutrition` | 批量营养计算：`directory` + `items[]` → 每道菜每人份营养与覆盖率 |
+| `POST` | `/api/v1/vision/dishes` | 图片识别（YOLO）：`images[]`（mediaPath）→ 每图的 label + box + confidence；label → 食材 ID 的映射在 Java 侧 |
 | `GET` | `/health` | 探活：返回模型名、提示词版本、Ollama 是否可达 |
 | `GET` | `/api/v1/health` | 同上（契约保留的路径） |
 
@@ -446,15 +476,16 @@ ai-ingredient-kitchen/
 ├── account-service/           # 账号服务 :8081
 ├── dish-service/              # 菜品服务 :8082（业务核心）
 │   └── src/main/java/.../
-│       ├── ai/                # 任务队列 / 生成编排 / 远程 ai-service 客户端
+│       ├── ai/                # 任务队列 / 生成编排 / 远程 ai-service 客户端（生成 + 营养 + 识菜）
 │       ├── es/                # ES DSL 组装与查询
 │       ├── discover/          # 发现流：信号层 → 排序层 → 浏览 / 决策两种呈现
 │       ├── recommend/job/     # 冷启动晋级与算分（后台定时任务，不对用户呈现）
 │       └── service/           # 检索 / 发布 / 互动 / 榜单（旧，保留做对照）
-├── ai-service/                # 推理服务 :8090（Python）：提示词 / 调模型 / 校验 / 营养计算
+├── ai-service/                # 推理服务 :8090（Python）：提示词 / 调模型 / 校验 / 营养计算 / 识菜
 │   ├── app.py                 # Flask 应用工厂与入口
-│   ├── ai_service/            # routes / generator / validator / nutrition / ollama_client
+│   ├── ai_service/            # routes / generator / validator / nutrition / ollama_client / vision
 │   ├── prompts/               # 系统提示词（字段定义须与 dish-service 的 DishDraft 一致）
+│   ├── yolo_model/weights/    # yolov8n.pt（COCO 预训练；自训 best.pt 放这里即生效）
 │   └── tests/                 # pytest
 ├── gateway/                   # 网关 :7000
 ├── frontend-vue/              # Vue3 前端（Vite 6）
@@ -490,13 +521,20 @@ MySQL / Redis / Nacos / Elasticsearch / Ollama
 
 ```bash
 cd ai-service
-pip install -r requirements.txt          # 首次
+pip install -r requirements.txt          # 首次（Flask 等基础依赖）
+# 识菜额外依赖：torch/torchvision 是 cu124 定制版，PyPI 没有，用本地 whl 装；
+# 权重已随仓库在 yolo_model/weights/yolov8n.pt，无需下载
+pip install <torch-2.6.0+cu124-cp312-win_amd64.whl> <torchvision-0.21.0+cu124-cp312-win_amd64.whl>
+pip install ultralytics==8.4.177
 ollama pull gemma4:e2b                   # 首次
 python app.py                            # 开发模式
 # Linux / macOS 常驻：gunicorn -w 2 --threads 8 -b 127.0.0.1:8090 app:app
 
 curl http://127.0.0.1:8090/health        # 确认 ollamaReachable 为 true
 ```
+
+识菜还要：执行 `sql/migration-07-vision.sql`（建 `t_vision_label` / `t_vision_detect_log`），
+并在 Nacos `dish-service.yaml` 配 `ai.vision.*`（上传目录 / 单次张数上限 / 读超时）。
 
 配置在 `ai-service/config.yaml`（Ollama 地址、模型、温度、重试次数、超时、并发上限），
 可用环境变量 `AI_SERVICE_CONFIG` 指定其他路径。测试：`pytest`（在 `ai-service/` 下运行）。
@@ -542,7 +580,7 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 | 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
 | 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
 | 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
-| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 45 项（2026-10-16 通过） | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **52** 项（2026-10-16 通过，含识菜 7 项）；dish-service 113 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
 | 手写菜谱重名拦截 | `dish-service` 的 `ManualDishWriterTest`（原 `verify-manual-dish.py` 已删除） | 12 个单元测试通过 | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」） |
 | 前端端到端（真实浏览器点按） | `frontend-vue/verify-vue.py` | **253 断言 / 0 失败** | 六个页面含管理台 + 手写菜谱（9i）+ 推荐页（9j）：断言前端**实际发出的请求体**（patch `fetch` 抓载荷），曾借此抓出管理台 10 个接口漏掉 `/ai` 前缀的真 bug |
 | 人工可操作性（盲评材料 + 汇总口径） | `es/eval/human-eval-kit.py` | `es/eval/human-eval/`（`blind-sheet.md` / `ratings-template.csv` / `answer-key.csv`，`score` 出 `human-eval-report.md`） | 工具已就绪并按假评分表验证过汇总与加权 kappa；**现有 7 条样本两臂各自困在一个提示词版本上，不能直接对比**，要下结论得补 B 臂样本 + ≥2 名真人评分 |
@@ -610,6 +648,8 @@ python es/eval/fill-arm-b.py 5
 | 安全 | ai-service 不校验 `X-Ai-Token` | dish-service 已发送该请求头，Python 端没有读取校验；目前只监听 `127.0.0.1` | 对外暴露前补上校验（Nacos 的 `ai.remote.token` 已预留） |
 | 运维 | Nacos 上的 `dish-service.yaml` 需手动同步 | 仓库里的 `nacos-config/` 只是留档副本，改动不会自动推送到 Nacos 服务端 | 改完后按「要跑人工评价时」一节的方式推送，并重启 dish-service |
 | 可用性 | ai-service 挂掉时菜谱生成失败；手写菜谱营养预览降级为「不可信」 | 生成与营养计算的同步路径对 ai-service 有硬依赖 | 预览降级已实现；生成链路可考虑排队重试 |
+| 功能缺口 | 识菜权重是 COCO 80 类预训练，**认不出中式食材** | 识菜页只能演示流程，`t_vision_label` 里配了的 COCO 类（如 bowl/broccoli）能映射 | 自建 89 类食材数据集微调，`best.pt` 放进 `ai-service/yolo_model/weights/` 即生效；这是 Phase 3 剩余主要工作 |
+| 验证 | 识菜链路刚落地，**尚未端到端跑过**（编译 + 单测通过） | 真实上传 / 映射 / 回填没验证 | 起 ai-service（含 YOLO 依赖）+ dish-service → 打开 `/vision` 上传图片走全程 |
 
 ---
 
@@ -623,7 +663,7 @@ python es/eval/fill-arm-b.py 5
 | [docs/interview-prep.md](docs/interview-prep.md) | 面试讲解要点 |
 | [es/dish-search.md](es/dish-search.md) | Elasticsearch 检索方案详解 |
 | [docs/ai-service-split.md](docs/ai-service-split.md) | 推理拆分到 Python ai-service 的设计与接口契约 |
-| [docs/yolo-vision-design.md](docs/yolo-vision-design.md) | 视觉识别（YOLO）设计，尚未接入主流程 |
+| [docs/yolo-vision-design.md](docs/yolo-vision-design.md) | 视觉识别（YOLO）设计，**v2：代码已落地**（Python vision.py + Java VisionClient/Service + 前端识菜页；v1 的 4 个待确认点已拍板，见 §12） |
 
 ---
 

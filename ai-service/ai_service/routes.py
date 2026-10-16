@@ -1,11 +1,13 @@
-"""HTTP 接口：/api/v1/generate、/api/v1/nutrition、/health。
+"""HTTP 接口：/api/v1/generate、/api/v1/nutrition、/api/v1/vision/dishes、/health。
 
-契约见 docs/ai-service-split.md §6。字段名与 dish-service 的 DTO 一字不差
-（camelCase），Java 侧用同一套字段名做 Jackson 映射。
+契约见 docs/ai-service-split.md §6（generate/nutrition）与
+docs/yolo-vision-design.md §5.3（vision/dishes）。字段名与 dish-service 的 DTO
+一字不差（camelCase），Java 侧用同一套字段名做 Jackson 映射。
 """
 from __future__ import annotations
 
 import logging
+import time
 from typing import List
 
 from flask import Blueprint, current_app, jsonify, request
@@ -13,6 +15,7 @@ from flask import Blueprint, current_app, jsonify, request
 from . import nutrition, ollama_client
 from .generator import DishGenerationException, DishGenerator
 from .schemas import GenerateOptions, GenerateRequest
+from .vision import VisionConfig, VisionModelError, YoloDetector
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,36 @@ def generate():
         "validation": _validation_to_dict(result.validation),
         "meta": result.meta.to_dict(),
     })
+
+
+@bp.post("/vision/dishes")
+def vision_dishes():
+    """YOLO 多图识别：Java 传落盘后的图片路径，返回每张图的检出（label+框+置信度）。
+
+    label → 食材 ID 的映射在 Java 侧（t_vision_label + IngredientDirectory），
+    本接口只做检测，不认识业务主数据。契约见 docs/yolo-vision-design.md §5.3。
+    """
+    body = request.get_json(silent=True) or {}
+    images = [i for i in (body.get("images") or []) if isinstance(i, dict)]
+    if not images:
+        return jsonify({"ok": False, "errorKind": "bad_request",
+                        "error": "images 不能为空"}), 400
+
+    detector: YoloDetector = current_app.extensions["yolo_detector"]
+    start = time.time()
+    try:
+        result = detector.detect(images)
+    except VisionModelError as e:
+        logger.warning("识别请求失败：%s", e.message)
+        return jsonify({"ok": False, "errorKind": e.kind, "error": e.message})
+    except Exception:
+        logger.exception("识别未捕获异常")
+        return jsonify({"ok": False, "errorKind": "internal",
+                        "error": "AI 服务异常"}), 500
+
+    logger.info("识别完成：%d 张图，耗时 %dms，device=%s",
+                len(images), int((time.time() - start) * 1000), result["device"])
+    return jsonify({"ok": True, "costMs": int((time.time() - start) * 1000), **result})
 
 
 @bp.post("/nutrition")

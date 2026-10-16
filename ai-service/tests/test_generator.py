@@ -13,6 +13,7 @@ from ai_service.config import GenerateConfig, Config, ConcurrencyConfig, OllamaC
 from ai_service.generator import DishGenerationException, DishGenerator
 from ai_service.schemas import GenerateOptions, GenerateRequest, IngredientRef
 from ai_service.validator import ValidationResult
+from ai_service.vision import VisionConfig
 
 from .conftest import SNAPSHOT_ENTRIES
 
@@ -21,7 +22,8 @@ from .conftest import SNAPSHOT_ENTRIES
 def generator():
     config = Config(
         server=ServerConfig(), ollama=OllamaConfig(),
-        generate=GenerateConfig(), concurrency=ConcurrencyConfig())
+        generate=GenerateConfig(), concurrency=ConcurrencyConfig(),
+        vision=VisionConfig())
     return DishGenerator(config)
 
 

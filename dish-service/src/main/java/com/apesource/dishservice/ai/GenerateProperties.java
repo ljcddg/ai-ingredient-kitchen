@@ -24,17 +24,8 @@ public class GenerateProperties {
      */
     private int maxAttempts = 2;
 
-    /**
-     * 营养校验容差。
-     *
-     * <p>拿「食材主数据 × 用量」本地算一份，与 AI 给的值比，
-     * 偏差超过这个比例就认为这次生成可疑（记日志，并让 nutrition_verified = 0）。
-     *
-     * <p>为什么定 40% 这么宽：本地那份数据本身就是参考值，
-     * AI 的估算又有天然波动（实测同一道菜两次差 20%），
-     * 阈值定太严会把正常的生成全部误判成可疑。
-     */
-    private double nutritionTolerance = 0.4;
+    // nutritionTolerance 已随迁移删除（2026-10-16）：营养偏差校验（AI 估算 vs 成分表）
+    // 的实现和阈值都在 Python ai-service 的 nutrition.py，Java 侧不再参与这个比对。
 
     /**
      * 生成温度。

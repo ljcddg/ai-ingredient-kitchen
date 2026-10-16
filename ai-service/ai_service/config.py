@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 import yaml
 
+from .vision import VisionConfig
+
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
 
 
@@ -43,6 +45,7 @@ class Config:
     ollama: OllamaConfig
     generate: GenerateConfig
     concurrency: ConcurrencyConfig
+    vision: VisionConfig
 
 
 def _section(raw: dict, key: str) -> dict:
@@ -65,6 +68,7 @@ def load_config(path: Optional[str] = None) -> Config:
     ollama_raw = _section(raw, "ollama")
     generate_raw = _section(raw, "generate")
     concurrency_raw = _section(raw, "concurrency")
+    vision_raw = _section(raw, "vision")
 
     return Config(
         server=ServerConfig(
@@ -90,5 +94,12 @@ def load_config(path: Optional[str] = None) -> Config:
             max_parallel_model_calls=int(
                 concurrency_raw.get("max_parallel_model_calls",
                                     ConcurrencyConfig.max_parallel_model_calls)),
+        ),
+        vision=VisionConfig(
+            weights=str(vision_raw.get("weights", VisionConfig.weights)),
+            device=str(vision_raw.get("device", VisionConfig.device)),
+            conf=float(vision_raw.get("conf", VisionConfig.conf)),
+            imgsz=int(vision_raw.get("imgsz", VisionConfig.imgsz)),
+            max_images=int(vision_raw.get("max_images", VisionConfig.max_images)),
         ),
     )
