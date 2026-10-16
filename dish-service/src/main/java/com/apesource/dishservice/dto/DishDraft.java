@@ -6,7 +6,7 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * AI 生成结果的结构映射 —— 字段名必须与 {@code prompts/dish-generate-system.txt}
+ * AI 生成结果的结构映射 —— 字段名必须与 {@code ai-service/prompts/dish-generate-system.txt}
  * 里定义的 JSON 一字不差，否则反序列化会静默变成 null。
  *
  * <p>用包装类型（Integer 而不是 int）：这样"字段缺失"能被识别出来，

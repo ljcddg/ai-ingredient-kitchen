@@ -51,8 +51,8 @@ class GenerationRecorderTest {
     @Test
     @DisplayName("成功记录：菜品ID、发布状态、配方、尝试次数都落库")
     void recordsSuccess() {
-        DishDraftValidator.ValidationResult validation =
-                new DishDraftValidator.ValidationResult(List.of(), List.of());
+        ValidationResult validation =
+                new ValidationResult(List.of(), List.of());
 
         recorder.record(9001L, 1001L, new GenerationRecorder.Outcome(
                 AiGenerationRecord.STATUS_SUCCESS, 5555L, 1, null,
@@ -82,7 +82,7 @@ class GenerationRecorderTest {
     @Test
     @DisplayName("格式合格但约束不合格：两个标记要能分开")
     void splitsFormatAndConstraintFlags() {
-        DishDraftValidator.ValidationResult validation = new DishDraftValidator.ValidationResult(
+        ValidationResult validation = new ValidationResult(
                 List.of("没有用上用户提供的食材：葱"), List.of("没有用上用户提供的食材：葱"));
 
         recorder.record(9002L, 1001L, new GenerationRecorder.Outcome(
@@ -118,7 +118,7 @@ class GenerationRecorderTest {
 
         recorder.record(9004L, 1001L, new GenerationRecorder.Outcome(
                 AiGenerationRecord.STATUS_SUCCESS, 1L, 0, null, 1, 10, "{}",
-                new DishDraftValidator.ValidationResult(List.of(), List.of()), meta()));
+                new ValidationResult(List.of(), List.of()), meta()));
 
         verify(recordMapper).insert(any());
     }

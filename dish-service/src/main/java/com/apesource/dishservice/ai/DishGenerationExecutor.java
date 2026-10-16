@@ -140,7 +140,7 @@ public class DishGenerationExecutor implements DishTaskExecutor {
 
     /** 失败时的记录：把异常里捎带的原始材料一起落库，事后能归因 */
     private void recordFailure(AiGenerateTask task, String errorMsg, int attempts, String rawOutput,
-                               DishDraftValidator.ValidationResult validation,
+                               ValidationResult validation,
                                DishGenerator.GenerateResult.GenerationMeta meta) {
         recorder.record(task.getId(), task.getUserId(), new GenerationRecorder.Outcome(
                 AiGenerationRecord.STATUS_FAILED, null, null, errorMsg,

@@ -15,6 +15,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 把库里已有的菜品营养重算一遍（说明文档 P2-2 的落地动作）。
@@ -64,6 +65,8 @@ public class NutritionRecomputeService {
         double deviationMax = 0;
         List<String> samples = new ArrayList<>();
 
+        // 先把全库的食材用量收齐，再一次性交给 ai-service 算（主数据快照只带一份）
+        List<NutritionCalculator.Target> targets = new ArrayList<>(dishes.size());
         for (Dish dish : dishes) {
             List<DishIngredient> rows = dishIngredientMapper.selectList(
                     Wrappers.<DishIngredient>lambdaQuery().eq(DishIngredient::getDishId, dish.getId()));
@@ -74,10 +77,14 @@ public class NutritionRecomputeService {
                 }
                 items.add(new NutritionCalculator.Item(row.getIngredientName(), row.getAmountGram()));
             }
+            targets.add(new NutritionCalculator.Target(String.valueOf(dish.getId()), items,
+                    dish.getBaseServing() == null ? 1 : dish.getBaseServing()));
+        }
+        Map<String, NutritionCalculator.Result> locals = calculator.calculateAll(targets);
 
-            NutritionCalculator.Result local = calculator.calculate(items,
-                    dish.getBaseServing() == null ? 1 : dish.getBaseServing());
-            if (!local.trustable()) {
+        for (Dish dish : dishes) {
+            NutritionCalculator.Result local = locals.get(String.valueOf(dish.getId()));
+            if (local == null || !local.trustable()) {
                 skipped++;
                 continue;
             }

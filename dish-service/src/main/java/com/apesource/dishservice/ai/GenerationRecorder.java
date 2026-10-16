@@ -52,7 +52,7 @@ public class GenerationRecorder {
      */
     public record Outcome(int status, Long dishId, Integer reviewStatus, String errorMsg,
                           int attempts, int costMs, String rawOutput,
-                          DishDraftValidator.ValidationResult validation,
+                          ValidationResult validation,
                           DishGenerator.GenerateResult.GenerationMeta meta) {
     }
 
@@ -75,7 +75,7 @@ public class GenerationRecorder {
 
             // 格式合格 / 约束合格分开记：一个说明模型不会写结构化输出，
             // 一个说明它没听用户的话，混在一起就没法指导改进
-            DishDraftValidator.ValidationResult validation = outcome.validation();
+            ValidationResult validation = outcome.validation();
             if (validation != null) {
                 row.setFormatOk(validation.formatOk() ? 1 : 0);
                 row.setConstraintOk(validation.constraintOk() ? 1 : 0);

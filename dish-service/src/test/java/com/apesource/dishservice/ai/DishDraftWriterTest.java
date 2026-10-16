@@ -101,7 +101,7 @@ class DishDraftWriterTest {
     /** 用指定草稿构造结果 —— 需要先改草稿（比如改食材名）的用例用这个重载 */
     private DishGenerator.GenerateResult result(DishDraft draft, boolean aiVerified) {
         return new DishGenerator.GenerateResult(draft, aiVerified, 100L, 1, "{}",
-                new DishDraftValidator.ValidationResult(List.of(), List.of()),
+                new ValidationResult(List.of(), List.of()),
                 new DishGenerator.GenerateResult.GenerationMeta(
                         "gemma4:e2b", "test", 0.7, 2, List.of()));
     }

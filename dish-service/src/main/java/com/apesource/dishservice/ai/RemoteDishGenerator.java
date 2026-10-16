@@ -5,12 +5,9 @@ import com.apesource.dishservice.service.IngredientDirectory;
 import com.apesource.dishservice.service.IngredientSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.net.http.HttpClient;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,13 +18,10 @@ import java.util.UUID;
  * 远程菜谱生成器 —— 调 Python ai-service 完成生成的 {@link DishGenerator} 实现。
  *
  * <p>它是"Java 业务编排 + Python AI 推理"解耦的落点：本类只认 HTTP 契约，
- * 不关心 ai-service 背后是 gemma、YOLO 还是将来的云端 API。换模型 = 改 Python
- * 一侧，这里一行不用动。
+ * 不关心 ai-service 背后是哪个模型。换模型 = 改 Python 一侧，这里一行不用动。
  *
- * <p>与 {@link AiDishGenerator}（本地方案）由 {@link DishGeneratorConfig}
- * 按 {@code ai.generate.mode} 二选一注入，{@code local} 是默认值 ——
- * 也就是说这个类不启用时，现有行为逐字节不变。本类不加 {@code @Component}：
- * 两个实现只能有一个成为 {@link DishGenerator} bean，否则按类型注入会歧义。
+ * <p>推理全部在 Python 侧（提示词、调模型、校验、重试、营养比对）。
+ * 原来的 Java 本地实现已删除，本类是 {@link DishGenerator} 唯一的实现。
  *
  * <p>职责边界（与 ai-service 的分工）：
  * <ul>
@@ -38,6 +32,7 @@ import java.util.UUID;
  * </ul>
  */
 @Slf4j
+@Component
 public class RemoteDishGenerator implements DishGenerator {
 
     private final GenerateProperties properties;
@@ -47,32 +42,18 @@ public class RemoteDishGenerator implements DishGenerator {
     private final RemoteProperties remoteProperties;
     private final RestClient restClient;
 
-    /** 与 {@code spring.ai.ollama.chat.options.model} 同一个 key，不额外引入配置 */
-    @Value("${spring.ai.ollama.chat.options.model:gemma4:e2b}")
-    private String model;
-
     public RemoteDishGenerator(GenerateProperties properties,
                                ReferenceDishRetriever referenceRetriever,
                                IngredientDirectory directory,
                                ObjectMapper objectMapper,
-                               RemoteProperties remoteProperties) {
+                               RemoteProperties remoteProperties,
+                               RestClient aiServiceClient) {
         this.properties = properties;
         this.referenceRetriever = referenceRetriever;
         this.directory = directory;
         this.objectMapper = objectMapper;
         this.remoteProperties = remoteProperties;
-
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
-        // 读超时必须大于 Python 内部两层（600 &lt; 630），否则 Java 先断，错误信息全错位
-        factory.setReadTimeout(Duration.ofSeconds(
-                Math.max(1, remoteProperties.getReadTimeoutSeconds())));
-        this.restClient = RestClient.builder()
-                .requestFactory(factory)
-                .baseUrl(remoteProperties.getBaseUrl())
-                .build();
+        this.restClient = aiServiceClient;
 
         log.info("远程生成器已启用：ai-service={}，读超时={}s",
                 remoteProperties.getBaseUrl(), remoteProperties.getReadTimeoutSeconds());
@@ -95,8 +76,6 @@ public class RemoteDishGenerator implements DishGenerator {
         try {
             response = restClient.post()
                     .uri("/api/v1/generate")
-                    .header("X-Ai-Token", remoteProperties.getToken() == null
-                            ? "" : remoteProperties.getToken())
                     .body(body)
                     .exchange((request, clientResponse) -> {
                         if (clientResponse.getStatusCode().is2xxSuccessful()) {
@@ -129,7 +108,7 @@ public class RemoteDishGenerator implements DishGenerator {
                     null, 0, null, null, null);
         }
 
-        DishDraftValidator.ValidationResult validation = toValidation(response.validation());
+        ValidationResult validation = toValidation(response.validation());
         GenerateResult.GenerationMeta meta = toMeta(response.meta());
 
         if (!response.ok()) {
@@ -166,7 +145,7 @@ public class RemoteDishGenerator implements DishGenerator {
         body.put("directory", directory.snapshot());
         body.put("references", references);
         body.put("options", Map.of(
-                "model", model,
+                "model", remoteProperties.getModel(),
                 "temperature", properties.getTemperature(),
                 "maxAttempts", properties.getMaxAttempts(),
                 "timeoutSeconds", properties.getAttemptTimeoutSeconds()));
@@ -175,18 +154,18 @@ public class RemoteDishGenerator implements DishGenerator {
 
     // ------------------------------------------------------------------ 响应映射
 
-    private DishDraftValidator.ValidationResult toValidation(RemoteResponse.ValidationDto dto) {
+    private ValidationResult toValidation(RemoteResponse.ValidationDto dto) {
         if (dto == null) {
-            return new DishDraftValidator.ValidationResult(List.of(), List.of());
+            return new ValidationResult(List.of(), List.of());
         }
-        return new DishDraftValidator.ValidationResult(
+        return new ValidationResult(
                 dto.problems() == null ? List.of() : dto.problems(),
                 dto.constraintProblems() == null ? List.of() : dto.constraintProblems());
     }
 
     private GenerateResult.GenerationMeta toMeta(RemoteResponse.MetaDto dto) {
         if (dto == null) {
-            return new GenerateResult.GenerationMeta(model, "unknown",
+            return new GenerateResult.GenerationMeta(remoteProperties.getModel(), "unknown",
                     properties.getTemperature(), properties.getMaxAttempts(), List.of());
         }
         // referenceDishIds 按字符串传回来（项目铁律：Long 序列化成字符串），这里解析回 Long

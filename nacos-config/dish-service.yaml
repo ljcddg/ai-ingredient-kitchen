@@ -82,12 +82,10 @@ ai:
   generate:
     # 最多尝试几次（含首次）。2 = 失败重试 1 次
     max-attempts: 2
-    # 生成器二选一（2026-10-15 AI 服务拆分）：
-    #   local  = 现有 AiDishGenerator（Spring AI + Ollama，进程内直连）
+    # 生成器（推理已全部迁到 Python ai-service，Java 本地实现已删除）：
     #   remote = Python ai-service（Flask，默认 http://127.0.0.1:8090）
-    # 缺省按 local 处理 —— 没配这项时行为与拆分前逐字节一致。
-    # 切 remote 前先确认 ai-service 已起（GET http://127.0.0.1:8090/health）
-    mode: local
+    # 启动前先确认 ai-service 已起（GET http://127.0.0.1:8090/health）
+    mode: remote
     # 生成温度。实测 0.7 有变化但不跑偏
     temperature: 0.7
     # 营养校验容差（本地算的值与 AI 给的值偏差超过这个比例就标记为未核实）
@@ -112,6 +110,8 @@ ai:
   remote:
     # ai-service 地址（本机默认 8090）
     base-url: http://127.0.0.1:8090
+    # 生成用的模型名，随请求透传给 ai-service（换模型只改这一项）
+    model: gemma4:e2b
     # 服务间共享令牌（防误调）；为空不校验。ai-service 要对外暴露前必须配上
     token: ""
     # Java 侧读超时（秒）。必须大于 Python 内部两层超时（Ollama 600 < Flask 630），

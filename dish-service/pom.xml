@@ -17,34 +17,7 @@
     <properties>
         <java.version>17</java.version>
 
-        <!--
-            Spring AI 版本 —— 这里是【兼容性实验】，不是最终方案。
-
-            背景：Spring AI 官方要求 Spring Boot 3.4.x / 3.5.x，
-                  而本项目是 3.2.4，属于【非官方支持组合】。
-            选 1.0.0-M6 的理由：它正是 springAi2026 项目在用的版本，
-                  用它来验证「熟悉的版本能不能直接搬到本项目」，结论最有参考价值。
-
-            实测结论见项目根目录 es/dish-search.md 的「Spring AI 兼容性实测」一节。
-        -->
-        <spring-ai.version>1.0.0-M6</spring-ai.version>
     </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <!--
-                Spring AI BOM：统一管理所有 spring-ai-* 模块的版本，
-                下面的依赖就不用各自写 version（与 Boot 父 pom 管版本同理）。
-            -->
-            <dependency>
-                <groupId>org.springframework.ai</groupId>
-                <artifactId>spring-ai-bom</artifactId>
-                <version>${spring-ai.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
     <dependencies>
         <!-- Web：提供 REST 接口 -->
@@ -109,18 +82,6 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
-        </dependency>
-
-        <!--
-            Spring AI 的 Ollama 接入 —— 用于「AI 生成菜谱」，走完全异步的独立线程池。
-
-            注意 artifact 命名：1.0.0-M6 这代叫 spring-ai-ollama-spring-boot-starter；
-            从 1.1.x 起改名为 spring-ai-starter-model-ollama（官方在 1.0 GA 后调整过命名）。
-            以后升级要同步改这里的 artifactId，否则报「找不到依赖」。
-        -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-ollama-spring-boot-starter</artifactId>
         </dependency>
 
         <!-- Lombok：@Data / @RequiredArgsConstructor / @NoArgsConstructor 等 -->

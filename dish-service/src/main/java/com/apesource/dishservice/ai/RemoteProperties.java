@@ -19,6 +19,13 @@ public class RemoteProperties {
     private String baseUrl = "http://127.0.0.1:8090";
 
     /**
+     * 生成用的模型名，随请求透传给 ai-service。
+     *
+     * <p>换模型只改 Nacos 的这一项，不用动代码。ai-service 自己 config.yaml 里的默认值只在请求没带模型时生效。
+     */
+    private String model = "gemma4:e2b";
+
+    /**
      * 服务间共享令牌（防误调）。为空表示不校验 —— ai-service 只监听内网、
      * 不进 gateway，威胁模型有限；要对外暴露前必须配上。
      */

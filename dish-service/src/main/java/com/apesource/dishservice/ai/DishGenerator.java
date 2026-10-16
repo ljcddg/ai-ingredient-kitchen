@@ -55,7 +55,7 @@ public interface DishGenerator {
      * @param meta              这次用的"配方"（模型、提示词版本、温度、重试上限）
      */
     record GenerateResult(DishDraft draft, boolean nutritionVerified, long costMs, int attempts,
-                          String rawOutput, DishDraftValidator.ValidationResult validation,
+                          String rawOutput, ValidationResult validation,
                           GenerationMeta meta) {
 
         /**

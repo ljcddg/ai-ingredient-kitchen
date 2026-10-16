@@ -22,7 +22,7 @@ public class DishGenerationException extends RuntimeException {
     private final String rawOutput;
 
     /** 最后一次的校验结果，可为 null */
-    private final DishDraftValidator.ValidationResult validation;
+    private final ValidationResult validation;
 
     /** 本次用的配方，可为 null */
     private final DishGenerator.GenerateResult.GenerationMeta meta;
@@ -36,7 +36,7 @@ public class DishGenerationException extends RuntimeException {
     }
 
     public DishGenerationException(String message, Throwable cause, int attempts, String rawOutput,
-                                   DishDraftValidator.ValidationResult validation,
+                                   ValidationResult validation,
                                    DishGenerator.GenerateResult.GenerationMeta meta) {
         super(message, cause);
         this.attempts = attempts;
@@ -53,7 +53,7 @@ public class DishGenerationException extends RuntimeException {
         return rawOutput;
     }
 
-    public DishDraftValidator.ValidationResult getValidation() {
+    public ValidationResult getValidation() {
         return validation;
     }
 

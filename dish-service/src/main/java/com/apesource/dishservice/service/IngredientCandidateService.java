@@ -275,7 +275,7 @@ public class IngredientCandidateService {
             ingredient.setName(candidate.getName());
             ingredient.setCategory(DEFAULT_CATEGORY);
             // 营养字段（calorie/protein/…）留 DB 默认的 0 —— 表示"还不知道"。
-            // 营养校验那边会把 0 当作没有数据，直接放弃估算（见 AiDishGenerator）。
+            // 营养校验那边会把 0 当作没有数据，直接放弃估算（见 ai-service 的 nutrition.estimate_calories_per_serving）。
             ingredientMapper.insert(ingredient);
             masterId = ingredient.getId();
         }

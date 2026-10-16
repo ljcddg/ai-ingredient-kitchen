@@ -32,7 +32,7 @@ import java.util.Set;
  *
  * <p><b>为什么用 category='调料' 而不是按名字猜：</b>
  * 校验器里确实有一份"名字里带油/酱/醋就按调料处理"的启发式
- * （见 {@code DishDraftValidator.limitOf}），那是为了给用量封顶、宁可宽松；
+ * （见 ai-service 的 {@code validator.PER_PERSON_GRAM_BY_CATEGORY}），那是为了给用量封顶、宁可宽松；
  * 而这里是决定"要不要判你缺料"，判错了用户会直接看到荒谬的结论
  * （比如"你还缺：盐"），所以必须用数据里的明确类目。
  *
