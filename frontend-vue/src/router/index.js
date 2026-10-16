@@ -16,6 +16,9 @@ import { authState, isAdmin } from '../store/auth.js'
 const routes = [
   { path: '/', name: 'login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
   { path: '/kitchen', name: 'kitchen', component: () => import('../views/KitchenView.vue') },
+  // 识菜：拍照/选图 → YOLO 识别 → 食材清单勾选 → 回填厨房生成表单
+  // 设计文档：docs/yolo-vision-design.md §7
+  { path: '/vision', name: 'vision', component: () => import('../views/VisionView.vue') },
   { path: '/dish/:id', name: 'dish', component: () => import('../views/DishView.vue'), props: true },
   { path: '/rank', name: 'rank', component: () => import('../views/RankView.vue') },
   // 发现页：取代旧的推荐页，把"选食材 → 出推荐"和榜单合并成一个入口

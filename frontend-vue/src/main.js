@@ -19,6 +19,7 @@ import './styles/dish.css'    // 菜品详情
 import './styles/rank.css'    // 榜单
 import './styles/recommend.css' // 推荐（旧页，保留做对照）
 import './styles/discover.css'  // 发现（取代推荐页与榜单页的新入口）
+import './styles/vision.css'  // 识菜（拍照 → 食材清单 → 勾选 → 生成）
 import './styles/profile.css' // 我的
 
 const app = createApp(App)

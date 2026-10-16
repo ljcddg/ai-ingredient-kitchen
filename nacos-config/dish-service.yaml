@@ -88,8 +88,7 @@ ai:
     mode: remote
     # 生成温度。实测 0.7 有变化但不跑偏
     temperature: 0.7
-    # 营养校验容差（本地算的值与 AI 给的值偏差超过这个比例就标记为未核实）
-    nutrition-tolerance: 0.4
+    # （nutrition-tolerance 已删：营养偏差校验随推理迁到了 ai-service 的 config.yaml）
     # P2-1 参考菜谱增强：生成前检索库内相似菜谱作为参考注入提示词。
     # 做对照实验时把它切成 false 就是"直接生成"那一臂
     enhance-enabled: true
@@ -118,6 +117,39 @@ ai:
     # 留 30s 给序列化和网络余量 —— 改超时必须三层一起改，否则 Java 先断、
     # Python 还在跑，错误信息全部错位
     read-timeout-seconds: 660
+
+  # ---------- 识菜：YOLO 图片识别 → 食材清单 → 用户勾选 → 生成 ----------
+  # 设计文档：docs/yolo-vision-design.md
+  # 与 ai.remote 分开配：识别是秒级操作（读超时 60s），生成是分钟级（660s），
+  # 合并会让两个场景互相将就
+  vision:
+    # ai-service 地址（与 ai.remote.base-url 同值）
+    base-url: http://127.0.0.1:8090
+    # 服务间共享令牌（与 ai.remote.token 一致）
+    token: ""
+    # Java 侧读超时（秒）。9 张图 CPU 模式也是秒级，60s 是宽上限
+    read-timeout-seconds: 60
+    # 单次最多几张图：与 Python 侧 config.yaml 的 vision.max_images 同步改，两边一起动
+    max-images: 9
+    # 单张图片大小上限（MB），超限直接拒
+    max-file-size-mb: 10
+    # 上传目录（相对 dish-service 工作目录）。
+    # 目录与文件名保持纯 ASCII —— cv2.imread 不吃中文路径且失败时静默返回 None
+    upload-dir: uploads/vision
+    # 裁剪小图子目录（upload-dir 下），前端用它展示"它认的是哪一块"
+    crop-sub-dir: crops
+    # 高置信默认勾选线：maxConfidence ≥ 此值的候选默认勾上，用户仍可改
+    default-checked-confidence: 0.8
+
+# ---------- 文件上传 ----------
+# 识菜一次最多 9 张图、单张 10MB → 请求总量上限给 100MB。
+# 注意 dish-service 的 spring 段与 common.yaml 的 spring 段是**深度合并**的
+# （不同 key 并存），不是在两份配置之间二选一。
+spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
 
 # ---------- 冷启动推荐池 ----------
 # 新发布的菜没有曝光，先推进推荐池接受真实流量验证，达标才晋级排行榜。

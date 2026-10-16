@@ -318,6 +318,40 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 
 ---
 
+### 4.7 识菜链路（YOLO 视觉 → 食材清单 → 用户勾选 → 生成）
+
+完整设计：`docs/yolo-vision-design.md`。这里是架构口径的浓缩版。
+
+**架构定调（2026-10-16）**：「模型推理全部归 Python，Java 不留推理路径」——
+擅长的事给擅长的人做。所以识别的落地位置就是 ai-service，与 LLM 生成同构。
+
+```
+前端(多图) → gateway(JWT) → dish-service(落盘 + 两级映射 + 聚合) → ai-service(YOLO 批量推理)
+                                    ↑ 检出 label/框/置信度（不认识业务主数据）
+前端(勾选) ← 聚合食材清单 ───────────┘
+   ↓ 确认
+POST /ai/dish（现有异步生成链路，一行不改）
+```
+
+**四条设计要点**：
+
+| 要点 | 做法 | 为什么 |
+|---|---|---|
+| 职责切分 | Python 只回答"图里有什么"（label + box + confidence）；Java 决定"这是什么食材"（映射 + 聚合）；用户决定"用哪些"（勾选） | 边界与 LLM 链路一致：Java 认 HTTP 契约，换权重（COCO → 自训 best.pt）零代码改动 |
+| 两级映射 | ① `t_vision_label` 精确命中（COCO 英文名必须显式配）② 未命中走 `IngredientDirectory.resolveId()` 别名归一（自训模型的中文名走这条）③ 都不中 → `unmappedLabels` 明示 | 一张配置表兼容"预训练 → 自训"两种来源；不静默丢弃 |
+| 同步而非异步 | 识别是**同步接口**（读超时 60s），不建任务表 | YOLO 单图 GPU 实测 4.4ms、9 张图一次 batch；异步任务表是给 gemma 12~26s/道 准备的，识别复用它是高射炮打蚊子 |
+| 勾选回填零 DTO 改动 | 映射成功 → `ingredientIds`；未映射但用户勾了 → `freeIngredients`（现成的两个通道）；用 router query 传回厨房页 | 生成链路（含校验、营养、签名）完全不感知"食材来自照片" |
+
+**两个实现细节（踩过才知道）**：
+
+- **图片必须是 gateway 白名单**：前端用 `<img src>` 展示，标签带不了 `Authorization` 头。
+  走现有 `/api/dish/**` 路由（StripPrefix=2 后落到 dish-service 的 `/uploads/**` 资源映射），
+  **不需要新增路由**；白名单写剥前缀后的 `/uploads/**`。文件名是 UUID，不可枚举。
+- **存储与读图都要防中文路径**：`cv2.imread` 对中文路径静默返回 None（症状是"图里什么都没有"）。
+  双保险：落盘用纯 ASCII 的 UUID 文件名 + Python 侧用 `np.fromfile + cv2.imdecode`。
+
+---
+
 ## 5. 数据模型
 
 **账户库**
@@ -339,6 +373,8 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 | `t_dish_comment` | 评论 | 与评分分表 |
 | `t_dish_collect` | 收藏 | 逻辑删除 + `ON DUPLICATE KEY UPDATE` 恢复 |
 | `t_ai_generate_task` | AI 生成任务 | 状态机、`error_msg`、`finish_time` |
+| `t_vision_label` | 识菜：模型 label → 主数据映射 | 唯一键 `label`；`min_confidence` 按 label 丢低置信检出（§4.7） |
+| `t_vision_detect_log` | 识菜：识别记录 | 唯一键 `request_id`；含用户勾选结果（模型难例来源） |
 | `t_tag` / `t_dish_tag` | 标签 | 口味标签参与检索权重 |
 | `t_user_ingredient_pref` | 用户食材偏好 | **已建表，尚未用起来**（见第 11 章） |
 
@@ -381,6 +417,7 @@ SQL 侧与 ES 侧的威尔逊口径必须一致（p = 平均分/5，z = 1.96）�
 | `DELETE` | `/api/dish/ai/tasks/{taskId}` | 删除任务记录（**仅限已结束的**，不碰菜品） |
 | `DELETE` | `/api/dish/ai/tasks/finished` | 批量清理已结束任务 |
 | `GET` | `/api/dish/ai/dish/{dishId}` | 菜品详情（营养 / 步骤 / 大厨建议 / 评分 / 评论） |
+| `POST` | `/api/dish/ai/vision/dishes` | 拍照识菜：多图（≤9 张）→ 候选食材清单（**同步**，秒级返回，§4.7） |
 
 **互动 / 我的**
 

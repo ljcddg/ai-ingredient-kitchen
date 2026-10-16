@@ -1,0 +1,357 @@
+/* ============================================================
+   AI 灵感厨房 - 拍照识菜（/vision）
+   ------------------------------------------------------------
+   设计令牌、基础排版、顶栏、按钮、卡片、空态、Toast 都在 app.css，
+   本文件只保留本页专属部分（类名以 vision-/result-/drop-/preview-/cand-/detect- 开头）。
+
+   布局说明：本页**不锁高**（与 kitchen 不同）。厨房页锁高是因为左右两栏
+   互相带跑的滚动问题；识菜页内容随上传张数与检出数量伸缩，自然滚动更自然，
+   也不需要在窄屏回退。设计文档：docs/yolo-vision-design.md §7.2
+   ============================================================ */
+
+.page-vision{
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
+.vision-wrap{
+    max-width: 1180px;
+    padding-bottom: 48px;
+}
+
+.page-head{
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* ---------- 降级 / 空态提示条 ---------- */
+/* 识别失败时给一条明确的出口（改手动选），而不是只报错 ——
+   识别是加速项不是必经环节 */
+.vision-notice{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 4px 0 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--line-2);
+    border-left: 3px solid var(--warn);
+    border-radius: var(--r-sm);
+    background: var(--warn-soft);
+    color: var(--ink);
+    font-size: 13px;
+}
+
+/* ---------- 上传区 ---------- */
+.vision-upload{
+    margin-bottom: 22px;
+}
+
+.drop-zone{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 34px 20px;
+    border: 1.5px dashed var(--line-2);
+    border-radius: var(--r-lg);
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur));
+    cursor: pointer;
+    transition: border-color .18s var(--ease), background .18s var(--ease);
+}
+
+.drop-zone:hover,
+.drop-zone:focus-visible{
+    border-color: var(--accent-bright);
+    outline: none;
+}
+
+/* 拖拽悬停：底色用品牌红浅底，和"可以放手"这件事形成强关联 */
+.drop-zone.dragging{
+    border-color: var(--accent);
+    border-style: solid;
+    background: var(--accent-soft);
+}
+
+.drop-title{
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.drop-sub{
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.preview-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.preview-item{
+    position: relative;
+    margin: 0;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    aspect-ratio: 4 / 3;
+}
+
+.preview-item img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.preview-x{
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(34, 32, 30, .62);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.preview-x:hover{
+    background: var(--accent);
+}
+
+.upload-actions{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.upload-count{
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+/* ---------- 结果区：左详情 / 右清单 ---------- */
+.result-grid{
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.block-title{
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.block-title small{
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-3);
+}
+
+/* 左栏：每张图一张卡 */
+.result-images{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.result-image-card{
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur));
+}
+
+.result-image{
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    display: block;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+}
+
+.result-image-err{
+    margin: 8px 2px 2px;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.detect-list{
+    list-style: none;
+    margin: 10px 0 2px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.detect-item{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: 12px;
+}
+
+/* 裁剪小图：让用户看得见「它认的是哪一块」，勾选才有依据（design §5.2） */
+.detect-crop{
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    flex: 0 0 auto;
+}
+
+.detect-label{
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.detect-conf{
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.detect-tag{
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-2);
+    color: var(--ink-3);
+}
+
+/* 右栏：清单（勾选区） */
+.result-panel{
+    position: sticky;
+    top: 16px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--shadow-1);
+}
+
+.panel-actions{
+    display: flex;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.result-empty{
+    margin: 6px 0 12px;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.cand-item{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.cand-item:last-of-type{
+    border-bottom: none;
+}
+
+.cand-item input[type="checkbox"]{
+    width: 15px;
+    height: 15px;
+    accent-color: var(--accent);
+    flex: 0 0 auto;
+}
+
+.cand-name{
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.cand-count{
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.cand-conf{
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+
+/* 高置信用成功色点一下，配合"默认勾选"的直觉 */
+.cand-conf.high{
+    color: var(--ok);
+    font-weight: 600;
+}
+
+/* ---------- 认出来但库里没有 ---------- */
+.unmapped-block{
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line-2);
+}
+
+.unmapped-title{
+    margin: 0 0 2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.unmapped-hint{
+    margin: 0 0 4px;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.cand-item.unmapped .cand-name{
+    font-weight: 500;
+    color: var(--ink-2);
+}
+
+.block-btn{
+    width: 100%;
+    margin-top: 14px;
+}
+
+/* ---------- 窄屏：单栏 ---------- */
+@media (max-width: 980px){
+    .result-grid{
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .result-panel{
+        position: static;
+    }
+}

@@ -1,8 +1,9 @@
 # YOLO 图片识别 → 食材清单 → 用户勾选 → 一键生成 全链路设计
 
-> 版本：v1（2026-10-16，斌宝）
+> 版本：**v2（2026-10-16，代码已落地；v1 的 4 个待确认点已拍板，见 §12）**
 > 上游文档：`docs/ai-service-split.md` §5（Phase 3 草案）—— 本文是其落地细化版
 > 需求原话：「根据 yolo 模型识别多张图片的菜品内容，生成对应食材清单，然后供用户选择，然后生成」
+> 架构定调（斌宝 2026-10-16）：「模型推理过程都迁移到 Python，擅长的事情给擅长的人做」
 
 ---
 
@@ -188,15 +189,23 @@ POST /ai/vision/dishes        （multipart/form-data，files 多文件，≤9 �
 - 校验：只收 image/jpeg、image/png；超 10MB 或超 9 张直接 400 拒。
 - `uploads/` 加进 `.gitignore`（新目录，别把测试图提交进仓库）。
 
-**静态资源链路（容易漏的一环）**：
-dish-service 加 `/uploads/**` 资源映射后，**gateway 必须加一条路由**：
-`Path=/uploads/** → dish-service，StripPrefix=0`（现有路由都是 `StripPrefix=2`，
-这条**不能剥前缀**，剥了就找不到文件）。否则前端拿不到图。
+**静态资源链路（实现时修正：不需要新增网关路由）**：
+
+v1 计划给 gateway 加一条 `Path=/uploads/**` 路由。实现时发现**复用现有
+`dish-service-route` 更好**（少一处配置 = 少一个出错点）：
+
+| 环节 | 做法 |
+|---|---|
+| 后端返回的图片地址 | 相对业务路径 `/uploads/vision/2026/10/xxx.jpg`（不关心前端怎么访问） |
+| 前端拼地址 | `AppConfig.serviceUrl('dish', url)` → 网关模式得到 `/api/dish/uploads/...`；直连模式得到 `http://host:8082/uploads/...` —— 两种模式都对，且不写死 127.0.0.1 |
+| 网关 | 走现有 `Path=/api/dish/**` 路由（StripPrefix=2 后正好落到 dish-service 的 `/uploads/**` 资源映射），**零新增路由** |
+| **gateway 白名单必须加 `/uploads/**`** | 前端用 `<img src>` 展示图片，**标签带不了 Authorization 头**，不放行就是一片 401。匹配的是"剥前缀后"的路径，所以写 `/uploads/**`。安全权衡：文件名是 UUID 不可枚举，且数据接口仍走 JWT |
+| 拦截器 | dish-service 的 `WebMvcConfig` 对 `/uploads/**` 显式 `excludePathPatterns`（图片不走管理员鉴权） |
 
 **multipart 限制（双层都要配）**：
 - dish-service：`spring.servlet.multipart.max-file-size=10MB`、`max-request-size=100MB`
-  （Nacos `dish.yaml`）。
-- gateway：Spring Cloud Gateway 默认不卡 body，但要确认没有全局 `max-request-size` 冲突。
+  （Nacos `dish-service.yaml`；与 common.yaml 的 spring 段是**深度合并**，不冲突）。
+- gateway：Spring Cloud Gateway 默认不卡 body，确认无全局 `max-request-size` 冲突即可。
 
 ### 6.3 映射：两级归一 + 一张配置表
 
@@ -217,13 +226,14 @@ label ──① 查 t_vision_label（精确命中）──→ ref_id（t_ingredi
 | `label_type` VARCHAR(16) | `ingredient` / `dish`（MVP 只用 ingredient） |
 | `ref_id` BIGINT | 引用 `t_ingredient.id`；dish 型将来引用 `t_dish.id` |
 | `min_confidence` DECIMAL(4,2) | 低于此值的检出**直接丢弃**（默认 0.50） |
-| `default_checked` TINYINT | 该 label 默认勾选（默认 1，低质 label 可配 0） |
-| `enabled` TINYINT | 停用某个映射不删行 |
+| `default_checked` TINYINT | **预留字段**：默认勾选开关。当前实现用全局阈值 `ai.vision.default-checked-confidence`（0.8）；将来要对单个 label 细控（某类识别率低、希望用户手动确认）时才启用 |
+| `enabled` → 实现为 `status` | 停用某个映射不删行（0-停用 / 1-启用） |
 | `deleted` + 时间戳 | 遵循项目 `@TableLogic` / fill 规范 |
 
-初始数据只配 COCO 食物类约 5 条（apple→苹果、banana→香蕉、orange→橙子、
-broccoli→西兰花、carrot→胡萝卜，ref_id 插数据时查库对齐）；
-`bowl`/`cup` 是容器不是食材，**不建映射**；hot dog/pizza/cake 等库内没有对应食材，不建。
+初始数据只配 COCO 食物类里**真正对得上**的 2 条
+（`carrot → 胡萝卜`、`broccoli → 西兰花`，`ref_id` 用子查询按名字取，脚本幂等）；
+`bowl`/`cup` 是容器不是食材，**不建映射**；apple/banana/pizza/cake 等库内没有对应食材，
+**故意不配**——它们会进 `unmappedLabels`，正好把那条展示链路测到。
 
 **聚合规则**（多图 → 一份清单）：
 - 按 `ingredientId` 聚合：`count` = 各图检出数**求和**（两张图都有番茄 = 番茄×2）；
@@ -284,9 +294,9 @@ broccoli→西兰花、carrot→胡萝卜，ref_id 插数据时查库对齐）�
 
 | 变更 | 说明 |
 |---|---|
-| 新增 `t_vision_label` | 类别映射配置表（§6.3），DDL + COCO 初始数据脚本落 `sql/` |
+| 新增 `t_vision_label` | 类别映射配置表（§6.3）。DDL + COCO 初始数据脚本：`sql/migration-07-vision.sql`，已执行、已验幂等 |
+| 新增 `t_vision_detect_log` | 识别记录（requestId/userId/图数/检出JSON/勾选JSON/耗时）。**价值**：用户纠正与识别不一致的记录 = 后续训练难例。斌宝 2026-10-16 确认建（原为"可选"） |
 | 不动 `t_ingredient` / `t_dish` / `t_ai_generate_task` | 生成链路完全复用现有表 |
-| 可选 `t_vision_detect_log` | 记录每次识别（requestId/userId/图数/检出JSON/用户勾选JSON/耗时）。**价值**：用户纠正与识别不一致的记录 = 后续训练难例；误识别分析。建议建，轻表，见 §12 |
 
 ---
 
@@ -302,17 +312,17 @@ broccoli→西兰花、carrot→胡萝卜，ref_id 插数据时查库对齐）�
 
 ## 10. 实施步骤（每步可独立验证、可回滚）
 
-| 步骤 | 内容 | 验证点 |
-|---|---|---|
-| 1 | Python：装 ultralytics → `vision.py` + 路由 + `config.yaml` vision 段 + `importorskip` 测试 | 用一张本地图 curl `/api/v1/vision/dishes`，返回 COCO 检出 |
-| 2 | Java：VisionProperties + VisionClient + VisionService + VisionController + 静态资源映射 + 单测（映射/聚合/裁剪纯逻辑） | `mvn test` 新增用例绿；不装 Python 也能编译过 |
-| 3 | DB：`t_vision_label` DDL + COCO 初始数据脚本 | 脚本可重复执行（幂等） |
-| 4 | gateway：`/uploads/**` 路由（StripPrefix=0）+ multipart 限制确认 | 浏览器直连网关能打开上传的图 |
-| 5 | 前端：VisionView + 厨房入口 + 回填生成表单 | 全链路走通：选图→识别→勾选→提交→轮询→出菜 |
-| 6 | 联调记录：COCO 权重下记录一次完整识别的响应样本（回填进本文 §5.3 作契约快照） | 样本归档 |
-| 7 | **推理收敛**（§2）：Phase 1 联调验收后，删 `AiDishGenerator`/spring-ai/BOM/`AiProbeController`；Java 版 validator/nutrition 切流验收后删 | 每删一个 `mvn test` 全绿；git 可 revert |
-| 8 | 数据本体：89 类食材数据集训练 → `best.pt` 归位 `yolo_model/weights/` | **零代码改动**，同一接口效果即达可用 |
-| 9 | 文档同步：`docs/architecture.md` + `docs/interview/` 两份口径 | 简历/面试不说错 |
+| 步骤 | 内容 | 验证点 | 状态（2026-10-16） |
+|---|---|---|---|
+| 1 | Python：装 ultralytics → `vision.py` + 路由 + `config.yaml` vision 段 + `importorskip` 测试 | 用一张本地图 curl `/api/v1/vision/dishes`，返回 COCO 检出 | ✅ 完成：ultralytics 8.4.177 已装；`52 passed`（原 45 + 新 7，含真跑模型的 smoke） |
+| 2 | Java：VisionProperties + VisionClient + VisionService + VisionAggregator + VisionController + 静态资源映射 + DTO | `mvn test` 新增用例绿；不装 Python 也能编译过 | ✅ 完成：`113/113` 通过（含 `VisionAggregatorTest` 10 个）；compile 通过 |
+| 3 | DB：`sql/migration-07-vision.sql`（两张表 + COCO 初始数据） | 脚本可重复执行（幂等） | ✅ 完成：已执行并二次执行验证幂等；2 条映射正确 |
+| 4 | gateway 白名单 + multipart 配置（**修正：不需要新增路由**，见 §6.2） | 浏览器经网关能打开上传的图 | ⏳ 配置留档已改（`nacos-config/`），**待推 Nacos**（推送时 Nacos 需在运行） |
+| 5 | 前端：VisionView + 厨房入口 + 回填生成表单 | 编译校验通过；全链路走通 | ✅ 代码完成（SFC/JS 语法已用 vue compiler-sfc + babel 校验）；⏳ 待服务起了做端到端 |
+| 6 | 联调记录：COCO 权重下记录一次完整识别的响应样本（回填进 §5.3 作契约快照） | 样本归档 | ⏳ 待服务起 |
+| 7 | **推理收敛**（§2）：Phase 1 联调验收后删 `AiDishGenerator`/spring-ai/BOM/`AiProbeController`；Java 版 validator/nutrition 切流验收后删 | 每删一个 `mvn test` 全绿；git 可 revert | ⏳ 等联调（注意：Nacos 留档里 `ai.generate.mode` 已是 `remote`，但 Java 侧 local 实现仍在——文档与代码不一致，见 §13） |
+| 8 | 数据本体：89 类食材数据集训练 → `best.pt` 归位 `yolo_model/weights/` | **零代码改动**，同一接口效果即达可用 | ⏳ 待斌宝训练（Phase 3 的本体） |
+| 9 | 文档同步：`docs/architecture.md` + `docs/interview/` 两份口径 | 简历/面试不说错 | ✅ `architecture.md` 已补；`docs/interview/` 待 §13 一起收口 |
 
 ---
 
@@ -331,15 +341,57 @@ broccoli→西兰花、carrot→胡萝卜，ref_id 插数据时查库对齐）�
 
 ---
 
-## 12. 待斌宝确认（4 个决策点）
+## 12. 决策记录（2026-10-16 已拍板）
 
-1. **unmappedLabels 是否允许用户勾选**后作为「自由食材」带入生成？
-   （建议：允许——多一条输入通道，生成器的自由食材通道本来就是为表外食材设计的）
-2. **是否建 `t_vision_detect_log`**（识别记录 + 用户纠正，是后续训练难例数据）？
-   （建议：建，轻表，一次识别一行）
-3. **步骤 7 的删除时机**：Phase 1 联调（起 Ollama 跑 `POST /ai/dish` 全链路）通过后立即删 local，
-   还是等 YOLO 联调也通过后一起删？（建议：前者，删完少一个维护面）
-4. **识别同步接口的上限**：单次 9 张、单张 10MB，够用吗？后期要调只改配置。
+v1 的 4 个待确认点，斌宝"按你的意思来"确认全部照建议执行：
+
+| # | 决策 | 结论 |
+|---|---|---|
+| 1 | unmappedLabels 是否允许用户勾选 | **允许**。勾选后作为「自由食材」带入生成（`freeIngredients` 通道本来就是为表外食材设计的）。前端 unmapped 区可勾选，文案说明"不进食材表" |
+| 2 | 是否建 `t_vision_detect_log` | **建**。识别记录 + 用户勾选，是后续模型训练的难例来源。已随 `migration-07` 落地 |
+| 3 | local 实现删除时机 | **Phase 1 联调（起 Ollama 跑 `POST /ai/dish` 全链路）通过后立即删**，不等 YOLO 联调。删完少一个维护面 |
+| 4 | 识别接口上限 | **单次 9 张、单张 10MB**，后期调整只改配置（`ai.vision.max-images` / `max-file-size-mb`，两边与 Python `vision.max_images` 同步改） |
+
+---
+
+## 13. 遗留与发现（2026-10-16 实现时记录）
+
+**实现环境情况（影响联调进度，非设计问题）**：
+
+| 项 | 情况 | 处理 |
+|---|---|---|
+| Nacos 未运行 | 8848 端口不通（探测时的 502 是本机 `HTTP_PROXY` 造成的假象；`NO_PROXY` 后确认是拒绝连接） | 两份配置留档已改好，推送命令见 §14；multipart 与白名单都需**重启/刷新**才生效 |
+| dish-service / gateway / ai-service / ES 均未启动 | 端到端联调无法在本轮完成 | 已完成的验证：Java `mvn test` 113 绿、Python `pytest` 52 绿、前端语法编译通过、DB 建表幂等 |
+| **COCO 权重能对上的只有 2 类** | 89 种食材里只有胡萝卜、西兰花与 COCO 的食物类同名（无苹果/香蕉/橙子） | 印证 §3 的判断：步骤 A 的价值在打通链路，不是产出可用识别率；其余 label 进 unmapped，正好测该链路 |
+| **代码与 Nacos 留档不一致** | `nacos-config/dish-service.yaml` 里 `ai.generate.mode: remote` 且注释写着"Java 本地实现已删除"，但 `AiDishGenerator` / `DishGeneratorConfig` 的 local 分支仍在 | 留给步骤 7 收口：**先联调 remote 通过，再删 local**（§2 的执行红线）；收口时同步改这条注释，别让注释跑在代码前面 |
+
+---
+
+## 14. 下一步（斌宝执行）
+
+```bash
+# 0. 确认 Nacos 在跑（本机有 HTTP_PROXY，curl 本地要加 NO_PROXY，否则看到的是代理的 502）
+export NO_PROXY="127.0.0.1,localhost"
+
+# 1. 备份 Nacos 现有配置（铁律：动 Nacos 前先备份）
+D:/pycharm/python/python3.12.10/python.exe nacos-config/backup-nacos.py
+
+# 2. 推送两份配置（识菜白名单 + ai.vision + multipart）
+curl -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" \
+  --data-urlencode "dataId=gateway.yaml" --data-urlencode "group=DEFAULT_GROUP" \
+  --data-urlencode "type=yaml" --data-urlencode "content@nacos-config/gateway.yaml"
+curl -X POST "http://127.0.0.1:8848/nacos/v1/cs/configs" \
+  --data-urlencode "dataId=dish-service.yaml" --data-urlencode "group=DEFAULT_GROUP" \
+  --data-urlencode "type=yaml" --data-urlencode "content@nacos-config/dish-service.yaml"
+
+# 3. 起服务（顺序：Nacos → ai-service → dish/gateway → 前端）
+cd ai-service && "C:/Users/K墨几/.workbuddy/binaries/python/envs/ai-service/Scripts/python.exe" app.py
+# 探活：curl http://127.0.0.1:8090/health   → ollamaReachable 与 model 字段
+
+# 4. 端到端：前端 /vision 上传两张图（建议拍胡萝卜/西兰花，COCO 能认）
+#    预期：候选清单出现「胡萝卜 ×1 85%」+ unmapped 里出现其它 label；
+#    勾选 → 生成 → 厨房页表单已预填「已从照片带入 N 样食材」
+```
 
 ---
 

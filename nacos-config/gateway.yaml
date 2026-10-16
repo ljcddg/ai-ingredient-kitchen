@@ -83,6 +83,15 @@ gateway:
       - /actuator/**
       # 静态资源（如果网关要直接提供的话）
       - /favicon.ico
+      # ---------- 识菜上传的图片（2026-10-16 新增）----------
+      # 必须是白名单：前端用 <img src> 展示原图与裁剪小图，**标签带不了
+      # Authorization 头**，不放行的话图片全部 401（数据接口仍走 JWT，不受影响）。
+      # 安全权衡：文件名是 UUID，不可枚举；且这里匹配的是「剥前缀后」的路径，
+      # 实际请求形如 /api/dish/uploads/vision/2026/10/<uuid>.jpg，
+      # 经 dish-service-route（StripPrefix=2）落到 dish-service 的 /uploads/** 资源映射。
+      # 注意：**不需要为它新增路由**，复用现有 dish-service-route 即可
+      # （前端按 serviceUrl('dish', '/uploads/...') 拼地址）。
+      - /uploads/**
 
 management:
   endpoints:

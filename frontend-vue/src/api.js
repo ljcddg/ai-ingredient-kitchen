@@ -49,7 +49,10 @@ function handleUnauthorized() {
 export async function request(path, options = {}) {
   const { method = 'GET', body, auth = false, service = 'account' } = options
 
-  const headers = { 'Content-Type': 'application/json' }
+  // FormData（文件上传，如识菜多图）不能手动设 Content-Type：
+  // 浏览器要自己补 multipart 的 boundary，手写 'application/json' 会让后端解析不出文件
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+  const headers = isForm ? {} : { 'Content-Type': 'application/json' }
 
   if (auth) {
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN)
@@ -65,7 +68,7 @@ export async function request(path, options = {}) {
     response = await fetch(fullUrl, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : (isForm ? body : JSON.stringify(body))
     })
   } catch (e) {
     throw new ApiError('无法连接服务器，请确认服务已启动（' + fullUrl + '）', 0)
@@ -394,6 +397,46 @@ export const DishApi = {
    */
   createManual(payload) {
     return request('/ai/dish/manual', { method: 'POST', body: payload, auth: true, service: 'dish' })
+  }
+}
+
+/* ============================================================
+   识菜（YOLO 图片识别 → 食材清单 → 用户勾选 → 一键生成）
+
+   流程：多图上传 → 后端调 Python YOLO 检测 → 两级映射聚合出食材清单 →
+   前端勾选 → 回填厨房生成表单（走 DishApi.generate 现有链路）。
+   设计文档：docs/yolo-vision-design.md
+   ============================================================ */
+
+export const VisionApi = {
+  /**
+   * 多图识别（**同步**，秒级返回；不是轮询任务）。
+   *
+   * @param {File[]} files 图片（≤9 张、单张 ≤10MB、仅 JPG/PNG，后端校验）
+   * @returns {Promise<VisionResult>} { requestId, costMs, images, candidates, unmappedLabels }
+   */
+  detect(files) {
+    const form = new FormData()
+    for (const file of files) {
+      form.append('files', file)
+    }
+    return request('/ai/vision/dishes', {
+      method: 'POST',
+      body: form,
+      auth: true,
+      service: 'dish'
+    })
+  },
+
+  /**
+   * 图片访问地址：后端返回的是相对业务路径（/uploads/vision/...），
+   * 这里按服务寻址拼成完整 URL —— 走网关得到 /api/dish/uploads/...，
+   * 直连得到 http://host:8082/uploads/...，两种模式都对
+   * （不写死 127.0.0.1，见 config.js 的迁移原则）。
+   */
+  imageUrl(path) {
+    if (!path) return ''
+    return AppConfig.serviceUrl('dish', path)
   }
 }
 
