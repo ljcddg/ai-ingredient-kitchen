@@ -65,7 +65,7 @@
 | `common-service` | — | 跨服务技术能力 | `Result<T>`、`BusinessException`、`JwtUtil`、全局 `Long → String` 序列化 |
 | `account-service` | 8081 | 账号与认证 | 注册 / 登录、BCrypt、Redisson 布隆过滤器、JWT 签发 |
 | `dish-service` | 8082 | **业务核心** | AI 任务队列与编排、检索、发布、互动、榜单、ES 同步 |
-| `ai-service` | 8090 | **推理中心**（Python） | 菜谱生成（提示词 + Ollama + 校验 + 重试）、营养计算、图片识菜（YOLO）；无状态，不连业务库，食材主数据随请求注入 |
+| `ai-service` | 8090 | **推理中心**（Python） | 菜谱生成（分段提示词 + 烹饪常识知识库 + Ollama + 校验 + 重试 + 依据校验）、营养计算、图片识菜（YOLO）；无状态，不连业务库，食材主数据随请求注入 |
 | `gateway` | 7000 | 统一入口 | JWT 鉴权过滤器、路由、CORS、`DedupeResponseHeader` |
 | `frontend-vue` | 5500 | 前端（Vue3 版） | 8 个页面（登录 / 工作台 / 识菜 / 详情 / 发现 / 榜单 / 我的 / 管理），`/api` 反向代理到网关 |
 | `order-service` | — | 预留未放开 | 父 pom 中处于注释状态 |
@@ -327,8 +327,10 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `project0914` | `t_dish_rating` / `t_dish_comment` | 评分（一人一票）/ 评论（可多条） |
 | `project0914` | `t_dish_collect` | 收藏（恢复式） |
 | `project0914` | `t_ai_generate_task` | AI 生成任务（状态机 + 去重 + 配额） |
-| `project0914` | `t_ai_generation_record` | 生成记录（模型 / 提示词版本 / 校验结果 / 原始输出截断），换模型后老结果仍可解释 |
+| `project0914` | `t_ai_generation_record` | 生成记录（模型 / 提示词版本 / 校验结果 / 原始输出截断 / **有据比例 faith** / 注入的知识条目），换模型后老结果仍可解释 |
 | `project0914` | `t_retrieval_decision` | **检索三档决策日志**（DIRECT / RAG_GENERATE / GENERATE_FRESH + 满足率 / 召回数 / 参考数 / 耗时），论文第 5 章"检索优先省了多少调用"的唯一证据来源 |
+| `project0914` | `t_ingredient_quantity_stats` | 用量分位（类别 × 人数档的 P10/P50/P90），离线脚本 `sql/build-stats.py` 生成，回答"这道菜该放多少肉" |
+| `project0914` | `t_ingredient_substitute` | 食材替代关系（同一类别热量接近 + 同类别共现两路来源），召回结果里"缺的那样能拿什么顶" |
 | `project0914` | `t_dish_push_log` | 推荐流推流日志（一人一菜一行，24 小时去重靠**查询条件**而非唯一键） |
 | `project0914` | `t_es_sync_task` | 索引同步待办（退避重试 + 人工补偿入口） |
 | `project0914` | `t_tag` / `t_dish_tag` | 标签 |
@@ -568,7 +570,8 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 | 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
 | 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
 | 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
-| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **56** 项（2026-10-17 通过，含识菜 7 项、提示词五段与失败分档 4 项）；dish-service **121** 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **72** 项（2026-10-17 通过，含识菜 7 项、提示词分段与失败分档 4 项、烹饪知识库 9 项、依据校验 7 项）；dish-service **132** 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 依据校验（faithfulness） | `ai-service/tests/test_grounding.py` + `t_ai_generation_record.faith` | 每条生成记录的 grounded / deviated / ungrounded 与有据比例 | 口径对齐 RAGAS 的 Answer Faithfulness：用量落在库内参考 **0.5~2 倍**算有据；`faith` 为 **NULL 表示判不了**（没参考/参考没用量），**不是 0 分**，统计时必须过滤 |
 | 手写菜谱重名拦截 | `dish-service` 的 `ManualDishWriterTest`（原 `verify-manual-dish.py` 已删除） | 12 个单元测试通过 | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」） |
 | 前端端到端（真实浏览器点按） | `frontend-vue/verify-vue.py` | **253 断言 / 0 失败** | 六个页面含管理台 + 手写菜谱（9i）+ 推荐页（9j）：断言前端**实际发出的请求体**（patch `fetch` 抓载荷），曾借此抓出管理台 10 个接口漏掉 `/ai` 前缀的真 bug |
 | 人工可操作性（盲评材料 + 汇总口径） | `es/eval/human-eval-kit.py` | `es/eval/human-eval/`（`blind-sheet.md` / `ratings-template.csv` / `answer-key.csv`，`score` 出 `human-eval-report.md`） | 工具已就绪并按假评分表验证过汇总与加权 kappa；**现有 7 条样本两臂各自困在一个提示词版本上，不能直接对比**，要下结论得补 B 臂样本 + ≥2 名真人评分 |
