@@ -1,6 +1,9 @@
 package com.apesource.dishservice.ai;
 
 import com.apesource.dishservice.dto.DishDraft;
+import com.apesource.dishservice.dto.IngredientRef;
+import com.apesource.dishservice.retrieval.RetrievalDecision;
+import com.apesource.dishservice.retrieval.RetrievalDecisionLogger;
 import com.apesource.dishservice.service.IngredientDirectory;
 import com.apesource.dishservice.service.IngredientSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,19 +44,22 @@ public class RemoteDishGenerator implements DishGenerator {
     private final ObjectMapper objectMapper;
     private final RemoteProperties remoteProperties;
     private final RestClient restClient;
+    private final RetrievalDecisionLogger decisionLogger;
 
     public RemoteDishGenerator(GenerateProperties properties,
                                ReferenceDishRetriever referenceRetriever,
                                IngredientDirectory directory,
                                ObjectMapper objectMapper,
                                RemoteProperties remoteProperties,
-                               RestClient aiServiceClient) {
+                               RestClient aiServiceClient,
+                               RetrievalDecisionLogger decisionLogger) {
         this.properties = properties;
         this.referenceRetriever = referenceRetriever;
         this.directory = directory;
         this.objectMapper = objectMapper;
         this.remoteProperties = remoteProperties;
         this.restClient = aiServiceClient;
+        this.decisionLogger = decisionLogger;
 
         log.info("远程生成器已启用：ai-service={}，读超时={}s",
                 remoteProperties.getBaseUrl(), remoteProperties.getReadTimeoutSeconds());
@@ -66,9 +72,16 @@ public class RemoteDishGenerator implements DishGenerator {
         // P2-1 参考菜谱增强：检索留在 Java（ES DSL 踩过坑不 duplicated），
         // 检索失败会返回空列表（见 ReferenceDishRetriever），不需要额外兜底。
         // 渲染进提示词是 Python 的事，这里只把参考列表传过去。
+        long retrieveStart = System.currentTimeMillis();
         List<ReferenceDishRetriever.Reference> references = properties.isEnhanceEnabled()
                 ? referenceRetriever.retrieve(input, properties.getReferenceLimit())
                 : List.of();
+        int retrieveCost = (int) (System.currentTimeMillis() - retrieveStart);
+
+        // 生成侧决策：真正喂给模型几条参考 = RAG 到底有没有生效。
+        // 与召回侧（SEARCH）是两条记录，用 query_hash 关联 ——
+        // 判了 RAG_GENERATE 却在这里变成 0 条参考，就是"判了没做到"。
+        recordGenerateDecision(input, references, retrieveCost);
 
         Map<String, Object> body = buildRequestBody(input, references);
 
@@ -130,6 +143,37 @@ public class RemoteDishGenerator implements DishGenerator {
     }
 
     // ------------------------------------------------------------------ 请求组装
+
+    /**
+     * 生成侧决策落库：这次到底带了几条参考进提示词。
+     *
+     * <p>只做记录，不参与任何业务判断 —— 参考条数为 0 也照常生成。
+     * 用户维度为空（{@code GenerateInput} 里没有 userId，生成是后台线程，
+     * 不为了一列统计去改整条链路的方法签名）；按 query_hash 与召回侧那条对齐即可。
+     */
+    private void recordGenerateDecision(GenerateInput input,
+                                        List<ReferenceDishRetriever.Reference> references,
+                                        int retrieveCostMs) {
+        if (input == null || input.ingredients() == null || input.ingredients().isEmpty()) {
+            return;
+        }
+        List<Long> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (IngredientRef ref : input.ingredients()) {
+            if (ref == null) {
+                continue;
+            }
+            if (ref.id() != null && ref.id() > 0) {
+                ids.add(ref.id());
+            } else if (ref.name() != null && !ref.name().isBlank()) {
+                names.add(ref.name().trim());
+            }
+        }
+        decisionLogger.logGenerate(null,
+                RetrievalDecisionLogger.queryHash(ids, names),
+                references.isEmpty() ? RetrievalDecision.GENERATE_FRESH : RetrievalDecision.RAG_GENERATE,
+                references.size(), true, retrieveCostMs);
+    }
 
     private Map<String, Object> buildRequestBody(GenerateInput input,
                                                  List<ReferenceDishRetriever.Reference> references) {

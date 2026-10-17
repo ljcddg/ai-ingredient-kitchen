@@ -27,6 +27,18 @@ public class DishRecallResult {
     private boolean directReturn;
 
     /**
+     * 三档检索决策：{@code DIRECT} / {@code RAG_GENERATE} / {@code GENERATE_FRESH}。
+     *
+     * <p>它是 {@link #directReturn} 的超集：<b>directReturn 为 true 必然 DIRECT</b>，
+     * 反过来不成立 —— RAG_GENERATE 也是"要生成"，但它带着库里的参考去生成，
+     * 比裸生成更不容易编。前端用它决定提示语（"库里有现成的" / "参考了相似菜" / "全新生成"）。
+     */
+    private String decision;
+
+    /** 决策的人话说明，直接可展示 */
+    private String decisionHint;
+
+    /**
      * 未直出的原因。directReturn=false 时给出，用于前端提示与线上排查。
      * 例：「最接近的『番茄炒蛋』只覆盖 2/3 种食材」
      */

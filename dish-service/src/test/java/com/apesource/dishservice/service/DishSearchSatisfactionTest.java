@@ -52,7 +52,10 @@ class DishSearchSatisfactionTest {
         repository = mock(DishSearchRepository.class);
         directory = mock(IngredientDirectory.class);
         properties = new EsProperties();
-        service = new DishSearchService(repository, properties, directory);
+        // 决策日志只做记录，不参与排序判定 —— 打桩成 mock 即可，
+        // 这里的用例断言的是"谁能直出"，不是"记了什么"
+        service = new DishSearchService(repository, properties, directory,
+                mock(com.apesource.dishservice.retrieval.RetrievalDecisionLogger.class));
 
         // 食材目录：只桩住用例用到的几个
         when(directory.resolveId("番茄")).thenReturn(TOMATO);

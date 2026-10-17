@@ -32,7 +32,7 @@ public class GenerateProperties {
      *
      * <p>0.7 是实测下来"有变化但不会跑偏"的值。再高会出现菜名怪异、步骤跳跃。
      */
-    private double temperature = 0.7;
+    private double temperature = 0.2;
 
     /**
      * 是否用库内相似菜谱做参考增强（说明文档 P2-1）。

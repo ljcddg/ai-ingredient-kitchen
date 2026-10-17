@@ -8,6 +8,8 @@ import com.apesource.dishservice.dto.DishSearchRequest;
 import com.apesource.dishservice.es.DishDoc;
 import com.apesource.dishservice.es.DishSearchRepository;
 import com.apesource.dishservice.es.RecalledDish;
+import com.apesource.dishservice.retrieval.RetrievalDecision;
+import com.apesource.dishservice.retrieval.RetrievalDecisionLogger;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,10 +82,22 @@ public class DishSearchService {
 
     private final IngredientDirectory directory;
 
+    private final RetrievalDecisionLogger decisionLogger;
+
     /**
-     * 按食材组合召回菜品。
+     * 按食材组合召回菜品（匿名调用，不记用户维度）。
      */
     public DishRecallResult search(DishSearchRequest request) {
+        return search(request, null);
+    }
+
+    /**
+     * 按食材组合召回菜品。
+     *
+     * @param userId 网关注入的用户 ID，只用于决策日志的用户维度统计，可为 null
+     */
+    public DishRecallResult search(DishSearchRequest request, Long userId) {
+        long startedAt = System.currentTimeMillis();
         // ---------- 1. 参数规范化（含别名归一化） ----------
         RequestedIngredients wanted = normalizeIngredients(
                 request.getIngredientIds(), request.getFreeIngredients());
@@ -124,11 +138,26 @@ public class DishSearchService {
         result.setMissReason(directReturn ? null
                 : buildMissReason(ranked, outcome.filteredOut(), wanted, constraints, esAvailable));
 
+        // ---------- 6. 三档决策 + 决策日志 ----------
+        // directReturn 只说"能不能不调模型"，决策档位还要回答"要不要带参考去生成"。
+        // 两者都保留：directReturn 是老接口的兼容字段，前端第一批改造不必跟着动。
+        double satisfaction = best == null ? 0d : best.getSatisfactionRate();
+        RetrievalDecision decision = RetrievalDecision.decide(directReturn, satisfaction, ranked.size());
+        result.setDecision(decision.name());
+        result.setDecisionHint(decision.hint());
+        decisionLogger.logSearch(userId,
+                RetrievalDecisionLogger.queryHash(wanted.ids(), wanted.names()),
+                decision, satisfaction,
+                best == null || best.getMatchedIngredients() == null ? 0 : best.getMatchedIngredients().size(),
+                best == null ? 0 : best.getMissingCount(),
+                recalled.size(), esAvailable,
+                (int) (System.currentTimeMillis() - startedAt));
+
         log.info("食材召回：所选 {} 种（主料 {}，表内 {} / 表外 {}，模式={}），"
-                        + "ES 召回 {} 条，约束筛掉 {} 条，可用 {} 条，直出={}{}",
+                        + "ES 召回 {} 条，约束筛掉 {} 条，可用 {} 条，直出={}，档位={}{}",
                 wanted.total(), wanted.mainTotal(), wanted.ids().size(), wanted.names().size(),
                 constraints.mode(), recalled.size(), outcome.filteredOut(), ranked.size(), directReturn,
-                directReturn ? "" : "（" + result.getMissReason() + "）");
+                decision, directReturn ? "" : "（" + result.getMissReason() + "）");
 
         return result;
     }
