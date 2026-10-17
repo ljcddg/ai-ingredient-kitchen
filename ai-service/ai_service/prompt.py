@@ -31,21 +31,29 @@ def md5_prefix(text: str) -> str:
 
 
 def build_user_prompt(request: GenerateRequest, directory: Directory,
-                      references: Optional[List[Reference]] = None) -> str:
-    """拼用户消息 —— 固定五段结构，只填字段，不塞自由文本。
+                      references: Optional[List[Reference]] = None,
+                      knowledge_block: str = "") -> str:
+    """拼用户消息 —— 固定分段结构，只填字段，不塞自由文本。
 
     为什么要把原来的"一句话 + 附加要求"改成固定段：小模型（gemma4:e2b）的
-    指令跟随很依赖结构线索，同一批信息按「可用食材 / 硬约束 / 参考菜谱 / 输出要求」
-    分段后，漏用食材与擅自加料的概率明显下降（RAG 方案 §3.3）。
+    指令跟随很依赖结构线索，同一批信息按
+    「可用食材 / 硬约束 / 烹饪常识 / 参考菜谱 / 输出要求」分段后，
+    漏用食材与擅自加料的概率明显下降（RAG 方案 §3.3）。
 
-    参考菜谱放在输出要求之前：顺序是"能给什么 → 不能干什么 → 参考长什么样 →
-    怎么输出"，越靠后越接近模型的下一步动作。
+    段的顺序是有讲究的，越靠后越接近模型的"下一步动作"：
+    能给什么 → 不能干什么 → 这一步该怎么做 → 别人怎么配的 → 怎么输出。
+    烹饪常识放在参考菜谱**之前**：先讲操作规程，再给搭配样例，
+    否则模型容易照着参考的配方抄，把常识当成废话。
     """
     blocks = [_ingredient_block(request, directory)]
 
     constraints_block = _constraints_block(request, directory)
     if constraints_block:
         blocks.append(constraints_block)
+
+    # 烹饪常识放在参考菜谱之前：先讲"这一步该怎么做"，再给"别人怎么配的"
+    if knowledge_block:
+        blocks.append(knowledge_block)
 
     reference_block = render_references(references)
     if reference_block:
@@ -166,8 +174,14 @@ def render_references(references: Optional[List[Reference]]) -> str:
     """把参考菜谱渲染成【参考菜谱】段；没有参考时返回空串。
 
     空串意味着提示词里连"参考"这两个字都不会出现，两臂（增强/不增强）的差别才干净。
-    只给名称、主料、口味、耗时和前几步要点，不给完整步骤与用量：
+
+    给什么、不给什么：
+      · 给——名称、口味、耗时、主料、**用量**、前几步做法要点；
+      · 不给——完整步骤、完整调料表。
     整段塞进去小模型会把它当答案照抄，参考是"灵感"而不是"标准答案"。
+
+    用量是后来补上的（依据校验需要它）：模型的"用量幻觉"多半来自没有可抄的数，
+    给了具体克数后它更倾向于在量级内调整，而不是凭空编一个 300g。
     """
     if not references:
         return ""
@@ -183,9 +197,24 @@ def render_references(references: Optional[List[Reference]]) -> str:
             line += "｜主料：" + "、".join(ref.mains)
         if ref.missing:
             line += "（其中你手上没有：" + "、".join(ref.missing) + "）"
+        if ref.amounts:
+            # 用量写进参考：模型的"用量幻觉"多半来自没有可抄的数，
+            # 给了具体克数后它更倾向于在量级内调整，而不是凭空编一个 300g
+            pairs = [f"{a.name} {_fmt_gram(a.amount_gram)}g" for a in ref.amounts
+                     if a.name and a.amount_gram]
+            if pairs:
+                line += "｜用量：" + "、".join(pairs)
         if ref.step_hints:
             line += "｜做法要点：" + " / ".join(ref.step_hints)
         lines.append(line)
 
     lines.append("必须自己写一道新菜，菜名不得与上面任何一道相同；用户的条件与手上的食材优先于参考。")
     return "\n".join(lines)
+
+
+def _fmt_gram(value) -> str:
+    """克数取整显示：参考菜谱是给人看的，不需要小数点。"""
+    try:
+        return str(int(round(float(value))))
+    except (TypeError, ValueError):
+        return str(value)

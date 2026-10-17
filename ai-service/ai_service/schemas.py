@@ -296,6 +296,14 @@ class DirectoryEntry:
 
 
 @dataclass
+class ReferenceAmount:
+    """参考菜谱里某样食材的用量（grounding 校验的依据）。"""
+
+    name: str = ""
+    amount_gram: Optional[float] = None
+
+
+@dataclass
 class Reference:
     """一条参考菜谱的可用片段（dish-service 检索好后传过来，Python 只负责渲染）。"""
 
@@ -306,6 +314,8 @@ class Reference:
     taste_tags: List[str] = field(default_factory=list)
     cook_time_min: Optional[int] = None
     step_hints: List[str] = field(default_factory=list)
+    # 带用量的食材明细：既写进提示词（让模型有可抄的量），也供 grounding 校验
+    amounts: List[ReferenceAmount] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, raw: dict) -> "Reference":
@@ -317,13 +327,17 @@ class Reference:
             taste_tags=as_str_list(raw.get("tasteTags")) or [],
             cook_time_min=as_int(raw.get("cookTimeMin")),
             step_hints=as_str_list(raw.get("stepHints")) or [],
+            amounts=[
+                ReferenceAmount(as_str(a.get("name")) or "", as_float(a.get("amountGram")))
+                for a in (raw.get("amounts") or []) if isinstance(a, dict)
+            ],
         )
 
 
 @dataclass
 class GenerateOptions:
     model: str = "gemma4:e2b"
-    temperature: float = 0.7
+    temperature: float = 0.2
     max_attempts: int = 2
     timeout_seconds: int = 600
 

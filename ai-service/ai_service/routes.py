@@ -79,6 +79,8 @@ def generate():
     return jsonify({
         "ok": True,
         "draft": result.draft.to_dict(),
+        # 依据校验：null 表示这次判不了（没参考/参考没用量），不是"0 分"
+        "attribution": result.attribution.to_dict() if result.attribution else None,
         "nutritionVerified": result.nutrition_verified,
         "localNutrition": result.local_nutrition.to_dict(),
         "attempts": result.attempts,

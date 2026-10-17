@@ -26,9 +26,10 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from . import nutrition, ollama_client
+from . import grounding, nutrition, ollama_client
 from .config import Config
 from .directory import Directory
+from .knowledge import CookingKnowledge, categories_of
 from .prompt import build_user_prompt, load_system_prompt
 from .schemas import (Constraints, DishDraft, GenerateRequest, IngredientRef)
 from .validator import DraftValidator, ValidationResult
@@ -77,6 +78,7 @@ class GenerationMeta:
     temperature: float
     max_attempts: int
     reference_dish_ids: List[int] = field(default_factory=list)
+    knowledge_rule_ids: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -86,6 +88,7 @@ class GenerationMeta:
             "maxAttempts": self.max_attempts,
             # ID 一律字符串传输（项目铁律：Long 序列化成字符串）
             "referenceDishIds": [str(i) for i in self.reference_dish_ids],
+            "knowledgeRuleIds": list(self.knowledge_rule_ids),
         }
 
 
@@ -99,6 +102,8 @@ class GenerateResult:
     validation: ValidationResult
     meta: GenerationMeta
     local_nutrition: nutrition.Result
+    # 依据校验结果：参考为空/参考无用量时为 None（判不了，不能记 0 分）
+    attribution: Optional[grounding.Attribution] = None
 
 
 class DishGenerator:
@@ -112,6 +117,8 @@ class DishGenerator:
         # 还会把单次调用拖到超时。超出的请求在信号量上排队。
         self.model_gate = threading.BoundedSemaphore(
             max(1, config.concurrency.max_parallel_model_calls))
+        # 知识库只读一次：十几条规则的词面匹配，比每次读盘便宜得多
+        self.knowledge = CookingKnowledge()
         logger.info("生成器已就绪：模型=%s，提示词版本=%s，最大尝试=%d，超时=%ds",
                     config.ollama.model, self.prompt_version,
                     config.generate.max_attempts,
@@ -131,7 +138,14 @@ class DishGenerator:
             logger.info("本次生成注入 %d 条参考菜谱：%s", len(references),
                         [ref.name for ref in references])
 
-        user_prompt = build_user_prompt(request, directory, references)
+        # 烹饪常识：按本次食材类别与口味召回，只取最相关的几条
+        rules = self.knowledge.select(
+            categories_of(directory, request.ingredients), request.tastes or [])
+        knowledge_block = self.knowledge.render(rules)
+        if rules:
+            logger.info("本次注入烹饪常识 %d 条：%s", len(rules), [r.get("id") for r in rules])
+
+        user_prompt = build_user_prompt(request, directory, references, knowledge_block)
         required_names = [ref.name.strip() for ref in request.ingredients
                           if ref.name is not None and ref.name.strip()]
 
@@ -148,7 +162,8 @@ class DishGenerator:
         last_tier: Optional[str] = None
         attempts = max(1, options.max_attempts)
         meta = GenerationMeta(options.model, self.prompt_version,
-                              options.temperature, attempts, reference_ids)
+                              options.temperature, attempts, reference_ids,
+                              [str(r.get("id")) for r in rules])
 
         for attempt in range(1, attempts + 1):
             logger.info("第 %d/%d 次：调用模型%s", attempt, attempts,
@@ -184,8 +199,18 @@ class DishGenerator:
                 logger.info("第 %d/%d 次生成通过校验：name=%s，耗时 %d ms，营养校验=%s",
                             attempt, attempts, draft.name, cost_ms, nutrition_verified)
                 logger.info("本地营养：%s", nutrition.describe(local))
+
+                # 依据校验：只在结果出来后给可信度结论，不影响成败
+                attribution = grounding.assess(draft, references, directory)
+                if attribution is not None:
+                    logger.info("依据校验：%s", attribution.summary())
+                    if attribution.low_confidence():
+                        logger.warning("依据校验判定低可信（无据比例超过 %.0f%%）：%s",
+                                       grounding.LOW_CONFIDENCE_UNGROUNDED * 100,
+                                       attribution.summary())
+
                 return GenerateResult(draft, nutrition_verified, cost_ms, attempt,
-                                      json_text, validation, meta, local)
+                                      json_text, validation, meta, local, attribution)
 
             last_problems = validation.problems
             last_validation = validation
