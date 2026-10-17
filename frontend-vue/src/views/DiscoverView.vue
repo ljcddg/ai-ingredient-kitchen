@@ -352,38 +352,65 @@ function conditions() {
 
 /* ---------------- 加载 ---------------- */
 
+/**
+ * 请求序号：连点筛选时可能同时有多个请求在飞，
+ * 只有最后一次发出的那个结果有资格写进页面 —— 否则会出现
+ * "选了 30 分钟，页面却显示上一次不限时的结果"。
+ */
+let requestSeq = 0
+
 async function loadBrowse(p) {
-  if (loading.value) return
+  const seq = ++requestSeq
   loading.value = true
   if (p === 1) view.value = 'skeleton'
   try {
     const data = await DishApi.discoverBrowse(conditions(), p, PAGE_SIZE)
-    items.value = data.items || []
+    if (seq !== requestSeq) return
+    // 「再看一批」必须追加，不能替换：原来的写法会把上一批整段冲掉，
+    // 用户点第二页等于"从头再来"，前面的菜白看了
+    const list = data.items || []
+    items.value = p === 1 ? list : mergeUnique(items.value, list)
     total.value = data.total || 0
     page.value = p
     view.value = items.value.length ? 'list' : 'empty'
   } catch (e) {
+    if (seq !== requestSeq) return
     errorMessage.value = e.message || '未知错误'
     view.value = 'error'
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
 }
 
+/** 按 id 去重追加：后端分页边界偶尔会漏出重复项（排序抖动） */
+function mergeUnique(base, extra) {
+  const ids = new Set(base.map(i => i.id))
+  const merged = base.slice()
+  for (const item of extra) {
+    if (!ids.has(item.id)) {
+      ids.add(item.id)
+      merged.push(item)
+    }
+  }
+  return merged
+}
+
 async function loadDecide(offset) {
-  if (loading.value) return
+  const seq = ++requestSeq
   loading.value = true
   if (offset === 0) view.value = 'skeleton'
   try {
     const list = await DishApi.discoverDecide(conditions(), offset) || []
+    if (seq !== requestSeq) return
     pool.value = list
     decideIndex.value = 0
     view.value = list.length ? 'list' : 'empty'
   } catch (e) {
+    if (seq !== requestSeq) return
     errorMessage.value = e.message || '未知错误'
     view.value = 'error'
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
 }
 
@@ -398,7 +425,19 @@ function reload() {
 
 function switchMode(next) {
   if (mode.value === next) return
+  const previous = mode.value
   mode.value = next
+
+  // 浏览 → 决策：列表里已经有一批了，直接拿它当池子。
+  // 这样"切过去看到的第一道"必然就是列表里排第一的那道（和后端同一套排序），
+  // 也省掉一次十几条的打分请求。
+  if (next === 'decide' && previous === 'browse' && items.value.length) {
+    const fresh = items.value.filter(i => !seen.has(i.id))
+    pool.value = fresh.length ? fresh : items.value
+    decideIndex.value = 0
+    view.value = 'list'
+    return
+  }
   reload()
 }
 
@@ -412,13 +451,21 @@ function nextPage() {
  *
  * 从这一批里取下一位，不是重新请求 —— 每次重算会因为排序的微小抖动
  * （比如刚好有人打了分）重复出同一道菜。这批用完了再取下一批。
+ *
+ * 这一轮已经点进去看过的菜（{@link markSeen}）要跳过：
+ * 用户点过又回来点"换一个"，还是同一道会很莫名其妙。
  */
 function nextDish() {
-  if (decideIndex.value + 1 < pool.value.length) {
-    decideIndex.value += 1
+  let i = decideIndex.value
+  while (i + 1 < pool.value.length && seen.has(pool.value[i + 1].id)) {
+    i += 1
+  }
+  if (i + 1 < pool.value.length) {
+    decideIndex.value = i + 1
     return
   }
-  loadDecide(pool.value.length ? decideIndex.value + 1 : 0)
+  // 整批都看过了：按已消费的条数取下一批
+  loadDecide(pool.value.length)
 }
 
 /** 点进去之前记一下，避免"换一个"转回来还是它（仅本次会话有效） */

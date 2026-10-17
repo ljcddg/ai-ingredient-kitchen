@@ -352,8 +352,12 @@
             </div>
             <div v-else class="banner warn">
               <div>
-                <p class="banner-title">暂时没有现成的搭配</p>
+                <!-- 三档决策：RAG_GENERATE 说明"库里有相似菜可以参照"，比笼统的"没有现成的"更有信息量 -->
+                <p class="banner-title">
+                  {{ result.decision === 'RAG_GENERATE' ? '没有现成的，但找到了相似的' : '暂时没有现成的搭配' }}
+                </p>
                 <p v-if="result.missReason" class="banner-text">{{ result.missReason }}</p>
+                <p v-if="result.decisionHint" class="banner-text">{{ result.decisionHint }}</p>
               </div>
             </div>
 

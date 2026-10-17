@@ -276,11 +276,11 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .page-discover .dish-card {
-  padding: 14px 16px;
+  padding: 10px 12px;
   background: var(--glass);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
@@ -296,7 +296,7 @@
 }
 
 .page-discover .dish-name {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 500;
   color: var(--ink);
   text-decoration: none;
@@ -308,8 +308,8 @@
 
 .page-discover .badge {
   flex: none;
-  padding: 2px 9px;
-  font-size: 12px;
+  padding: 1px 8px;
+  font-size: 11.5px;
   border-radius: 999px;
 }
 
@@ -330,14 +330,14 @@
 }
 
 .page-discover .dish-reason {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: 5px 0 0;
+  font-size: 12.5px;
   color: var(--ink-2);
 }
 
 .page-discover .dish-miss {
-  margin: 6px 0 0;
-  font-size: 13px;
+  margin: 4px 0 0;
+  font-size: 12.5px;
   color: var(--ink-3);
   line-height: 1.6;
 }
@@ -349,13 +349,13 @@
 .page-discover .dish-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 5px;
+  margin-top: 7px;
 }
 
 .page-discover .tag {
-  padding: 2px 8px;
-  font-size: 12px;
+  padding: 1px 6px;
+  font-size: 11.5px;
   color: var(--ink-3);
   background: var(--surface-2);
   border-radius: 6px;
@@ -375,7 +375,7 @@
 }
 
 .page-discover .decide-card {
-  padding: 28px 24px;
+  padding: 20px 16px;
   text-align: center;
   background: var(--glass);
   backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
@@ -386,14 +386,14 @@
 }
 
 .page-discover .decide-name {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 500;
   color: var(--ink);
 }
 
 .page-discover .decide-reason {
-  margin: 12px 0 0;
-  font-size: 14px;
+  margin: 8px 0 0;
+  font-size: 13.5px;
   color: var(--accent);
 }
 
@@ -412,12 +412,12 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 5px;
+  margin-top: 10px;
 }
 
 .page-discover .decide-count {
-  margin: 16px 0 0;
+  margin: 12px 0 0;
   font-size: 12px;
   color: var(--ink-3);
 }
