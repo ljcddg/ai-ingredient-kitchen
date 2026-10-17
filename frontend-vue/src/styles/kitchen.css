@@ -496,6 +496,22 @@
 .page-kitchen .banner-title{ font-weight: 600; font-size: 13.5px; }
 .page-kitchen .banner-text{ margin: 3px 0 0; font-size: 13px; }
 
+/* 放宽建议：确实可执行的几条，用列表而不是逗号串 —— 三条以上串成一行读不动 */
+.page-kitchen .relax-list{
+    margin: 7px 0 0;
+    padding-left: 17px;
+    font-size: 12.5px;
+    line-height: 1.7;
+}
+.page-kitchen .relax-list li{ list-style: disc; }
+
+/* 替代建议：一行小字，压在主卡片命中率下面，不能抢主信息的视觉层级 */
+.page-kitchen .subst-hint{
+    margin: 5px 0 0;
+    font-size: 12.5px;
+    color: var(--text-2);
+}
+
 .page-kitchen .banner.ok{ background: var(--ok-soft); border-color: color-mix(in srgb, var(--ok) 26%, transparent); }
 .page-kitchen .banner.ok .banner-title, .page-kitchen .banner.ok .banner-text{ color: var(--ok); }
 

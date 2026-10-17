@@ -358,6 +358,10 @@
                 </p>
                 <p v-if="result.missReason" class="banner-text">{{ result.missReason }}</p>
                 <p v-if="result.decisionHint" class="banner-text">{{ result.decisionHint }}</p>
+                <!-- ⑩ 放宽建议：每条都对应一个真实筛选项，点了就能少看几条限制 -->
+                <ul v-if="result.relaxHints && result.relaxHints.length" class="relax-list">
+                  <li v-for="(hint, hi) in result.relaxHints" :key="hi">{{ hint }}</li>
+                </ul>
               </div>
             </div>
 
@@ -383,6 +387,9 @@
                   主料满足 {{ Math.round((result.best.satisfactionRate || 0) * 100) }}%
                 </span>
               </div>
+              <p v-if="substituteHint(result.substitutes)" class="subst-hint">
+                缺的能换：{{ substituteHint(result.substitutes) }}
+              </p>
               <p v-if="result.best.reason" class="cand-sub">{{ result.best.reason }}</p>
               <div class="dish-stats">
                 <div v-if="result.best.ratingCount > 0">
@@ -721,6 +728,22 @@ function missingText(item) {
   if (n <= 0) return '主料齐了'
   const names = (item.missingIngredients || []).join('、')
   return names ? ('还差 ' + names) : ('还差 ' + n + ' 样主料')
+}
+
+/**
+ * 替代建议渲染成一行字：「豆腐→豆干/千张，香菜→葱花」。
+ *
+ * 后端只在"还缺的主料"上给替代（`substitutes`：缺的那样 → 可顶上的几样），
+ * 所以这里不需要判断上下文，有就展示。最多两样、每样最多两个候选 ——
+ * 这行是"顺手提示"，不是采购清单，太长会把主卡片挤变形。
+ */
+function substituteHint(map) {
+  if (!map) return ''
+  return Object.entries(map)
+    .filter(([, subs]) => Array.isArray(subs) && subs.length)
+    .slice(0, 2)
+    .map(([missing, subs]) => missing + '→' + subs.slice(0, 2).join('/'))
+    .join('，')
 }
 
 const loading = ref(false)         // 召回请求进行中
