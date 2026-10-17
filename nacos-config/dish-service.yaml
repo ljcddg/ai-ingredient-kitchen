@@ -86,8 +86,8 @@ ai:
     #   remote = Python ai-service（Flask，默认 http://127.0.0.1:8090）
     # 启动前先确认 ai-service 已起（GET http://127.0.0.1:8090/health）
     mode: remote
-    # 生成温度。实测 0.7 有变化但不跑偏
-    temperature: 0.7
+    # 生成温度。0.2 = 低温：结构化 JSON 输出更稳、重试率更低（RAG 方案 §3.3）
+    temperature: 0.2
     # （nutrition-tolerance 已删：营养偏差校验随推理迁到了 ai-service 的 config.yaml）
     # P2-1 参考菜谱增强：生成前检索库内相似菜谱作为参考注入提示词。
     # 做对照实验时把它切成 false 就是"直接生成"那一臂

@@ -113,3 +113,68 @@ def test_retries_once_then_fails_with_constraint_hint(generator, monkeypatch):
     assert exc_info.value.attempts == 2
     assert "JSON 无法解析" in (exc_info.value.raw_output or "") or True  # rawOutput 是模型原文
     assert exc_info.value.raw_output == "这不是 JSON"
+
+
+def test_failure_tier_is_format_fail_when_json_broken(generator, monkeypatch):
+    """失败分档：连 JSON 都没写对 → FORMAT_FAIL；这次没参考 → retrieval_miss=True。
+
+    分档的意义在于"该往哪使劲"：FORMAT_FAIL 要改提示词/约束解码，
+    CONSTRAINT_FAIL 要改约束表达；混成一个失败率就看不出来了。
+    """
+    monkeypatch.setattr(ollama_client, "chat", lambda **kwargs: "仍然不是 JSON")
+
+    with pytest.raises(DishGenerationException) as exc_info:
+        generator.generate(make_request(GenerateOptions(max_attempts=2)))
+
+    assert exc_info.value.tier == "FORMAT_FAIL"
+    assert exc_info.value.retrieval_miss is True
+
+
+def test_failure_tier_is_constraint_fail_when_rules_broken(generator, monkeypatch):
+    """约束类问题 → CONSTRAINT_FAIL（哪怕格式是好的）。"""
+    monkeypatch.setattr(ollama_client, "chat", lambda **kwargs: "{}")
+    monkeypatch.setattr(
+        "ai_service.validator.DraftValidator.validate_detailed",
+        lambda self, draft, request: ValidationResult(
+            ["没有用上用户提供的食材：鸡蛋"], ["没有用上用户提供的食材：鸡蛋"]))
+
+    with pytest.raises(DishGenerationException) as exc_info:
+        generator.generate(make_request(GenerateOptions(max_attempts=1)))
+
+    assert exc_info.value.tier == "CONSTRAINT_FAIL"
+    assert "鸡蛋" in (exc_info.value.message + "".join(exc_info.value.validation.problems))
+
+
+def test_user_prompt_uses_five_fixed_sections(generator):
+    """用户消息固定五段：可用食材 / 硬约束 / 参考菜谱 / 输出要求，顺序不能乱。"""
+    from ai_service.prompt import build_user_prompt
+    from ai_service.directory import Directory
+    from ai_service.schemas import Constraints, Reference
+
+    request = make_request()
+    request.constraints = Constraints(must_use_names=["番茄"], max_cook_time_min=30)
+    references = [Reference(dish_id=1, name="番茄炒蛋", mains=["番茄", "鸡蛋"],
+                            cook_time_min=15, step_hints=["先炒蛋"])]
+
+    prompt = build_user_prompt(request, Directory(SNAPSHOT_ENTRIES), references)
+
+    assert "【可用食材】" in prompt
+    assert "【硬约束】" in prompt
+    assert "【参考菜谱】" in prompt
+    assert "【输出要求】" in prompt
+    # 顺序：参考必须在输出要求之前（越靠后越接近模型下一步动作）
+    assert prompt.index("【可用食材】") < prompt.index("【硬约束】") < prompt.index("【参考菜谱】") < prompt.index("【输出要求】")
+    # 有 ID 的食材带上 ID，避免模型把「番茄」「西红柿」当两种料
+    assert "番茄(ID:101)" in prompt
+    assert "人数：2 人" in prompt
+
+
+def test_user_prompt_has_no_reference_block_when_empty(generator):
+    """没有参考时整段消失 —— 两臂（增强/不增强）的差别必须干净。"""
+    from ai_service.prompt import build_user_prompt
+    from ai_service.directory import Directory
+
+    prompt = build_user_prompt(make_request(), Directory(SNAPSHOT_ENTRIES), [])
+
+    assert "【参考菜谱】" not in prompt
+    assert "【输出要求】" in prompt

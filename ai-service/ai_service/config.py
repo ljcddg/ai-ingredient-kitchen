@@ -27,7 +27,7 @@ class OllamaConfig:
 
 @dataclass
 class GenerateConfig:
-    temperature: float = 0.7
+    temperature: float = 0.2
     max_attempts: int = 2
     attempt_timeout_seconds: int = 600
     nutrition_tolerance: float = 0.4

@@ -50,10 +50,14 @@ def generate():
     try:
         result = _generator().generate(req)
     except DishGenerationException as e:
-        logger.warning("生成失败（%s，尝试 %d 次）：%s", e.kind, e.attempts, e.message)
+        logger.warning("生成失败（%s / %s，尝试 %d 次，参考缺失=%s）：%s",
+                       e.kind, e.tier, e.attempts, e.retrieval_miss, e.message)
         return jsonify({
             "ok": False,
             "errorKind": e.kind,
+            # 失败分档：FORMAT_FAIL / CONSTRAINT_FAIL，无参考时为 null
+            "failureTier": e.tier,
+            "retrievalMiss": e.retrieval_miss,
             "error": e.message,
             "attempts": e.attempts,
             "rawOutput": e.raw_output,

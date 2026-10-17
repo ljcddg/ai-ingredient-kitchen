@@ -30,23 +30,103 @@ def md5_prefix(text: str) -> str:
     return digest[:8]
 
 
-def build_user_prompt(request: GenerateRequest, directory: Directory) -> str:
-    """拼用户消息。格式与 dish-service/verify-prompt.py 里实测过的保持一致。"""
-    names = "、".join(ref.name.strip() for ref in request.ingredients
-                     if ref.name is not None and ref.name.strip())
-    taste = "、".join(request.tastes) if request.tastes else "不限"
+def build_user_prompt(request: GenerateRequest, directory: Directory,
+                      references: Optional[List[Reference]] = None) -> str:
+    """拼用户消息 —— 固定五段结构，只填字段，不塞自由文本。
 
-    parts = [f"食材：{names}；口味：{taste}；人数：{request.servings} 人"]
-    parts.append(append_constraints(request.constraints, directory))
-    return "".join(parts)
+    为什么要把原来的"一句话 + 附加要求"改成固定段：小模型（gemma4:e2b）的
+    指令跟随很依赖结构线索，同一批信息按「可用食材 / 硬约束 / 参考菜谱 / 输出要求」
+    分段后，漏用食材与擅自加料的概率明显下降（RAG 方案 §3.3）。
+
+    参考菜谱放在输出要求之前：顺序是"能给什么 → 不能干什么 → 参考长什么样 →
+    怎么输出"，越靠后越接近模型的下一步动作。
+    """
+    blocks = [_ingredient_block(request, directory)]
+
+    constraints_block = _constraints_block(request, directory)
+    if constraints_block:
+        blocks.append(constraints_block)
+
+    reference_block = render_references(references)
+    if reference_block:
+        blocks.append(reference_block)
+
+    # 输出要求里提到什么，取决于这次到底有没有参考 ——
+    # 没有参考却写着"用量与参考菜谱不同时说明理由"，模型会去找一段不存在的参考。
+    blocks.append(OUTPUT_BLOCK_WITH_REF if reference_block else OUTPUT_BLOCK_NO_REF)
+    return "\n\n".join(blocks)
+
+
+def _ingredient_block(request: GenerateRequest, directory: Directory) -> str:
+    """可用食材：名字为主、有主数据 ID 的附在后面。
+
+    名字是不能少的 —— 校验器按名字与别名比对；ID 只是让模型知道
+    "这两样是同一个东西"，避免它写"西红柿"又写"番茄"当成两种料。
+    """
+    labels: List[str] = []
+    for ref in request.ingredients:
+        if ref is None or ref.name is None or not ref.name.strip():
+            continue
+        name = ref.name.strip()
+        labels.append(f"{name}(ID:{ref.id})" if ref.id and ref.id > 0 else name)
+    used = "、".join(labels) if labels else "（未提供）"
+    return f"【可用食材】{used}"
+
+
+def _constraints_block(request: GenerateRequest, directory: Directory) -> str:
+    """硬约束：一条一行，没提的不出现（空段会让模型误以为有要求）。"""
+    constraints = request.constraints
+    items: List[str] = []
+
+    if constraints is not None:
+        must_use = must_use_labels(constraints, directory)
+        if must_use:
+            items.append("必用：" + "、".join(must_use))
+
+        # 保序去重：名字在前、ID 翻出来的名字在后（与 Java LinkedHashSet 同序）
+        excludes = list(dict.fromkeys(constraints.exclude_names))
+        for ingredient_id in constraints.exclude_ids:
+            name = directory.name_of(ingredient_id)
+            excludes.append(name if name is not None else f"食材#{ingredient_id}")
+        excludes = list(dict.fromkeys(excludes))
+        if excludes:
+            items.append("绝对不能用（过敏或忌口）：" + "、".join(excludes))
+
+        if constraints.max_cook_time_min is not None:
+            items.append(f"总耗时不超过 {constraints.max_cook_time_min} 分钟（备菜 + 下锅）")
+
+        if constraints.equipment_names:
+            items.append("只能用这些厨具：" + "、".join(constraints.equipment_names))
+
+    items.append(f"人数：{request.servings} 人")
+    if request.tastes:
+        items.append("口味：" + "、".join(request.tastes))
+
+    return "【硬约束】\n- " + "\n- ".join(items)
+
+
+# 输出要求写在最后一段：模型对"最后看到的要求"最敏感。
+# 两个版本只差"配料表允许来自哪里"这一句 —— 有参考时可以借用参考里的食材，
+# 没参考时必须严格只用【可用食材】，否则等于默许模型自己加料。
+_OUTPUT_HEAD = (
+    "【输出要求】只输出一个 JSON 对象（第一个字符是 {，最后一个字符是 }）；"
+    "不要输出本段或上面任何【】标签文字；"
+)
+
+OUTPUT_BLOCK_WITH_REF = (
+    _OUTPUT_HEAD
+    + "配料表里的每一项必须来自【可用食材】或【参考菜谱】，不要自己加料；"
+    "用量若与参考菜谱不同，在 chefTips 里写一句理由。"
+)
+
+OUTPUT_BLOCK_NO_REF = (
+    _OUTPUT_HEAD
+    + "配料表里的每一项必须来自【可用食材】，不要自己加料，也不要引入没提到的食材。"
+)
 
 
 def append_constraints(constraints: Constraints, directory: Directory) -> str:
-    """把用户约束原样写进提示词。
-
-    约束必须"既进提示词、又进校验器"：只在提示词里说，模型可以不理；
-    只在校验器里卡，模型第一次几乎必然踩雷、白跑一轮重试。
-    """
+    """把用户约束写进提示词（保留给旧调用方，格式为由 _constraints_block 统一生成）。"""
     if constraints is None or constraints.no_constraint():
         return ""
 
@@ -83,7 +163,7 @@ def must_use_labels(constraints: Constraints, directory: Directory) -> List[str]
 
 
 def render_references(references: Optional[List[Reference]]) -> str:
-    """把参考菜谱渲染成提示词里的一段；没有参考时返回空串。
+    """把参考菜谱渲染成【参考菜谱】段；没有参考时返回空串。
 
     空串意味着提示词里连"参考"这两个字都不会出现，两臂（增强/不增强）的差别才干净。
     只给名称、主料、口味、耗时和前几步要点，不给完整步骤与用量：
@@ -92,7 +172,7 @@ def render_references(references: Optional[List[Reference]]) -> str:
     if not references:
         return ""
 
-    lines = ["\n\n## 库内相似菜谱（仅供参考，不是答案）\n"]
+    lines = ["【参考菜谱】（库内相似菜，只作灵感，不是答案）"]
     for index, ref in enumerate(references, 1):
         line = f"{index}. {ref.name or ''}"
         if ref.taste_tags:
@@ -105,8 +185,7 @@ def render_references(references: Optional[List[Reference]]) -> str:
             line += "（其中你手上没有：" + "、".join(ref.missing) + "）"
         if ref.step_hints:
             line += "｜做法要点：" + " / ".join(ref.step_hints)
-        lines.append(line + "\n")
+        lines.append(line)
 
-    lines.append("以上只是本地库里的同类菜，用来参考搭配与手法：**必须自己写一道新菜**，"
-                 "菜名不得与上面任何一道相同；用户的条件与手上的食材优先于参考。\n")
-    return "".join(lines)
+    lines.append("必须自己写一道新菜，菜名不得与上面任何一道相同；用户的条件与手上的食材优先于参考。")
+    return "\n".join(lines)

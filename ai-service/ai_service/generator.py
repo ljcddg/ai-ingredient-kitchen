@@ -29,8 +29,7 @@ from typing import List, Optional
 from . import nutrition, ollama_client
 from .config import Config
 from .directory import Directory
-from .prompt import (build_user_prompt, load_system_prompt, md5_prefix,
-                     render_references)
+from .prompt import build_user_prompt, load_system_prompt
 from .schemas import (Constraints, DishDraft, GenerateRequest, IngredientRef)
 from .validator import DraftValidator, ValidationResult
 
@@ -38,11 +37,21 @@ logger = logging.getLogger(__name__)
 
 
 class DishGenerationException(Exception):
-    """生成失败。kind 决定 Java 侧 error_msg 的归因与用户可见信息。"""
+    """生成失败。kind 决定 Java 侧 error_msg 的归因与用户可见信息。
+
+    ``tier`` 是比 kind 更细的一层：kind 说"哪一类失败"（超时 / 校验耗尽），
+    tier 说"校验耗尽里具体卡在哪"（FORMAT_FAIL / CONSTRAINT_FAIL）。
+    论文第 5 章要报的失败分档就落在这个字段上。
+
+    ``retrieval_miss`` 表示这次生成压根没有参考菜谱可注入 ——
+    它决定这次失败该不该算进"RAG 效果"里（没有参考的失败是冷启动的代价，
+    不能拿来证明"检索没用"）。
+    """
 
     def __init__(self, message: str, kind: str, attempts: int,
                  raw_output: Optional[str], validation: Optional[ValidationResult],
-                 meta: "GenerationMeta"):
+                 meta: "GenerationMeta", tier: Optional[str] = None,
+                 retrieval_miss: bool = False):
         super().__init__(message)
         self.message = message
         self.kind = kind
@@ -50,6 +59,8 @@ class DishGenerationException(Exception):
         self.raw_output = raw_output
         self.validation = validation
         self.meta = meta
+        self.tier = tier
+        self.retrieval_miss = retrieval_miss
 
 
 @dataclass
@@ -120,7 +131,7 @@ class DishGenerator:
             logger.info("本次生成注入 %d 条参考菜谱：%s", len(references),
                         [ref.name for ref in references])
 
-        user_prompt = build_user_prompt(request, directory) + render_references(references)
+        user_prompt = build_user_prompt(request, directory, references)
         required_names = [ref.name.strip() for ref in request.ingredients
                           if ref.name is not None and ref.name.strip()]
 
@@ -132,6 +143,9 @@ class DishGenerator:
         last_problems: List[str] = []
         last_raw_output: Optional[str] = None
         last_validation: Optional[ValidationResult] = None
+        # 最后一次失败落在哪一档：FORMAT_FAIL（连 JSON 都没写对）/ CONSTRAINT_FAIL（没听用户的话）。
+        # 这个区分决定"该改提示词还是该改约束表达"，也是论文里失败分档的原始数据。
+        last_tier: Optional[str] = None
         attempts = max(1, options.max_attempts)
         meta = GenerationMeta(options.model, self.prompt_version,
                               options.temperature, attempts, reference_ids)
@@ -154,6 +168,7 @@ class DishGenerator:
                 last_problems = [f"输出的 JSON 无法解析：{ollama_client.brief(e)}"]
                 # 解析不了就是纯粹的格式问题，约束根本没机会被判
                 last_validation = ValidationResult(last_problems, [])
+                last_tier = "FORMAT_FAIL"
                 logger.warning("第 %d/%d 次：JSON 解析失败 - %s",
                                attempt, attempts, ollama_client.brief(e))
                 continue
@@ -174,6 +189,9 @@ class DishGenerator:
 
             last_problems = validation.problems
             last_validation = validation
+            # 有约束类问题就归 CONSTRAINT_FAIL（该改的是约束表达/回注具体项）；
+            # 只有格式问题才是 FORMAT_FAIL（该改的是提示词或约束解码）
+            last_tier = "CONSTRAINT_FAIL" if validation.constraint_problems else "FORMAT_FAIL"
             logger.warning("第 %d/%d 次生成未通过校验（格式问题 %d 项 / 约束问题 %d 项）：%s",
                            attempt, attempts,
                            len(validation.problems) - len(validation.constraint_problems),
@@ -183,13 +201,15 @@ class DishGenerator:
         # 详细原因留给日志：字段级的说明（prepTimeMin=0 不在 2~60 之间）是给重试提示词
         # 和开发者看的，直接甩给用户等于没说。但与"用户自己提的条件"相关的那些要挑出来
         # 附上：条件自相矛盾时（既要求用牛肉、又忌口牛肉），不说清楚用户只会一遍遍重试。
-        logger.warning("生成失败：%d 次尝试都没通过校验，最后一次的问题：%s",
-                       attempts, "；".join(last_problems))
+        retrieval_miss = not references
+        logger.warning("生成失败：%d 次尝试都没通过校验，分档=%s，参考=%d 条，最后一次的问题：%s",
+                       attempts, last_tier or "UNKNOWN", len(references), "；".join(last_problems))
         message = ("AI 没能用「" + describe(required_names)
                    + "」想出合适的做法，换个食材组合或口味再试试"
                    + constraint_hint(last_problems))
         raise DishGenerationException(message, "validation_exhausted", attempts,
-                                      last_raw_output, last_validation, meta)
+                                      last_raw_output, last_validation, meta,
+                                      tier=last_tier, retrieval_miss=retrieval_miss)
 
     # ------------------------------------------------------------------ 调模型
 

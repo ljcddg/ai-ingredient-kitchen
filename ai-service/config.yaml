@@ -11,8 +11,9 @@ ollama:
   model: gemma4:e2b
 
 generate:
-  # 生成温度：0.7 是实测"有变化但不会跑偏"的值（与 dish-service 默认一致）
-  temperature: 0.7
+  # 生成温度：0.2 = 低温。JSON 结构更稳、重试率更低（RAG 方案 §3.3）；
+  # 与 dish-service 的 ai.generate.temperature 保持一致
+  temperature: 0.2
   # 最多尝试几次（含第一次）：失败重试 1 次。小模型在同一坑里连栽三次的概率不低，
   # 每次生成 10 秒上下，与其烧资源不如老实告诉用户"生成失败，请重试"
   max_attempts: 2
