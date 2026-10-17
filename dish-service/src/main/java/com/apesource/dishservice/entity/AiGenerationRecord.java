@@ -90,6 +90,26 @@ public class AiGenerationRecord {
     /** 参考菜谱ID（检索增强生成用，逗号分隔） */
     private String referenceDishIds;
 
+    /** 本次注入的烹饪常识条目 id（knowledge/cooking-rules.json 里的 id，逗号分隔） */
+    private String knowledgeRuleIds;
+
+    /** 有据项数：用量落在库内参考的 0.5~2 倍区间 */
+    private Integer groundedCnt;
+
+    /** 偏离项数：找到参照但用量差得远（炖菜/做汤可能合理，需抽样判断） */
+    private Integer deviatedCnt;
+
+    /** 无据项数：库内没有这道菜用到它 */
+    private Integer ungroundedCnt;
+
+    /**
+     * 有据比例 = grounded / (grounded + deviated + ungrounded)。
+     *
+     * <p><b>null 表示判不了</b>（没参考 / 参考没带用量），不是 0 分 ——
+     * 统计均值时必须过滤 null，否则没有参考的那批会把均值拖到不合理地低。
+     */
+    private BigDecimal faith;
+
     /** 营养来源：1-AI估算，2-本地计算 */
     private Integer nutritionSource;
 

@@ -55,7 +55,8 @@ class DishSearchSatisfactionTest {
         // 决策日志只做记录，不参与排序判定 —— 打桩成 mock 即可，
         // 这里的用例断言的是"谁能直出"，不是"记了什么"
         service = new DishSearchService(repository, properties, directory,
-                mock(com.apesource.dishservice.retrieval.RetrievalDecisionLogger.class));
+                mock(com.apesource.dishservice.retrieval.RetrievalDecisionLogger.class),
+                mock(IngredientSubstituteService.class));
 
         // 食材目录：只桩住用例用到的几个
         when(directory.resolveId("番茄")).thenReturn(TOMATO);
@@ -389,5 +390,57 @@ class DishSearchSatisfactionTest {
         req.setStrategy("  nonsense ");
 
         assertThat(service.search(req).getCandidates()).hasSize(1);
+    }
+
+    // ------------------------------------------------------------------ ⑩ 拒答与放宽建议
+
+    @Test
+    @DisplayName("缺料被筛掉：给出「允许再缺几样」而不是笼统说条件太严")
+    void relaxHintForMissingLimit() {
+        when(repository.recall(any(), any(), any()))
+                .thenReturn(List.of(recalled(beefCheeseDish(0.90, 20))));
+
+        // strict 模式：缺 2 样必被筛掉 → 至少要放到 2 样才救得回来
+        DishRecallResult result = service.search(request(List.of(TOMATO, EGG), "strict", null));
+
+        assertThat(result.getCandidates()).isEmpty();
+        assertThat(result.getRelaxHints())
+                .singleElement()
+                .asString()
+                .contains("允许再缺 2 样主料")
+                .contains("1 道");
+    }
+
+    @Test
+    @DisplayName("耗时被筛掉：建议里直接给出「放到多少分钟」，目标值取被筛掉那批的最长耗时")
+    void relaxHintForCookTime() {
+        // 只放一道"主料齐全但要 40 分钟"的菜：它在 20 分钟上限下必被筛掉，
+        // 且不会出现"另一道能直出"的情况 —— 那种情况下本来就不该给放宽建议
+        DishDoc slow = doc(9003L, "番茄炒蛋（慢炖版）",
+                List.of(TOMATO, EGG), List.of("番茄", "鸡蛋"), 40, 20, 0.80, 4.8);
+        when(repository.recall(any(), any(), any())).thenReturn(List.of(recalled(slow)));
+
+        DishSearchRequest req = request(List.of(TOMATO, EGG), "loose", 2);
+        req.setMaxCookTimeMin(20);
+
+        DishRecallResult result = service.search(req);
+
+        assertThat(result.getCandidates()).isEmpty();
+        assertThat(result.getRelaxHints())
+                .anySatisfy(hint -> assertThat(hint)
+                        .contains("耗时上限从 20 分钟放到 40 分钟")
+                        .contains("1 道"));
+    }
+
+    @Test
+    @DisplayName("有结果且能直出时不给放宽建议 —— 别拿建议打扰用户")
+    void noRelaxHintWhenDirectReturn() {
+        when(repository.recall(any(), any(), any()))
+                .thenReturn(List.of(recalled(tomatoEggDish(0.90, 30))));
+
+        DishRecallResult result = service.search(request(List.of(TOMATO, EGG), "strict", null));
+
+        assertThat(result.isDirectReturn()).isTrue();
+        assertThat(result.getRelaxHints()).isEmpty();
     }
 }

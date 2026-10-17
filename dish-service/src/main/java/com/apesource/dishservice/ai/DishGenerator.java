@@ -70,9 +70,38 @@ public interface DishGenerator {
          * @param temperature   温度
          * @param maxAttempts   允许的最大尝试次数
          * @param referenceDishIds 本次注入的参考菜谱 ID（P2-1 的参考增强；未启用时为空）
+         * @param knowledgeRuleIds 本次注入的烹饪常识条目 ID（③ 知识库；未命中时为空）
+         * @param grounding     依据校验结果；null 表示判不了（没参考 / 参考没用量），**不是 0 分**
          */
         record GenerationMeta(String model, String promptVersion, double temperature, int maxAttempts,
-                              List<Long> referenceDishIds) {
+                              List<Long> referenceDishIds, List<String> knowledgeRuleIds,
+                              GroundingStats grounding) {
+
+            /** 兼容旧调用点：不带知识库、不做依据校验 */
+            GenerationMeta(String model, String promptVersion, double temperature, int maxAttempts,
+                           List<Long> referenceDishIds) {
+                this(model, promptVersion, temperature, maxAttempts, referenceDishIds, List.of(), null);
+            }
+        }
+
+        /**
+         * 依据校验（grounding）的汇总，口径对齐 RAGAS 的 Answer Faithfulness。
+         *
+         * <p>三类分开记，因为它们的处置方式完全不同：
+         * <ul>
+         *   <li>GROUNDED：用量落在库内参考的 0.5~2 倍区间 —— 有据</li>
+         *   <li>DEVIATED：找到了参照但用量差得远 —— 可能是合理的（比如做汤），也可能是瞎写</li>
+         *   <li>UNGROUNDED：库里根本没有这道菜用到它 —— 新菜的正常代价，但占比过高就说明
+         *       生成在脱离检索结果自由发挥，RAG 等于没生效</li>
+         * </ul>
+         *
+         * @param faithfulness 有据比例 = grounded / 总数，0~1
+         */
+        record GroundingStats(int grounded, int deviated, int ungrounded, double faithfulness) {
+
+            int total() {
+                return grounded + deviated + ungrounded;
+            }
         }
     }
 }

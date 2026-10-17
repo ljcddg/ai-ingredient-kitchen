@@ -105,7 +105,7 @@ public class RemoteDishGenerator implements DishGenerator {
                         }
                         return new RemoteResponse(false, null, false, null, 0, 0, null,
                                 null, null, "internal",
-                                "AI 服务返回 " + clientResponse.getStatusCode());
+                                "AI 服务返回 " + clientResponse.getStatusCode(), null);
                     });
         } catch (Exception e) {
             // 连不上（ai-service 没起、读超时）是另一类问题，重试也不会变好
@@ -122,7 +122,7 @@ public class RemoteDishGenerator implements DishGenerator {
         }
 
         ValidationResult validation = toValidation(response.validation());
-        GenerateResult.GenerationMeta meta = toMeta(response.meta());
+        GenerateResult.GenerationMeta meta = toMeta(response.meta(), response.attribution());
 
         if (!response.ok()) {
             // Python 已经把 attempts / rawOutput / validation / meta 都带回来了，
@@ -207,10 +207,15 @@ public class RemoteDishGenerator implements DishGenerator {
                 dto.constraintProblems() == null ? List.of() : dto.constraintProblems());
     }
 
-    private GenerateResult.GenerationMeta toMeta(RemoteResponse.MetaDto dto) {
+    private GenerateResult.GenerationMeta toMeta(RemoteResponse.MetaDto dto,
+                                                 RemoteResponse.AttributionDto attribution) {
+        GenerateResult.GroundingStats grounding = attribution == null ? null
+                : new GenerateResult.GroundingStats(attribution.grounded(), attribution.deviated(),
+                        attribution.ungrounded(), attribution.faithfulness());
         if (dto == null) {
             return new GenerateResult.GenerationMeta(remoteProperties.getModel(), "unknown",
-                    properties.getTemperature(), properties.getMaxAttempts(), List.of());
+                    properties.getTemperature(), properties.getMaxAttempts(), List.of(),
+                    List.of(), grounding);
         }
         // referenceDishIds 按字符串传回来（项目铁律：Long 序列化成字符串），这里解析回 Long
         List<Long> referenceIds = new ArrayList<>();
@@ -224,7 +229,8 @@ public class RemoteDishGenerator implements DishGenerator {
             }
         }
         return new GenerateResult.GenerationMeta(dto.model(), dto.promptVersion(),
-                dto.temperature(), dto.maxAttempts(), referenceIds);
+                dto.temperature(), dto.maxAttempts(), referenceIds,
+                dto.knowledgeRuleIds() == null ? List.of() : dto.knowledgeRuleIds(), grounding);
     }
 
     private String brief(String text) {
@@ -246,7 +252,7 @@ public class RemoteDishGenerator implements DishGenerator {
     record RemoteResponse(boolean ok, DishDraft draft, boolean nutritionVerified,
                           LocalNutrition localNutrition, int attempts, long costMs,
                           String rawOutput, ValidationDto validation, MetaDto meta,
-                          String errorKind, String error) {
+                          String errorKind, String error, AttributionDto attribution) {
 
         /** 本地营养计算结果（Python 算好带回；当前 DishDraftWriter 仍用 Java 侧重算，先不用） */
         record LocalNutrition(boolean trustable, double calories, double proteinGram,
@@ -259,7 +265,16 @@ public class RemoteDishGenerator implements DishGenerator {
         }
 
         record MetaDto(String model, String promptVersion, double temperature,
-                       int maxAttempts, List<String> referenceDishIds) {
+                       int maxAttempts, List<String> referenceDishIds,
+                       List<String> knowledgeRuleIds) {
+        }
+
+        /**
+         * 依据校验结果。{@code null} 表示判不了（没参考 / 参考没带用量）——
+         * 与" faithfulness = 0"是两件事，落库时必须区分，否则冷启动会被误判成质量事故。
+         */
+        record AttributionDto(int grounded, int deviated, int ungrounded, double faithfulness,
+                              boolean lowConfidence) {
         }
     }
 }

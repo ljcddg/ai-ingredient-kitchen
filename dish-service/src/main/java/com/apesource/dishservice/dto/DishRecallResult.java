@@ -3,7 +3,9 @@ package com.apesource.dishservice.dto;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 召回结果。
@@ -44,6 +46,20 @@ public class DishRecallResult {
      */
     private String missReason;
 
+    /**
+     * 放宽建议（⑩ 拒答与放宽建议）。
+     *
+     * <p>没结果时只说"库里没有"是句废话 —— 用户不知道下一步该动哪个开关。
+     * 这里给出<b>可执行的</b>几条，每条都对应前端一个真实存在的筛选项：
+     * <ul>
+     *   <li>"允许再缺 1 样主料，能多看到 3 道" —— 对应 mode / maxMissing</li>
+     *   <li>"耗时上限放到 40 分钟，能多看到 2 道" —— 对应 maxCookTimeMin</li>
+     *   <li>"去掉忌口「香菜」，能多看到 1 道" —— 对应 excludeIngredients</li>
+     * </ul>
+     * 为空表示没有可放宽的（要么有结果，要么确实库里一条都没有；后者靠 missReason 说明）。
+     */
+    private List<String> relaxHints = new ArrayList<>();
+
     /** 用户所选食材数 */
     private int requestedIngredientCount;
 
@@ -61,6 +77,14 @@ public class DishRecallResult {
 
     /** 当前页候选列表 */
     private List<DishItem> candidates = new ArrayList<>();
+
+    /**
+     * 缺的食材 → 可以顶上的替代品（如「豆腐」→「豆干」）。
+     *
+     * <p>只在展示层用，**不参与排序**：把"能替代"算进得分，
+     * 会推荐一堆"其实做不了、得先换料"的菜，正好抵消满足率的意义。
+     */
+    private Map<String, List<String>> substitutes = new LinkedHashMap<>();
 
     /**
      * 检索引擎是否可用。

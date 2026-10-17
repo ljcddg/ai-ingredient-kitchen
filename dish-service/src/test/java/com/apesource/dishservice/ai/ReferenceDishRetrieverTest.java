@@ -6,6 +6,8 @@ import com.apesource.dishservice.dto.DishStep;
 import com.apesource.dishservice.dto.GenerateConstraints;
 import com.apesource.dishservice.dto.IngredientRef;
 import com.apesource.dishservice.entity.Dish;
+import com.apesource.dishservice.entity.DishIngredient;
+import com.apesource.dishservice.mapper.DishIngredientMapper;
 import com.apesource.dishservice.mapper.DishMapper;
 import com.apesource.dishservice.service.DishSearchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +36,7 @@ class ReferenceDishRetrieverTest {
 
     private DishSearchService searchService;
     private DishMapper dishMapper;
+    private DishIngredientMapper dishIngredientMapper;
     private GenerateProperties properties;
     private ReferenceDishRetriever retriever;
 
@@ -41,8 +44,9 @@ class ReferenceDishRetrieverTest {
     void setUp() {
         searchService = mock(DishSearchService.class);
         dishMapper = mock(DishMapper.class);
+        dishIngredientMapper = mock(DishIngredientMapper.class);
         properties = new GenerateProperties();
-        retriever = new ReferenceDishRetriever(searchService, dishMapper, properties);
+        retriever = new ReferenceDishRetriever(searchService, dishMapper, dishIngredientMapper, properties);
     }
 
     private DishGenerator.GenerateInput input() {
@@ -99,7 +103,7 @@ class ReferenceDishRetrieverTest {
     void rendersUsableSnippet() {
         ReferenceDishRetriever.Reference ref = new ReferenceDishRetriever.Reference(
                 88L, "番茄炒蛋", List.of("番茄", "鸡蛋", "松露"), List.of("松露"),
-                List.of("家常"), 15, List.of("先炒蛋液至半凝固", "番茄去皮炒出汁"));
+                List.of("家常"), 15, List.of("先炒蛋液至半凝固", "番茄去皮炒出汁"), List.of());
 
         String text = retriever.render(List.of(ref));
 
@@ -173,5 +177,47 @@ class ReferenceDishRetrieverTest {
         when(searchService.search(any())).thenReturn(recall());
 
         assertThat(retriever.retrieve(input(), 3)).isEmpty();
+    }
+
+    // ------------------------------------------------------------------ 用量（grounding 依据）
+
+    @Test
+    @DisplayName("参考带上用量：按克数降序取前 8 样，供 Python 侧做依据校验")
+    void carriesAmountsForGrounding() {
+        when(searchService.search(any())).thenReturn(recall(item(88L, "番茄炒蛋")));
+        when(dishMapper.selectBatchIds(any())).thenReturn(List.of(dishWithSteps(88L)));
+        when(dishIngredientMapper.selectList(any())).thenReturn(List.of(
+                ingredient(88L, "番茄", 200), ingredient(88L, "鸡蛋", 120),
+                ingredient(88L, "葱", 10), ingredient(88L, "没克数的", null)));
+
+        ReferenceDishRetriever.Reference ref = retriever.retrieve(input(), 3).get(0);
+
+        assertThat(ref.amounts())
+                .as("按用量降序，缺克数的（调料）直接丢掉")
+                .extracting(ReferenceDishRetriever.Amount::name)
+                .containsExactly("番茄", "鸡蛋", "葱");
+        assertThat(ref.amounts().get(0).amountGram()).isEqualTo(200.0);
+    }
+
+    @Test
+    @DisplayName("取用量失败：参考照样能用，只是这批 amounts 为空（不做依据校验，不影响生成）")
+    void toleratesAmountLoadFailure() {
+        when(searchService.search(any())).thenReturn(recall(item(88L, "番茄炒蛋")));
+        when(dishMapper.selectBatchIds(any())).thenReturn(List.of(dishWithSteps(88L)));
+        when(dishIngredientMapper.selectList(any())).thenThrow(new RuntimeException("db down"));
+
+        List<ReferenceDishRetriever.Reference> refs = retriever.retrieve(input(), 3);
+
+        assertThat(refs).hasSize(1);
+        assertThat(refs.get(0).amounts()).isEmpty();
+        assertThat(refs.get(0).mains()).isNotEmpty();
+    }
+
+    private DishIngredient ingredient(long dishId, String name, Integer gram) {
+        DishIngredient d = new DishIngredient();
+        d.setDishId(dishId);
+        d.setIngredientName(name);
+        d.setAmountGram(gram == null ? null : new java.math.BigDecimal(gram));
+        return d;
     }
 }

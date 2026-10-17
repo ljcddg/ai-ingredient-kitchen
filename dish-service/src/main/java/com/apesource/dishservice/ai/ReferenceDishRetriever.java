@@ -6,13 +6,17 @@ import com.apesource.dishservice.dto.DishSearchRequest;
 import com.apesource.dishservice.dto.DishStep;
 import com.apesource.dishservice.dto.IngredientRef;
 import com.apesource.dishservice.entity.Dish;
+import com.apesource.dishservice.entity.DishIngredient;
+import com.apesource.dishservice.mapper.DishIngredientMapper;
 import com.apesource.dishservice.mapper.DishMapper;
 import com.apesource.dishservice.service.DishSearchService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,9 +53,14 @@ public class ReferenceDishRetriever {
     /** 步骤要点截断长度 */
     private static final int MAX_STEP_TEXT = 40;
 
+    /** 每条参考最多带几样食材的用量（再多对 grounding 判定没有边际收益） */
+    private static final int MAX_AMOUNTS = 8;
+
     private final DishSearchService searchService;
 
     private final DishMapper dishMapper;
+
+    private final DishIngredientMapper dishIngredientMapper;
 
     private final GenerateProperties properties;
 
@@ -66,7 +75,21 @@ public class ReferenceDishRetriever {
      * @param stepHints  前几步做法要点
      */
     public record Reference(Long dishId, String name, List<String> mains, List<String> missing,
-                            List<String> tasteTags, Integer cookTimeMin, List<String> stepHints) {
+                            List<String> tasteTags, Integer cookTimeMin, List<String> stepHints,
+                            List<Amount> amounts) {
+    }
+
+    /**
+     * 参考菜谱里某样食材的用量。
+     *
+     * <p><b>为什么要带用量：</b>没有它，生成结果的"用量合不合理"只能靠固定上限兜
+     * （见 Python validator 的 PER_PERSON_GRAM_BY_CATEGORY）；有了它，
+     * 就能判断模型给的量是"抄来的、有依据的"还是"自己编的" —— 这就是 grounding 校验。
+     *
+     * @param name      食材名（与菜品明细里的展示名一致）
+     * @param amountGram 折算克数，单位统一成 g，比较时不用再换算
+     */
+    public record Amount(String name, Double amountGram) {
     }
 
     /** 检索相似菜谱作为参考；任何异常都返回空列表 */
@@ -109,9 +132,11 @@ public class ReferenceDishRetriever {
             }
 
             Map<Long, Dish> withSteps = loadDishes(items);
+            Map<Long, List<DishIngredient>> withAmounts = loadAmounts(items);
             List<Reference> references = new ArrayList<>(items.size());
             for (DishItem item : items) {
-                references.add(toReference(item, withSteps.get(item.getDishId())));
+                references.add(toReference(item, withSteps.get(item.getDishId()),
+                        withAmounts.getOrDefault(item.getDishId(), List.of())));
             }
             return references;
         } catch (Exception e) {
@@ -155,6 +180,45 @@ public class ReferenceDishRetriever {
         return sb.toString();
     }
 
+    /**
+     * 批量读参考菜谱的食材用量。
+     *
+     * <p>只读 (dishId, name, amountGram) 三个字段，放在一次 IN 查询里；
+     * 失败返回空 Map —— 参考的主体信息还在，只是这次做不了 grounding 校验。
+     */
+    private Map<Long, List<DishIngredient>> loadAmounts(List<DishItem> items) {
+        List<Long> ids = items.stream()
+                .map(DishItem::getDishId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            return dishIngredientMapper.selectList(
+                            new LambdaQueryWrapper<DishIngredient>()
+                                    .in(DishIngredient::getDishId, ids))
+                    .stream()
+                    .collect(Collectors.groupingBy(DishIngredient::getDishId));
+        } catch (Exception e) {
+            log.warn("读取参考菜谱用量失败，本次不做依据校验：{}", e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /** 把菜品明细折成 grounding 用的用量列表（单位统一 g，按用量降序取前几样） */
+    private List<Amount> toAmounts(List<DishIngredient> ingredients) {
+        if (ingredients == null || ingredients.isEmpty()) {
+            return List.of();
+        }
+        return ingredients.stream()
+                .filter(i -> i.getIngredientName() != null && i.getAmountGram() != null)
+                .sorted(Comparator.comparing(DishIngredient::getAmountGram).reversed())
+                .limit(MAX_AMOUNTS)
+                .map(i -> new Amount(i.getIngredientName(), i.getAmountGram().doubleValue()))
+                .toList();
+    }
+
     private Map<Long, Dish> loadDishes(List<DishItem> items) {
         List<Long> ids = items.stream()
                 .map(DishItem::getDishId)
@@ -173,7 +237,7 @@ public class ReferenceDishRetriever {
         }
     }
 
-    private Reference toReference(DishItem item, Dish dish) {
+    private Reference toReference(DishItem item, Dish dish, List<DishIngredient> ingredients) {
         List<String> mains = new ArrayList<>();
         if (item.getMatchedIngredients() != null) {
             mains.addAll(item.getMatchedIngredients());
@@ -198,6 +262,6 @@ public class ReferenceDishRetriever {
                 mains.stream().limit(MAX_MAINS).toList(),
                 item.getMissingIngredients() == null ? List.of() : item.getMissingIngredients(),
                 item.getTasteTags() == null ? List.of() : item.getTasteTags(),
-                item.getCookTimeMin(), stepHints);
+                item.getCookTimeMin(), stepHints, toAmounts(ingredients));
     }
 }

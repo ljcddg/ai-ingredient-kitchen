@@ -18,7 +18,9 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -84,6 +86,8 @@ public class DishSearchService {
 
     private final RetrievalDecisionLogger decisionLogger;
 
+    private final IngredientSubstituteService substituteService;
+
     /**
      * 按食材组合召回菜品（匿名调用，不记用户维度）。
      */
@@ -130,6 +134,8 @@ public class DishSearchService {
         result.setSize(size);
         result.setBest(best == null ? null : toItem(best));
         result.setCandidates(paginate(ranked, page, size).stream().map(this::toItem).toList());
+        // 替代建议只针对"还缺的主料"：够得着的菜不需要它
+        result.setSubstitutes(substituteService.suggest(collectMissing(result)));
 
         // 召回为空有两种可能：「真的没有匹配的菜」和「ES 挂了」。
         // 前者是正常业务结果（去调 AI），后者要提示降级 —— 必须区分开。
@@ -137,6 +143,8 @@ public class DishSearchService {
         result.setSearchEngineAvailable(esAvailable);
         result.setMissReason(directReturn ? null
                 : buildMissReason(ranked, outcome.filteredOut(), wanted, constraints, esAvailable));
+        // ⑩ 拒答与放宽建议：没结果时告诉用户"动哪个开关能多看到几道"，而不是只说"没有"
+        result.setRelaxHints(buildRelaxHints(outcome, constraints, request, directReturn, esAvailable));
 
         // ---------- 6. 三档决策 + 决策日志 ----------
         // directReturn 只说"能不能不调模型"，决策档位还要回答"要不要带参考去生成"。
@@ -293,14 +301,55 @@ public class DishSearchService {
 
     // ==================== 精排 ====================
 
-    /** 精排结果：留下的候选 + 被硬约束筛掉多少条（用于解释"为什么没结果"） */
-    private record RankOutcome(List<RecalledDish> kept, int filteredOut) {
+    /**
+     * 精排结果：留下的候选 + 被哪一类硬约束筛掉多少条。
+     *
+     * <p>计数不只是一个总数：拒答时（⑩ 放宽建议）必须能说出"是被忌口卡的、被耗时卡的、
+     * 还是被缺料上限卡的" —— 三者对应的用户动作完全不同（去掉忌口 / 不设时长 / 允许补料）。
+     * {@code filteredOut} 保留为三者之和，老日志与断言继续可用。
+     *
+     * @param kept        留下的候选
+     * @param byExclude   被禁用食材（忌口）筛掉
+     * @param byTime      被耗时上限筛掉
+     * @param byMissing   被缺料上限（strict 模式等价于"必须齐全"）筛掉
+     * @param maxTimeOut  被耗时筛掉的那批里最长的耗时，用于给"放宽到多少分钟"的具体建议
+     * @param missingHist 被缺料上限筛掉的那批的"缺几样"分布（下标=缺料数，最多看到 7）
+     */
+    private record RankOutcome(List<RecalledDish> kept, int byExclude, int byTime, int byMissing,
+                              int maxTimeOut, int[] missingHist) {
+
+        int filteredOut() {
+            return byExclude + byTime + byMissing;
+        }
+
+        /** 至少要放到"允许缺 k 样"，才能救回那些被缺料卡掉的菜；没有则返回 -1 */
+        int minMissingToRescue() {
+            for (int k = 0; k < missingHist.length; k++) {
+                if (missingHist[k] > 0) {
+                    return k;
+                }
+            }
+            return -1;
+        }
+
+        /** 允许缺到 k 样时，能救回多少道 */
+        int rescuedAt(int k) {
+            int sum = 0;
+            for (int i = Math.max(0, k); i < missingHist.length; i++) {
+                sum += missingHist[i];
+            }
+            return sum;
+        }
     }
 
     private RankOutcome rank(List<RecalledDish> recalled, RequestedIngredients wanted,
                              Constraints constraints, String strategy) {
         List<RecalledDish> kept = new ArrayList<>(recalled.size());
-        int filteredOut = 0;
+        int byExclude = 0;
+        int byTime = 0;
+        int byMissing = 0;
+        int maxTimeOut = 0;
+        int[] missingHist = new int[8];
 
         for (RecalledDish item : recalled) {
             DishDoc doc = item.getDoc();
@@ -311,19 +360,21 @@ public class DishSearchService {
             computeMetrics(item, doc, wanted);
 
             if (isExcluded(doc, constraints)) {
-                filteredOut++;
+                byExclude++;
                 log.debug("淘汰「{}」：命中禁用食材", doc.getName());
                 continue;
             }
             if (constraints.maxCookTimeMin() != null
                     && nz(doc.getCookTimeMin()) > constraints.maxCookTimeMin()) {
-                filteredOut++;
+                byTime++;
+                maxTimeOut = Math.max(maxTimeOut, nz(doc.getCookTimeMin()));
                 log.debug("淘汰「{}」：耗时 {} 分钟超过上限 {}",
                         doc.getName(), nz(doc.getCookTimeMin()), constraints.maxCookTimeMin());
                 continue;
             }
             if (!constraints.allows(item.getMissingCount())) {
-                filteredOut++;
+                byMissing++;
+                missingHist[Math.min(item.getMissingCount(), missingHist.length - 1)]++;
                 log.debug("淘汰「{}」：缺 {} 样主料，模式={}",
                         doc.getName(), item.getMissingCount(), constraints.mode());
                 continue;
@@ -335,7 +386,7 @@ public class DishSearchService {
         }
 
         kept.sort(Comparator.comparingDouble(RecalledDish::getFinalScore).reversed());
-        return new RankOutcome(kept, filteredOut);
+        return new RankOutcome(kept, byExclude, byTime, byMissing, maxTimeOut, missingHist);
     }
 
     /**
@@ -612,6 +663,25 @@ public class DishSearchService {
         return item;
     }
 
+    /**
+     * 收集这一页要展示的"缺的食材"。
+     *
+     * <p>只看 best 与当前页候选：用户看不到的候选不需要替代建议，
+     * 一次 IN 查询覆盖整页，不做逐条查。
+     */
+    private Set<String> collectMissing(DishRecallResult result) {
+        Set<String> missing = new LinkedHashSet<>();
+        if (result.getBest() != null && result.getBest().getMissingIngredients() != null) {
+            missing.addAll(result.getBest().getMissingIngredients());
+        }
+        for (DishItem item : result.getCandidates()) {
+            if (item.getMissingIngredients() != null) {
+                missing.addAll(item.getMissingIngredients());
+            }
+        }
+        return missing;
+    }
+
     /** 推荐理由：一句话说清"为什么给你推荐它 / 为什么还不能直接用" */
     private String buildReason(RecalledDish item) {
         if (item.getMissingCount() == 0) {
@@ -657,8 +727,48 @@ public class DishSearchService {
                 doc.getName(), nz(doc.getRatingAvg()), nz(doc.getRatingWilson()));
     }
 
-    private static <T> List<T> nzList(List<T> list) {
-        return list == null ? List.of() : list;
+    /**
+     * 放宽建议（⑩）。
+     *
+     * <p>设计原则：<b>每条建议都必须能被用户一键执行</b>，而且说清"放宽之后能多看到几道"。
+     * 只说"条件太严格了"等于把问题推回给用户；只说"库里没有"更是废话。
+     *
+     * <p>顺序按"代价从小到大"：先补料（只是多买一样），再放宽缺料上限（肯凑合），
+     * 最后才动忌口与耗时 —— 忌口是安全约束，必须放最后且明确写出去掉哪一样。
+     *
+     * <p>有结果且能直出时返回空：不需要建议，别打扰用户。
+     */
+    private List<String> buildRelaxHints(RankOutcome outcome, Constraints constraints,
+                                         DishSearchRequest request,
+                                         boolean directReturn, boolean esAvailable) {
+        if (!esAvailable || directReturn) {
+            return List.of();
+        }
+        List<String> hints = new ArrayList<>(3);
+
+        // ① 缺料上限：算出"放到几样才够"，而不是笼统地建议"放宽一点"
+        int rescueAt = outcome.minMissingToRescue();
+        if (rescueAt > 0) {
+            int rescued = outcome.rescuedAt(rescueAt);
+            hints.add(String.format("允许再缺 %d 样主料，能多看到 %d 道", rescueAt, rescued));
+        }
+
+        // ② 忌口：这是安全约束，措辞必须把"去掉哪一样"写清楚
+        if (outcome.byExclude() > 0 && request.getExcludeIngredients() != null
+                && !request.getExcludeIngredients().isEmpty()) {
+            hints.add(String.format("去掉忌口「%s」，能多看到 %d 道",
+                    String.join("、", request.getExcludeIngredients()), outcome.byExclude()));
+        }
+
+        // ③ 耗时：直接给"放到多少分钟"，用被筛掉那批里最长的耗时当目标
+        if (outcome.byTime() > 0 && constraints.maxCookTimeMin() != null) {
+            hints.add(String.format("耗时上限从 %d 分钟放到 %d 分钟，能多看到 %d 道",
+                    constraints.maxCookTimeMin(), outcome.maxTimeOut(), outcome.byTime()));
+        }
+        return hints;
+    }
+
+    private static <T> List<T> nzList(List<T> list) {        return list == null ? List.of() : list;
     }
 
     private static double nz(Double value) {

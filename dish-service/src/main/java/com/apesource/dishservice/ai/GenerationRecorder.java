@@ -35,6 +35,9 @@ public class GenerationRecorder {
 
     private static final int MAX_ERROR_MSG = 500;
 
+    /** knowledge_rule_ids 列宽 128，一次最多也就注入 3 条（CookingKnowledge.MAX_RULES），留够余量 */
+    private static final int MAX_RULE_IDS = 120;
+
     private final AiGenerationRecordMapper recordMapper;
 
     /**
@@ -94,6 +97,20 @@ public class GenerationRecorder {
                 row.setMaxAttempts(meta.maxAttempts());
                 // P2-1：记下这次生成参考了哪些菜谱，增强生成才追得清
                 row.setReferenceDishIds(joinIds(meta.referenceDishIds()));
+                // 知识库：记下注入了哪几条烹饪常识，才能按条目比对效果
+                List<String> ruleIds = meta.knowledgeRuleIds();
+                if (ruleIds != null && !ruleIds.isEmpty()) {
+                    row.setKnowledgeRuleIds(truncate(String.join(",", ruleIds), MAX_RULE_IDS));
+                }
+                // 依据校验：null 表示判不了（没参考/参考没用量），**不能写成 0**
+                var grounding = meta.grounding();
+                if (grounding != null && grounding.total() > 0) {
+                    row.setGroundedCnt(grounding.grounded());
+                    row.setDeviatedCnt(grounding.deviated());
+                    row.setUngroundedCnt(grounding.ungrounded());
+                    row.setFaith(BigDecimal.valueOf(grounding.faithfulness())
+                            .setScale(4, java.math.RoundingMode.HALF_UP));
+                }
             }
 
             row.setCreateTime(LocalDateTime.now());

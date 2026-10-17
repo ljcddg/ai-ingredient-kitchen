@@ -177,7 +177,21 @@ public class EsDslBuilder {
 
         ArrayNode should = bool.putArray("should");
         ids.forEach(id -> should.addObject().putObject("term").put("ingredientIds", id));
-        names.forEach(name -> should.addObject().putObject("term").put("ingredientNames", name));
+
+        // 表外食材两条腿走路（⑤ 混合召回的字面档）：
+        //   ① ingredientNames 是 keyword，**精确**匹配 —— 库里存的是"香茅"，用户敲"香茅叶"就中不了；
+        //   ② 菜名是 text，可以分词匹配 —— 「香茅烤鱼」这种把食材写进菜名的菜，
+        //      即使用户输的是别名/多打了字，也能靠这一条捞回来。
+        // 两条都在 should 里，命中任意一条即可召回；菜名命中额外给 2 倍权重，
+        // 因为"菜名里有这个词"比"食材表里恰好同名"更能说明这就是用户想要的。
+        // 注意：vector 档（kNN/语义向量）本版本做不了 —— 本机 ES 8.x 的 dense_vector
+        // 需要额外的索引设置与 embedding 侧对齐，现阶段上马只会得到一个"看起来是语义、
+        // 实际是随机"的通道，不如留白。
+        names.forEach(name -> {
+            should.addObject().putObject("term").put("ingredientNames", name);
+            ObjectNode match = should.addObject().putObject("match");
+            match.putObject("name").put("query", name).put("boost", 2.0);
+        });
 
         // 一样都不沾的菜没有召回的资格（Service 层已保证至少有一种食材）
         bool.put("minimum_should_match", 1);
