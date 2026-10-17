@@ -17,6 +17,11 @@
 混合召回的 lexical 档（#5 的一半）、放宽建议（#10）；另确认 #9 早已完成。
 现在 10 条里 **8 条已实现**，剩 #5 的向量档（卡 ES 版本）与 #8 口味画像（数据是合成的不做假象）。
 
+第三轮（补齐"做了一半"的那部分）：
+- #2 的 RAGAS 由 1 项补到 **4 项**（faith / answer_relevance / ctx_precision / ctx_recall），同落 `t_ai_generation_record`；
+- #3 的用量依据由"类别级"补到 **单品级**（`t_ingredient_amount_stats`，34 组），校验器三级回退，
+  且统计**首次真正接进校验**（此前表建好了但 `_gram_limit` 仍在用固定 dict）。
+
 不建议做的三项（生成式检索 / GNN 双图 / 跨模态自监督预训练）维持原判，本次未动。
 
 ---
@@ -26,8 +31,8 @@
 | # | 功能 | 能不能做 | 状态 | 依据 / 卡点 |
 |---|---|---|---|---|
 | 1 | 三档检索决策 + 决策日志 | ✅ 能 | **已实现** | `DishSearchService` 本来就有满足率与直出判定，只缺中间档与落库。新增枚举 + `t_retrieval_decision` + 双来源记录（SEARCH / GENERATE） |
-| 2 | 依据校验（grounding check） | ✅ 能 | **已实现（第二轮）** | Java 侧 `Reference` 补 `amounts`（`t_dish_ingredient` 一次 IN 查询，取用量前 8 名）；Python `grounding.assess()` 判 GROUNDED / DEVIATED / UNGROUNDED，阈值用量比 0.5~2 倍；`faith` 落 `t_ai_generation_record` |
-| 3 | 用量统计化校验 | ✅ 能 | **已实现（第二轮）** | `sql/build-stats.py` 离线算「类别 × 人数档」的 P10/P50/P90 → `t_ingredient_quantity_stats`（19 组 / 268 行）；统计在 Java/SQL 侧做，Python 仍不碰业务库 |
+| 2 | 依据校验（grounding check） | ✅ 能 | **已实现（第二轮 + 第三轮补 RAGAS 另三项）** | Java 侧 `Reference` 补 `amounts`（`t_dish_ingredient` 一次 IN 查询，取用量前 8 名）；Python `grounding.assess()` 判 GROUNDED / DEVIATED / UNGROUNDED，阈值用量比 0.5~2 倍；`faith` 落 `t_ai_generation_record`。第三轮补 `answer_relevance` / `ctx_precision` / `ctx_recall`（词面/集合代理，无参考时留 NULL，answer_relevance 照算作对照组） |
+| 3 | 用量统计化校验 | ✅ 能 | **已实现（第二轮）+ 第三轮接进校验** | `sql/build-stats.py` 离线算两张表：`t_ingredient_amount_stats`（单品 × 人数档，34 组，n≥3）+ `t_ingredient_quantity_stats`（类别 × 人数档，8 组，n≥8）；两张表随生成请求注入 Python，`validator._gram_limit()` 三级回退（单品 → 类别 → 固定档），另设 80g/人 地板保护点缀食材 |
 | 4 | 上下文模板化 + 低温 | ✅ 能 | **已实现** | `prompt.py` 改五段固定模板；温度 0.7 → 0.2（Java 与 Python 两侧同时改，Java 传参优先） |
 | 5 | 混合召回 + RRF | ⚠️ 一半 | **lexical 档已实现（第二轮）** | 表外食材走两条腿：`ingredientNames` 精确 term + 菜名 `match`（boost 2.0）——菜名里带这个词的菜即使用户输的是别名也能召回。**向量档仍不做**：`dense_vector` 要 ES 8 + 额外索引设置与 embedding 对齐，本机 ES 未起、版本未确认，硬上只会得到"看起来语义、实际随机"的通道 |
 | 6 | 食材替代建议 | ✅ 能 | **已实现（第二轮）** | `t_ingredient_substitute` 两路来源：同类别热量接近（主路）+ 同类别共现（兜底，跨类别共现被明确禁止，否则会推出「鸡蛋→松露」这种荒谬结果）；召回结果的 `substitutes` 只针对**还缺的主料**，不参与排序 |
@@ -97,8 +102,8 @@
 | Ollama `:11434` | 连接被拒（未启动） | 仍未启动 | 端到端生成未验证；单测全部打桩，不依赖真实模型 |
 | 库内食材 | 89 种 | **153 种**（本批 +64） | 原判"菜太少"是因为只看了菜，没看食材与用量明细 |
 | 库内已发布菜品 / 用量明细 | 估计约 30 道 | **113 道 / 679 行** | #3 分位数、#6 共现有样本了，原判作废 |
-| Java 测试 | 121 项全绿 | **132 项全绿** | 新增：用量传递 2、放宽建议 3、ES DSL 6 |
-| pytest | 56 项全绿 | **72 项全绿** | 新增：知识库 9、依据校验 7 |
+| Java 测试 | 121 项全绿 | **136 项全绿** | 新增：用量传递 2、放宽建议 3、ES DSL 6、RAGAS 落库 2、统计降级 2 |
+| pytest | 56 项全绿 | **91 项全绿** | 新增：知识库 9、依据校验 7、RAGAS 另三项 11、用量三级依据 8 |
 
 **第一轮那个"约 30 道"是怎么错的**：只按 `t_dish.status=1` 肉眼数了管理台第一页，
 没算通过生成/手写链路补进来的那批。教训是**判定"数据够不够"必须用 SQL count，不能靠印象** ——
@@ -109,9 +114,11 @@
 ## 五、建议的下一步顺序
 
 1. **补证据**（零风险）：跑一段时间，用 `t_retrieval_decision` 出"档位分布 / 直出率 / 回退率"三个数。
-2. **faithfulness 对照**：`t_ai_generation_record.faith` 已落库，按 `reference_dish_ids` 是否为空分组，
-   就能回答"带参考生成到底有没有更可信"——这是第 5 章最硬的一组数据。注意 `WHERE faith IS NOT NULL`。
-3. **知识库分组实验**：按 `knowledge_rule_ids` 分组比对 `faith` 与人工评分，判断哪几条常识真有用。
+2. **RAGAS 四项对照**：`t_ai_generation_record` 的 `faith` / `answer_relevance` / `ctx_precision` / `ctx_recall`
+   都已落库，按 `reference_dish_ids` 是否为空分组，就能回答"带参考生成到底有没有更可信"——
+   这是第 5 章最硬的一组数据。注意四项都要 `WHERE xxx IS NOT NULL`（无参考时 ctx 两项为空，
+   但那批的 `answer_relevance` 恰好是对照组，别一起过滤掉了）。
+3. **知识库分组实验**：按 `knowledge_rule_ids` 分组比对四项指标与人工评分，判断哪几条常识真有用。
 4. **ES 起来后**：重跑 `es/eval/` 那四组实验（现有结论绑在 32 道菜的旧快照上）。
 5. #5 向量档与 #8 口味画像**等有真实数据再碰**，不要为了"功能列表好看"去做没有数据支撑的模块。
 

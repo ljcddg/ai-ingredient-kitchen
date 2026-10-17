@@ -39,6 +39,14 @@ MAX_SANE_GRAM = 2000
 MIN_CO_OCCUR = 3
 # 每个食材最多给几条替代
 MAX_SUBSTITUTES = 5
+# 单品级用量统计的最小样本数：少于它不入 t_ingredient_amount_stats，
+# 让校验器回退到类别级。门槛定 3 而不是 10，是因为库里只有 113 道菜、
+# 679 条用量，单个食材能凑到 3 条已属不易；门槛再高这张表就几乎是空的。
+MIN_SAMPLES_PER_INGREDIENT = 3
+# 类别级用量统计的最小样本数。分位数是"从样本里挑一个值"，样本只有两三行时
+# p90 就等于其中最大的那一条，校验器再乘 1.5 会变成"比库里最大的一份最多宽 50%" ——
+# 太紧，正常菜也会被判超标。低于这个数的组合不入库，让校验器回退到固定上限。
+MIN_SAMPLES_PER_CATEGORY = 8
 # 用来算分位数的分位点
 PERCENTILES = (0.10, 0.50, 0.90)
 
@@ -107,7 +115,11 @@ def build_quantity_stats() -> list[str]:
         samples[(category, bucket_of(servings))].append(gram_value / servings)
 
     statements = []
+    dropped = 0
     for (category, bucket), values in sorted(samples.items()):
+        if len(values) < MIN_SAMPLES_PER_CATEGORY:
+            dropped += 1
+            continue
         values.sort()
         p10, p50, p90 = (percentile(values, p) for p in PERCENTILES)
         key = f"{category}|{bucket}"
@@ -116,7 +128,58 @@ def build_quantity_stats() -> list[str]:
             "(id, category, serving_bucket, p10, p50, p90, sample_count) VALUES "
             f"({stable_id(key)}, '{category}', '{bucket}', {p10:.2f}, {p50:.2f}, {p90:.2f}, {len(values)});"
         )
-    print(f"[用量] {len(samples)} 组（跳过 {skipped} 条超 {MAX_SANE_GRAM}g 的异常样本）")
+    print(f"[用量] 入库 {len(statements)} 组（样本 <{MIN_SAMPLES_PER_CATEGORY} 的 {dropped} 组弃用；"
+          f"跳过 {skipped} 条超 {MAX_SANE_GRAM}g 的异常样本）")
+    return statements
+
+
+def build_amount_stats() -> list[str]:
+    """按 单品 × 人数档 统计每人份用量分位数（校验用的第一级依据）。
+
+    与 build_quantity_stats 的区别：那张是"类别"级的粗口径，这张是"这一样食材"级的细口径。
+    校验时优先用这张 —— 类别级会把「葱姜」和「土豆」混在一起，p90 被两头拉扯，
+    4 人份的土豆烧牛肉放 300g 土豆会被误判超标。
+
+    两条口径上的取舍：
+      · **排除调料**：调料不随人数线性放大（3 人份不会放 3 倍盐），
+        按"每人份 × 人数"去比会系统性低估，反而放过真正的过量。调料仍走固定上限。
+      · **样本门槛 MIN_SAMPLES**：少于这个数不入库，让上层回退到类别级。
+        库里只有一百多道菜，单个食材能凑 3 条已属不易，门槛再高统计就永远用不上。
+    """
+    rows = query("""
+        SELECT di.ingredient_id, d.base_serving, di.amount_gram
+        FROM t_dish_ingredient di
+        JOIN t_dish d ON d.id = di.dish_id AND d.status = 1 AND d.deleted = 0
+        JOIN t_ingredient i ON i.id = di.ingredient_id AND i.deleted = 0
+        WHERE i.category <> '调料' AND di.amount_gram > 0 AND di.ingredient_id IS NOT NULL
+    """)
+
+    samples: dict[tuple[str, str], list[float]] = defaultdict(list)
+    skipped = 0
+    for ingredient_id, serving, gram in rows:
+        gram_value = float(gram)
+        servings = max(1, int(float(serving or 2)))
+        if gram_value > MAX_SANE_GRAM:
+            skipped += 1
+            continue
+        samples[(ingredient_id, bucket_of(servings))].append(gram_value / servings)
+
+    statements = []
+    kept = 0
+    for (ingredient_id, bucket), values in sorted(samples.items()):
+        if len(values) < MIN_SAMPLES_PER_INGREDIENT:
+            continue
+        values.sort()
+        _p10, p50, p90 = (percentile(values, p) for p in PERCENTILES)
+        key = f"{ingredient_id}|{bucket}"
+        statements.append(
+            "REPLACE INTO t_ingredient_amount_stats "
+            "(id, ingredient_id, serving_bucket, p50, p90, sample_count) VALUES "
+            f"({stable_id(key)}, {ingredient_id}, '{bucket}', {p50:.2f}, {p90:.2f}, {len(values)});"
+        )
+        kept += 1
+    print(f"[单品用量] {kept} 组（样本 ≥{MIN_SAMPLES_PER_INGREDIENT} 才入库；"
+          f"跳过 {skipped} 条超 {MAX_SANE_GRAM}g 的异常样本）")
     return statements
 
 
@@ -220,8 +283,9 @@ def main() -> None:
     # 派生表整表重算：REPLACE 只会覆盖同名唯一键，规则收紧后不再生成的旧行
     # （比如上一版推出来的「鸡蛋→松露」）会一直留在表里。先清后写才是干净快照。
     statements = ["DELETE FROM t_ingredient_quantity_stats;",
+                  "DELETE FROM t_ingredient_amount_stats;",
                   "DELETE FROM t_ingredient_substitute;",
-                  ] + build_quantity_stats() + build_substitutes()
+                  ] + build_quantity_stats() + build_amount_stats() + build_substitutes()
     if "--apply" not in sys.argv:
         print("\n".join(statements[:5]))
         print(f"... 共 {len(statements)} 条；加 --apply 真正写库")

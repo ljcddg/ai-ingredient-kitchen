@@ -136,4 +136,51 @@ class GenerationRecorderTest {
         assertThat(row.getRawOutput()).hasSizeLessThan(20_100);
         assertThat(row.getRawOutput()).endsWith("(截断)");
     }
+
+    private DishGenerator.GenerateResult.GenerationMeta metaWithGrounding(
+            DishGenerator.GenerateResult.GroundingStats grounding) {
+        return new DishGenerator.GenerateResult.GenerationMeta(
+                "gemma4:e2b", "abcd1234", 0.2, 2, List.of(88L), List.of("season-salt"),
+                grounding);
+    }
+
+    @Test
+    @DisplayName("RAGAS 四项全部落库：faith / answerRelevance / ctxPrecision / ctxRecall")
+    void recordsRagasMetrics() {
+        var grounding = new DishGenerator.GenerateResult.GroundingStats(
+                2, 1, 0, 2.0 / 3, 0.9, 1.0, 0.5);
+
+        recorder.record(9006L, 1001L, new GenerationRecorder.Outcome(
+                AiGenerationRecord.STATUS_SUCCESS, 1L, 1, null, 1, 1000, "{}",
+                new ValidationResult(List.of(), List.of()), metaWithGrounding(grounding)));
+
+        AiGenerationRecord row = capture();
+        assertThat(row.getGroundedCnt()).isEqualTo(2);
+        assertThat(row.getDeviatedCnt()).isEqualTo(1);
+        assertThat(row.getUngroundedCnt()).isZero();
+        assertThat(row.getFaith()).isEqualByComparingTo("0.6667");
+        assertThat(row.getAnswerRelevance()).isEqualByComparingTo("0.9000");
+        assertThat(row.getCtxPrecision()).isEqualByComparingTo("1.0000");
+        assertThat(row.getCtxRecall()).isEqualByComparingTo("0.5000");
+        assertThat(row.getKnowledgeRuleIds()).isEqualTo("season-salt");
+    }
+
+    @Test
+    @DisplayName("判不了的指标必须留 NULL，不能写成 0 分")
+    void keepsUnjudgeableMetricsNull() {
+        // 无参考（GENERATE_FRESH）：faith 与 ctx 两项都判不了，只有 answerRelevance 成立
+        var grounding = new DishGenerator.GenerateResult.GroundingStats(
+                0, 0, 0, 0.0, 0.85, null, null);
+
+        recorder.record(9007L, 1001L, new GenerationRecorder.Outcome(
+                AiGenerationRecord.STATUS_SUCCESS, 1L, 1, null, 1, 1000, "{}",
+                new ValidationResult(List.of(), List.of()), metaWithGrounding(grounding)));
+
+        AiGenerationRecord row = capture();
+        assertThat(row.getFaith()).as("没参考时写 0 会把冷启动记录拖成质量事故").isNull();
+        assertThat(row.getGroundedCnt()).isNull();
+        assertThat(row.getCtxPrecision()).isNull();
+        assertThat(row.getCtxRecall()).isNull();
+        assertThat(row.getAnswerRelevance()).as("对照组数据必须留下").isEqualByComparingTo("0.8500");
+    }
 }

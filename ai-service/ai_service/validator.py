@@ -18,6 +18,7 @@
      步骤里也不能凭空多出配料表之外的食材；
   3. 用量按人数与类别：调料和蔬菜不该共用一个上限，
      1 人份和 6 人份也不该共用一个上限 —— 同时用它反查"人数是否一致"；
+     上限本身按三级依据取（单品分位 → 类别分位 → 固定档），见 _gram_limit；
   4. 食材匹配走主数据 ID / 别名：原来用字符串包含判断，
      会把「鸡蛋面」里的「鸡蛋」当成命中了「鸡蛋」，也会因为用户写「西红柿」
      而模型写「番茄」就误判成没用到。
@@ -26,15 +27,20 @@ from __future__ import annotations
 
 import logging
 import math
+from collections import Counter
 from dataclasses import dataclass, field
-from typing import List, Optional, Set
+from typing import List, Optional, Sequence, Set, Tuple
 
+from .amounts import (SOURCE_FIXED, SOURCE_INGREDIENT, STAT_FLOOR_PER_PERSON,
+                      AmountIndex, serving_bucket)
 from .directory import Directory, normalize_key
-from .schemas import Constraints, DishDraft, GenerateRequest
+from .schemas import (AmountStat, Constraints, DishDraft, GenerateRequest,
+                      QuantityStat)
 
 logger = logging.getLogger(__name__)
 
-# 每人份合理用量上限（克），按主数据类目分档 —— 一个固定值管不了所有场景
+# 每人份合理用量上限（克），按主数据类目分档 —— 一个固定值管不了所有场景。
+# 这是**第三级**依据：统计表没建、或这一样食材/这一类目样本太少时才用它。
 PER_PERSON_GRAM_BY_CATEGORY = {
     "蔬菜": 300, "果香": 300, "肉类": 250, "水产": 250, "主食": 250,
     "豆制品": 200, "蛋奶": 150, "乳品": 150, "干货": 100, "调料": 15, "其他": 250,
@@ -131,10 +137,18 @@ def _valid_id(ingredient_id: Optional[int]) -> Optional[int]:
 
 
 class DraftValidator:
-    """无状态校验器：目录随请求构建，本身可以复用。"""
+    """校验器：目录与用量分位随请求构建，构造后只读，可以被多个线程共享。
 
-    def __init__(self, directory: Directory):
+    两个可选输入（amount_stats / quantity_stats）来自 dish-service 的每请求快照。
+    它们为空时行为与改造前完全一致（全部走固定上限）——"缺了也能跑"这条约束是刻意的：
+    统计是优化，不该成为生成的前提条件。"""
+
+    def __init__(self, directory: Directory,
+                 amount_stats: Optional[Sequence[AmountStat]] = None,
+                 quantity_stats: Optional[Sequence[QuantityStat]] = None):
         self.directory = directory
+        # 用量分位索引：与提示词里的【常见用量】共用同一份口径（见 amounts.py）
+        self.amounts = AmountIndex(amount_stats, quantity_stats)
 
     # ------------------------------------------------------------------ 入口
 
@@ -204,6 +218,7 @@ class DraftValidator:
             return
 
         main_gram_total = 0
+        sources: Counter = Counter()
         for i, item in enumerate(items):
             where = f"ingredients[{i + 1}]"
             if item is None or item.name is None or not item.name.strip():
@@ -221,13 +236,24 @@ class DraftValidator:
                 continue
 
             seasoning = self._is_seasoning(name)
-            limit = self._gram_limit(name, seasoning, servings)
+            limit, source, basis = self._gram_limit(name, seasoning, servings)
+            sources[source] += 1
             if gram > limit:
+                # 报错必须说清"现在是多少、依据是什么、上限是多少" ——
+                # 这条信息会原样进重试提示词，只说"用量过大"模型改不动的
                 problems.append(
-                    f"{where}({name}) 用量 {gram}g 明显过大："
-                    f"按 {servings} 人份与该食材类别，应不超过 {limit}g")
+                    f"{where}({name}) 用量 {gram}g 明显过大：{basis}"
+                    f"，{servings} 人份应不超过 {limit}g")
             if not seasoning:
                 main_gram_total += gram
+
+        if sources:
+            # 命中分布是判断"统计到底有没有生效"的唯一现场证据：
+            # 全落在 fixed 上说明统计没注入（脚本没跑/表空），优化等于没做，
+            # 而这种失效是静默的 —— 校验照样通过，只是回到了老口径。
+            logger.info("用量上限依据分布：单品级 %d 项 / 类别级 %d 项 / 固定档 %d 项",
+                        sources.get("ingredient", 0), sources.get("category", 0),
+                        sources.get("fixed", 0))
 
         # 人数一致性：主料总量落在"人均 80~450g"之间。
         # 草稿里并没有 servings 字段 —— 让模型自己回填一个数字等于让它自证，
@@ -242,13 +268,52 @@ class DraftValidator:
                     f"（人均约 {MIN_MAIN_GRAM_PER_SERVING}~{MAX_MAIN_GRAM_PER_SERVING}g，"
                     f"合计应在 {min_total}~{max_total}g 之间）")
 
-    def _gram_limit(self, name: str, seasoning: bool, servings: int) -> int:
-        """按"食材类别 × 人数"算这道菜里该食材的用量上限。"""
-        per_person = PER_PERSON_GRAM_BY_CATEGORY["调料"] if seasoning \
-            else self._per_person_gram(name)
-        scale = 1 + SEASONING_SERVING_GROWTH * max(0, servings - 1) if seasoning \
-            else max(1, servings)
-        return math.ceil(per_person * scale * AMOUNT_SLACK)
+    def _gram_limit(self, name: str, seasoning: bool, servings: int
+                    ) -> Tuple[int, str, str]:
+        """按"食材 × 人数"算这道菜里该食材的用量上限。
+
+        三级依据，逐级回退 —— 每一级都比下一级更"贴合这一样食材"：
+
+          ① 单品级：库里真实菜谱里「番茄 × 1-2 人份」的 p90。最准，
+             能把"番茄 800g / 2 人份"这种量明确判掉（类别级上限 900g 拦不住它）。
+          ② 类别级：同类别同人数档的 p90。单品样本 <3 条时用
+             （库里只有 113 道菜，一半食材压根凑不够样本）。
+          ③ 固定档：PER_PERSON_GRAM_BY_CATEGORY。统计表没建/查询失败时的兜底，
+             保证这条链路在任何环境下都不会因为数据缺失而失效。
+
+        上限取 p90 而不是 max：一条录错的菜（料酒 500g）会永久污染 max；
+        p90 天然抗单点异常，再乘 AMOUNT_SLACK=1.5，等于"比 90% 的同类做法再宽一半"。
+
+        调料一律走固定档：统计表本身排除了调料（它们不随人数线性放大），
+        而且盐/油的合理量由"口味"决定，不由"几个人吃"决定。
+
+        @return (上限克数, 依据来源 ingredient/category/fixed, 给人看的依据说明)
+        """
+        if seasoning:
+            per_person = PER_PERSON_GRAM_BY_CATEGORY["调料"]
+            # 调料不随人数线性放大：3 人份也不会放 3 倍的盐
+            scale = 1 + SEASONING_SERVING_GROWTH * max(0, servings - 1)
+            limit = math.ceil(per_person * scale * AMOUNT_SLACK)
+            return limit, "fixed", f"调料每人份约 {per_person}g"
+
+        bucket = serving_bucket(servings)
+        ingredient_id = self.directory.resolve_id(name)
+        category = self.directory.category_of(ingredient_id)
+        basis_stat = self.amounts.lookup(ingredient_id, category, bucket)
+
+        if not basis_stat.has_stat():
+            per_person = self._per_person_gram(name)
+            limit = math.ceil(per_person * max(1, servings) * AMOUNT_SLACK)
+            return limit, SOURCE_FIXED, f"该类食材每人份的合理上限是 {per_person}g"
+
+        p90 = basis_stat.p90
+        per_person = max(p90, STAT_FLOOR_PER_PERSON)
+        limit = math.ceil(per_person * max(1, servings) * AMOUNT_SLACK)
+        if basis_stat.source == SOURCE_INGREDIENT:
+            basis = f"库里同类菜谱这样食材每份约 {p90:.0f}g（p90）"
+        else:
+            basis = f"库里{category or '同类'}类食材每份约 {p90:.0f}g（p90）"
+        return limit, basis_stat.source, basis
 
     def _per_person_gram(self, name: str) -> int:
         category = self.directory.category_of(self.directory.resolve_id(name))

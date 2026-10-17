@@ -110,6 +110,33 @@ public class AiGenerationRecord {
      */
     private BigDecimal faith;
 
+    /**
+     * 答案相关性 = 生成结果在多大程度上真的回答了用户的请求（RAGAS: answer relevance）。
+     *
+     * <p>由三部分加权：用户食材在菜名/简介/步骤里的出现率、口味契合度、约束契合度。
+     * 只算"用到了几成用户食材"会退化成常数 1（校验器本来就拦掉了漏食材的草稿），
+     * 那样这个指标永远满分、等于没测。
+     *
+     * <p>null 表示判不了（没有用户食材也没有口味/约束可对齐），不是 0 分。
+     */
+    private BigDecimal answerRelevance;
+
+    /**
+     * 上下文精确率 = 注入的参考主料里，"用户手上真有"的比例（RAGAS: context precision）。
+     *
+     * <p>低 → 检索把用不上的菜塞给了模型，提示词里一堆缺料的参考，模型只能硬凑。
+     * null 表示判不了（这次没注入参考）。
+     */
+    private BigDecimal ctxPrecision;
+
+    /**
+     * 上下文召回率 = 用户的食材被注入的参考覆盖了多少（RAGAS: context recall）。
+     *
+     * <p>低 → 用户手里的东西检索没找到对应菜，模型只能从零编（GENERATE_FRESH）。
+     * 与 ctxPrecision 是一对：一个看"参考有没有用"，一个看"用户的东西有没有被覆盖"。
+     */
+    private BigDecimal ctxRecall;
+
     /** 营养来源：1-AI估算，2-本地计算 */
     private Integer nutritionSource;
 

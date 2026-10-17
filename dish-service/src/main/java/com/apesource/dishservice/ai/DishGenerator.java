@@ -85,7 +85,7 @@ public interface DishGenerator {
         }
 
         /**
-         * 依据校验（grounding）的汇总，口径对齐 RAGAS 的 Answer Faithfulness。
+         * 依据校验（grounding）的汇总，口径对齐 RAGAS 的三项指标。
          *
          * <p>三类分开记，因为它们的处置方式完全不同：
          * <ul>
@@ -95,9 +95,23 @@ public interface DishGenerator {
          *       生成在脱离检索结果自由发挥，RAG 等于没生效</li>
          * </ul>
          *
-         * @param faithfulness 有据比例 = grounded / 总数，0~1
+         * <p><b>三项指标各自度量链路的不同环节，缺一项就看不出问题出在哪：</b>
+         * faithfulness 度量"生成有没有依据"，answerRelevance 度量"回答有没有答所问"，
+         * ctxPrecision / ctxRecall 度量"检索准不准、全不全"。只有 faithfulness 时，
+         * 生成质量差和检索质量差是分不开的。
+         *
+         * @param faithfulness   有据比例 = grounded / 总数，0~1（RAGAS: answer faithfulness）
+         * @param answerRelevance 答案相关性 0~1（见 ai-service grounding.answer_relevance）
+         * @param ctxPrecision   上下文精确率 0~1（参考主料里"用户手上真有"的比例）
+         * @param ctxRecall      上下文召回率 0~1（用户食材被参考覆盖的比例）
          */
-        record GroundingStats(int grounded, int deviated, int ungrounded, double faithfulness) {
+        record GroundingStats(int grounded, int deviated, int ungrounded, double faithfulness,
+                              Double answerRelevance, Double ctxPrecision, Double ctxRecall) {
+
+            /** 兼容旧调用点：只有 faithfulness 的那一版 */
+            GroundingStats(int grounded, int deviated, int ungrounded, double faithfulness) {
+                this(grounded, deviated, ungrounded, faithfulness, null, null, null);
+            }
 
             int total() {
                 return grounded + deviated + ungrounded;

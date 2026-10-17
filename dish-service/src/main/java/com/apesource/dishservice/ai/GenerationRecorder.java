@@ -108,8 +108,13 @@ public class GenerationRecorder {
                     row.setGroundedCnt(grounding.grounded());
                     row.setDeviatedCnt(grounding.deviated());
                     row.setUngroundedCnt(grounding.ungrounded());
-                    row.setFaith(BigDecimal.valueOf(grounding.faithfulness())
-                            .setScale(4, java.math.RoundingMode.HALF_UP));
+                    row.setFaith(scale(grounding.faithfulness()));
+                }
+                // RAGAS 另外三项：各自独立判"判不了"（没有参考时 ctx 两项只能是 null）
+                if (grounding != null) {
+                    row.setAnswerRelevance(scale(grounding.answerRelevance()));
+                    row.setCtxPrecision(scale(grounding.ctxPrecision()));
+                    row.setCtxRecall(scale(grounding.ctxRecall()));
                 }
             }
 
@@ -125,6 +130,19 @@ public class GenerationRecorder {
             return null;
         }
         return text.length() <= max ? text : text.substring(0, max) + "...(截断)";
+    }
+
+    /**
+     * 比例值落到 DECIMAL(5,4)。
+     *
+     * <p>null 原样返回：这三项指标的 null 是"判不了"，与 0 分是两种结论，
+     * 统一成 0 会让冷启动那一批永远拉低均值。
+     */
+    private BigDecimal scale(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return BigDecimal.valueOf(value).setScale(4, java.math.RoundingMode.HALF_UP);
     }
 
     /** 参考菜谱 ID 存成逗号分隔（列宽 255 够放几十条） */

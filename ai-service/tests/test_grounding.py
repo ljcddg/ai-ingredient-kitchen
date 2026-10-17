@@ -21,15 +21,29 @@ def reference(name, amounts):
                      amounts=[ReferenceAmount(n, g) for n, g in amounts])
 
 
-def test_no_references_returns_none():
-    """没有参考就判不了 —— 返回 None，绝不能记成 0 分。"""
-    assert assess(draft(("番茄", 200)), []) is None
-    assert assess(draft(("番茄", 200)), None) is None
+def test_no_references_is_unjudgeable():
+    """没有参考时 faithfulness 判不了 —— 计数全 0、judgeable 为假，绝不能记成 0 分。
+
+    注意 assess 本身不再返回 None：answer_relevance 不需要参考也能算，
+    而它正是"注入参考 vs 没注入"对照实验里对照组的数据。
+    """
+    for refs in ([], None):
+        a = assess(draft(("番茄", 200)), refs)
+        assert a is not None
+        assert a.judgeable() is False
+        assert a.total() == 0 and a.items == []
+        assert a.ctx_precision is None and a.ctx_recall is None
 
 
-def test_reference_without_amounts_returns_none():
-    """参考里一条用量都没有（老数据/检索没带用量）时同样判不了。"""
-    assert assess(draft(("番茄", 200)), [Reference(dish_id=1, name="番茄炒蛋")]) is None
+def test_reference_without_amounts_is_unjudgeable():
+    """参考里一条用量都没有（老数据/检索没带用量）时同样判不了。
+
+    这里最容易写错：不进判定循环的话，每样食材都会"找不到参照"被记成无据，
+    faithfulness 直接变 0 —— 拿"参考没带用量"的锅否定生成。
+    """
+    a = assess(draft(("番茄", 200)), [Reference(dish_id=1, name="番茄炒蛋")])
+    assert a.judgeable() is False
+    assert a.ungrounded == 0 and a.items == []
 
 
 def test_grounded_when_amount_close():

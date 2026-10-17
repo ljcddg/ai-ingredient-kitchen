@@ -335,6 +335,52 @@ class Reference:
 
 
 @dataclass
+class AmountStat:
+    """单品用量分位（{@code t_ingredient_amount_stats} 的一行）。
+
+    校验器的第一级依据：库里真实菜谱里"这一样食材在这么多人份时放多少"。
+    比类别级准得多 —— 同是"蔬菜"，葱姜和土豆的正常量差一个量级。
+    """
+
+    ingredient_id: Optional[int] = None
+    bucket: Optional[str] = None
+    p50: Optional[float] = None
+    p90: Optional[float] = None
+    sample_count: int = 0
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> Optional["AmountStat"]:
+        ingredient_id = as_int(raw.get("ingredientId"))
+        bucket = as_str(raw.get("bucket"))
+        if ingredient_id is None or not bucket:
+            return None
+        return cls(ingredient_id=ingredient_id, bucket=bucket,
+                   p50=as_float(raw.get("p50")), p90=as_float(raw.get("p90")),
+                   sample_count=as_int(raw.get("sampleCount")) or 0)
+
+
+@dataclass
+class QuantityStat:
+    """类别用量分位（{@code t_ingredient_quantity_stats} 的一行）—— 第二级依据。"""
+
+    category: Optional[str] = None
+    bucket: Optional[str] = None
+    p50: Optional[float] = None
+    p90: Optional[float] = None
+    sample_count: int = 0
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> Optional["QuantityStat"]:
+        category = as_str(raw.get("category"))
+        bucket = as_str(raw.get("bucket"))
+        if not category or not bucket:
+            return None
+        return cls(category=category, bucket=bucket,
+                   p50=as_float(raw.get("p50")), p90=as_float(raw.get("p90")),
+                   sample_count=as_int(raw.get("sampleCount")) or 0)
+
+
+@dataclass
 class GenerateOptions:
     model: str = "gemma4:e2b"
     temperature: float = 0.2
@@ -370,6 +416,10 @@ class GenerateRequest:
     servings: int = 2
     constraints: Constraints = field(default_factory=Constraints)
     directory: List[DirectoryEntry] = field(default_factory=list)
+    # 用量分位的两级快照（dish-service 每请求注入）：没跑过统计脚本时为空，
+    # 校验器自动退到固定上限 —— 缺这两项不该让生成失败
+    amount_stats: List[AmountStat] = field(default_factory=list)
+    quantity_stats: List[QuantityStat] = field(default_factory=list)
     references: List[Reference] = field(default_factory=list)
     options: GenerateOptions = field(default_factory=GenerateOptions)
 
@@ -387,6 +437,14 @@ class GenerateRequest:
         references_raw = body.get("references")
         references = [Reference.from_dict(i if isinstance(i, dict) else {})
                       for i in references_raw] if isinstance(references_raw, list) else []
+        amount_raw = body.get("amountStats")
+        amount_stats = [s for s in (AmountStat.from_dict(i if isinstance(i, dict) else {})
+                                    for i in amount_raw) if s is not None] \
+            if isinstance(amount_raw, list) else []
+        quantity_raw = body.get("quantityStats")
+        quantity_stats = [s for s in (QuantityStat.from_dict(i if isinstance(i, dict) else {})
+                                      for i in quantity_raw) if s is not None] \
+            if isinstance(quantity_raw, list) else []
         options_raw = body.get("options")
         options = _parse_options(options_raw, defaults)
         servings = as_int(body.get("servings"))
@@ -397,6 +455,8 @@ class GenerateRequest:
             servings=servings if servings is not None and servings > 0 else 2,
             constraints=Constraints.from_dict(body.get("constraints")),
             directory=directory,
+            amount_stats=amount_stats,
+            quantity_stats=quantity_stats,
             references=references,
             options=options,
         )

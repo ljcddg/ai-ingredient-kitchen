@@ -10,10 +10,14 @@ import hashlib
 from pathlib import Path
 from typing import List, Optional
 
+from .amounts import STAT_FLOOR_PER_PERSON, AmountIndex, serving_bucket
 from .directory import Directory
 from .schemas import Constraints, GenerateRequest, Reference
 
 PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "dish-generate-system.txt"
+
+# 【常见用量】最多列几项：再多会挤占输出预算，小模型对长段的注意力也会摊薄
+MAX_AMOUNT_HINTS = 8
 
 
 def load_system_prompt(path: Optional[Path] = None):
@@ -54,6 +58,12 @@ def build_user_prompt(request: GenerateRequest, directory: Directory,
     # 烹饪常识放在参考菜谱之前：先讲"这一步该怎么做"，再给"别人怎么配的"
     if knowledge_block:
         blocks.append(knowledge_block)
+
+    # 常见用量：库里同类菜谱的真实量级，紧贴参考菜谱 —— 都是"别人怎么配的"，
+    # 一个给搭配、一个给克数。放在校验器之前用同一份分位，两处不会打架。
+    amount_block = render_amount_hints(request, directory)
+    if amount_block:
+        blocks.append(amount_block)
 
     reference_block = render_references(references)
     if reference_block:
@@ -168,6 +178,50 @@ def must_use_labels(constraints: Constraints, directory: Directory) -> List[str]
         name = directory.name_of(ingredient_id)
         labels.append(name if name is not None else f"食材#{ingredient_id}")
     return labels
+
+
+def render_amount_hints(request: GenerateRequest, directory: Directory) -> str:
+    """把【常见用量】渲染成提示词的一段；没有统计时返回空串。
+
+    为什么值得单独占一段：模型的"用量幻觉"一半是**没有可抄的数**。
+    参考菜谱只能覆盖"库里有相似菜"的那些食材，用户手里另有一半食材是参考里没有的 ——
+    对它们，模型只能凭空编，而"编"出来的量正是校验器要打回去的东西。
+    把库里这一样食材的真实量级直接写在它眼前（按本次人数换算成总克数），
+    等于把"事后拦截"提前成"事前约束"，重试也就少了。
+
+    与校验器用**同一份分位**（`amounts.AmountIndex`）：提示词里说"约 300g、不超过 400g"，
+    校验器的上限就是 400g —— 两处数字不一致时，模型会被教一次又被打一次，
+    重试也改不对（它以为自己已经照做了）。
+
+    只列前 MAX_AMOUNT_HINTS 项：段太长会挤占输出预算，而且用户食材一多，
+    小模型对整段的注意力本来就会摊薄。
+    """
+    amounts = AmountIndex(request.amount_stats, request.quantity_stats)
+    if amounts.size() == (0, 0):
+        return ""
+
+    bucket = serving_bucket(request.servings)
+    lines: List[str] = []
+    for ref in request.ingredients or []:
+        if ref is None or not ref.name or not ref.name.strip():
+            continue
+        if len(lines) >= MAX_AMOUNT_HINTS:
+            break
+        name = ref.name.strip()
+        ingredient_id = ref.id if ref.id and ref.id > 0 else directory.resolve_id(name)
+        category = directory.category_of(ingredient_id)
+        basis = amounts.lookup(ingredient_id, category, bucket)
+        if not basis.has_stat():
+            continue
+        typical = int(round(basis.p50 * request.servings))
+        upper = int(round(max(basis.p90, STAT_FLOOR_PER_PERSON) * request.servings))
+        lines.append(f"- {name}：约 {typical}g（一般不超过 {upper}g）")
+
+    if not lines:
+        return ""
+    return ("【常见用量】（库内同类菜谱的经验值，已按 "
+            + str(request.servings) + " 人份换算；可在此量级内调整）\n"
+            + "\n".join(lines))
 
 
 def render_references(references: Optional[List[Reference]]) -> str:

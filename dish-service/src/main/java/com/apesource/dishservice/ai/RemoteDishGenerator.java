@@ -4,6 +4,7 @@ import com.apesource.dishservice.dto.DishDraft;
 import com.apesource.dishservice.dto.IngredientRef;
 import com.apesource.dishservice.retrieval.RetrievalDecision;
 import com.apesource.dishservice.retrieval.RetrievalDecisionLogger;
+import com.apesource.dishservice.service.AmountStatsService;
 import com.apesource.dishservice.service.IngredientDirectory;
 import com.apesource.dishservice.service.IngredientSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,6 +46,7 @@ public class RemoteDishGenerator implements DishGenerator {
     private final RemoteProperties remoteProperties;
     private final RestClient restClient;
     private final RetrievalDecisionLogger decisionLogger;
+    private final AmountStatsService amountStats;
 
     public RemoteDishGenerator(GenerateProperties properties,
                                ReferenceDishRetriever referenceRetriever,
@@ -52,7 +54,8 @@ public class RemoteDishGenerator implements DishGenerator {
                                ObjectMapper objectMapper,
                                RemoteProperties remoteProperties,
                                RestClient aiServiceClient,
-                               RetrievalDecisionLogger decisionLogger) {
+                               RetrievalDecisionLogger decisionLogger,
+                               AmountStatsService amountStats) {
         this.properties = properties;
         this.referenceRetriever = referenceRetriever;
         this.directory = directory;
@@ -60,6 +63,7 @@ public class RemoteDishGenerator implements DishGenerator {
         this.remoteProperties = remoteProperties;
         this.restClient = aiServiceClient;
         this.decisionLogger = decisionLogger;
+        this.amountStats = amountStats;
 
         log.info("远程生成器已启用：ai-service={}，读超时={}s",
                 remoteProperties.getBaseUrl(), remoteProperties.getReadTimeoutSeconds());
@@ -187,6 +191,10 @@ public class RemoteDishGenerator implements DishGenerator {
         body.put("constraints", input.constraintsOrNone());
         // 主数据快照：Python 不连库，校验/归一/营养全靠它
         body.put("directory", directory.snapshot());
+        // 用量分位的两级快照：Python 校验器用它把"该放多少"从固定上限换成数据分位
+        // （单品级 → 类别级 → 固定上限，三级回退；取不到就自动降级，不影响生成）
+        body.put("amountStats", amountStats.amountStats());
+        body.put("quantityStats", amountStats.quantityStats());
         body.put("references", references);
         body.put("options", Map.of(
                 "model", remoteProperties.getModel(),
@@ -211,7 +219,9 @@ public class RemoteDishGenerator implements DishGenerator {
                                                  RemoteResponse.AttributionDto attribution) {
         GenerateResult.GroundingStats grounding = attribution == null ? null
                 : new GenerateResult.GroundingStats(attribution.grounded(), attribution.deviated(),
-                        attribution.ungrounded(), attribution.faithfulness());
+                        attribution.ungrounded(), attribution.faithfulness(),
+                        attribution.answerRelevance(), attribution.ctxPrecision(),
+                        attribution.ctxRecall());
         if (dto == null) {
             return new GenerateResult.GenerationMeta(remoteProperties.getModel(), "unknown",
                     properties.getTemperature(), properties.getMaxAttempts(), List.of(),
@@ -270,11 +280,18 @@ public class RemoteDishGenerator implements DishGenerator {
         }
 
         /**
-         * 依据校验结果。{@code null} 表示判不了（没参考 / 参考没带用量）——
-         * 与" faithfulness = 0"是两件事，落库时必须区分，否则冷启动会被误判成质量事故。
+         * RAGAS 四项的评估结果。{@code null} 只表示 Python 没带回这个对象。
+         *
+         * <p><b>"判不了"与"0 分"必须分开</b>：没参考的那些生成，
+         * faithfulness 与 ctx 两项本就无从计算（{@code total() == 0}，ctx 为 null），
+         * 落库时保持 NULL。把它们写成 0，等于拿冷启动的代价去否定 RAG ——
+         * 之后做的每一次"注入参考 vs 未注入"对比都会被这批 0 分污染。
+         *
+         * <p>三项新指标是 {@code Double} 而不是 {@code double}，就是为了能表达"判不了"。
          */
         record AttributionDto(int grounded, int deviated, int ungrounded, double faithfulness,
-                              boolean lowConfidence) {
+                              boolean lowConfidence, Double answerRelevance,
+                              Double ctxPrecision, Double ctxRecall) {
         }
     }
 }

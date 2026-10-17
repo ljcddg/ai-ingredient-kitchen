@@ -327,9 +327,10 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `project0914` | `t_dish_rating` / `t_dish_comment` | 评分（一人一票）/ 评论（可多条） |
 | `project0914` | `t_dish_collect` | 收藏（恢复式） |
 | `project0914` | `t_ai_generate_task` | AI 生成任务（状态机 + 去重 + 配额） |
-| `project0914` | `t_ai_generation_record` | 生成记录（模型 / 提示词版本 / 校验结果 / 原始输出截断 / **有据比例 faith** / 注入的知识条目），换模型后老结果仍可解释 |
+| `project0914` | `t_ai_generation_record` | 生成记录（模型 / 提示词版本 / 校验结果 / 原始输出截断 / **RAGAS 四项：faith、answer_relevance、ctx_precision、ctx_recall** / 注入的知识条目），换模型后老结果仍可解释 |
 | `project0914` | `t_retrieval_decision` | **检索三档决策日志**（DIRECT / RAG_GENERATE / GENERATE_FRESH + 满足率 / 召回数 / 参考数 / 耗时），论文第 5 章"检索优先省了多少调用"的唯一证据来源 |
-| `project0914` | `t_ingredient_quantity_stats` | 用量分位（类别 × 人数档的 P10/P50/P90），离线脚本 `sql/build-stats.py` 生成，回答"这道菜该放多少肉" |
+| `project0914` | `t_ingredient_amount_stats` | 用量分位（**单品 × 人数档**的 P50/P90，34 组），校验器的第一级依据 —— "番茄 2 人份 500g"这种靠类别上限拦不住的量，靠它拦 |
+| `project0914` | `t_ingredient_quantity_stats` | 用量分位（类别 × 人数档的 P10/P50/P90，8 组），单品样本不足时的第二级兜底；两张表都由离线脚本 `sql/build-stats.py` 全量重建 |
 | `project0914` | `t_ingredient_substitute` | 食材替代关系（同一类别热量接近 + 同类别共现两路来源），召回结果里"缺的那样能拿什么顶" |
 | `project0914` | `t_dish_push_log` | 推荐流推流日志（一人一菜一行，24 小时去重靠**查询条件**而非唯一键） |
 | `project0914` | `t_es_sync_task` | 索引同步待办（退避重试 + 人工补偿入口） |
@@ -570,8 +571,9 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 | 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
 | 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
 | 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
-| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **72** 项（2026-10-17 通过，含识菜 7 项、提示词分段与失败分档 4 项、烹饪知识库 9 项、依据校验 7 项）；dish-service **132** 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
-| 依据校验（faithfulness） | `ai-service/tests/test_grounding.py` + `t_ai_generation_record.faith` | 每条生成记录的 grounded / deviated / ungrounded 与有据比例 | 口径对齐 RAGAS 的 Answer Faithfulness：用量落在库内参考 **0.5~2 倍**算有据；`faith` 为 **NULL 表示判不了**（没参考/参考没用量），**不是 0 分**，统计时必须过滤 |
+| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **91** 项（2026-10-17 通过，含识菜 7 项、提示词分段与失败分档 4 项、烹饪知识库 9 项、依据校验 7 项、RAGAS 另三项 11 项、用量三级依据 8 项）；dish-service **136** 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 依据校验（RAGAS 四项） | `ai-service/tests/test_grounding.py` + `tests/test_ragas_metrics.py` + `t_ai_generation_record.{faith,answer_relevance,ctx_precision,ctx_recall}` | 每条生成记录的四项指标 | faithfulness 口径：用量落在库内参考 **0.5~2 倍**算有据；另三项为词面/集合代理（无标注数据，本地小模型自评不可信），可用于横向 A/B，不可与论文绝对值比。四项都可为 **NULL = 判不了**（没参考/参考没用量），**不是 0 分**，统计时必须过滤 |
+| 用量上限三级依据 | `ai-service/tests/test_validator_amount_stats.py` + `dish-service` 的 `AmountStatsServiceTest` | 单品分位 34 组 / 类别分位 8 组 / 固定档兜底；统计表缺失时自动降级 | 单品级 → 类别级 → 固定档。番茄 1-2 人份 p90 = 200g/份，类别上限（蔬菜 300g/人）拦不住"两人吃一斤番茄"，单品上限才拦得住；另设 80g/人 地板保护香菜这类点缀食材 |
 | 手写菜谱重名拦截 | `dish-service` 的 `ManualDishWriterTest`（原 `verify-manual-dish.py` 已删除） | 12 个单元测试通过 | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」） |
 | 前端端到端（真实浏览器点按） | `frontend-vue/verify-vue.py` | **253 断言 / 0 失败** | 六个页面含管理台 + 手写菜谱（9i）+ 推荐页（9j）：断言前端**实际发出的请求体**（patch `fetch` 抓载荷），曾借此抓出管理台 10 个接口漏掉 `/ai` 前缀的真 bug |
 | 人工可操作性（盲评材料 + 汇总口径） | `es/eval/human-eval-kit.py` | `es/eval/human-eval/`（`blind-sheet.md` / `ratings-template.csv` / `answer-key.csv`，`score` 出 `human-eval-report.md`） | 工具已就绪并按假评分表验证过汇总与加权 kappa；**现有 7 条样本两臂各自困在一个提示词版本上，不能直接对比**，要下结论得补 B 臂样本 + ≥2 名真人评分 |

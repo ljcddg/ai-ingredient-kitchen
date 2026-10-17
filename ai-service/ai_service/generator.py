@@ -26,7 +26,7 @@ import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from . import grounding, nutrition, ollama_client
+from . import grounding, nutrition, ollama_client, prompt
 from .config import Config
 from .directory import Directory
 from .knowledge import CookingKnowledge, categories_of
@@ -130,7 +130,9 @@ class DishGenerator:
         start = time.monotonic()
         options = request.options
         directory = Directory(request.directory)
-        validator = DraftValidator(directory)
+        # 用量分位随请求注入：校验器据此把"该放多少"从固定上限换成数据分位
+        # （空列表会让它自动退到固定档，不影响老环境）
+        validator = DraftValidator(directory, request.amount_stats, request.quantity_stats)
 
         references = request.references or []
         reference_ids = [ref.dish_id for ref in references if ref.dish_id is not None]
@@ -146,13 +148,21 @@ class DishGenerator:
             logger.info("本次注入烹饪常识 %d 条：%s", len(rules), [r.get("id") for r in rules])
 
         user_prompt = build_user_prompt(request, directory, references, knowledge_block)
+        # 只为日志再算一次（同函数同输入，结果确定）：常见用量进了提示词，
+        # 事后按 prompt_version 分组做 A/B 时，"这段到底有没有出现"必须查得出来 ——
+        # 提示词版本号跟的是**系统**提示词，用户消息里的变化不会体现在版本号上。
+        amount_hints = prompt.render_amount_hints(request, directory).count("\n- ")
+        if amount_hints:
+            logger.info("本次注入常见用量 %d 项（按 %d 人份换算）",
+                        amount_hints, request.servings)
         required_names = [ref.name.strip() for ref in request.ingredients
                           if ref.name is not None and ref.name.strip()]
 
         logger.info("开始生成：requestId=%s，食材 %d 项，口味 %s，人数 %d，参考菜谱 %d 条，"
-                    "主数据 %d 条，最多尝试 %d 次",
+                    "主数据 %d 条，用量分位 %d+%d 组，最多尝试 %d 次",
                     request.request_id, len(request.ingredients), request.tastes or "无",
-                    request.servings, len(references), directory.size(), options.max_attempts)
+                    request.servings, len(references), directory.size(),
+                    len(request.amount_stats), len(request.quantity_stats), options.max_attempts)
 
         last_problems: List[str] = []
         last_raw_output: Optional[str] = None
@@ -200,10 +210,10 @@ class DishGenerator:
                             attempt, attempts, draft.name, cost_ms, nutrition_verified)
                 logger.info("本地营养：%s", nutrition.describe(local))
 
-                # 依据校验：只在结果出来后给可信度结论，不影响成败
-                attribution = grounding.assess(draft, references, directory)
+                # 依据校验 + RAGAS 三项：只在结果出来后给可信度结论，不影响成败
+                attribution = grounding.assess(draft, references, directory, request)
                 if attribution is not None:
-                    logger.info("依据校验：%s", attribution.summary())
+                    logger.info("RAGAS 评估：%s", attribution.summary())
                     if attribution.low_confidence():
                         logger.warning("依据校验判定低可信（无据比例超过 %.0f%%）：%s",
                                        grounding.LOW_CONFIDENCE_UNGROUNDED * 100,
