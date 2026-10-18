@@ -118,3 +118,14 @@ __pycache__/
 # 本地验证脚本的中间产物
 *-args.tmp
 .sync-verify.json
+
+# ---------- 论文材料（不入代码仓库） ----------
+# 正文 / 开题报告 / 开题答辩 / 参考文献原文 / 排版脚本 / 配图，全部留在本地。
+# 仓库只保留可公开的技术文档，用白名单放行。
+docs/thesis/*
+!docs/thesis/RAG与功能扩展方案.md
+!docs/thesis/RAG落地可行性评估.md
+!docs/thesis/文献落地对照.md
+
+# slidep 工具的会话缓存
+.slidep/
