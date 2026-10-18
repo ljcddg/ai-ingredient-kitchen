@@ -27,10 +27,12 @@ public interface DishCommentMapper extends BaseMapper<DishComment> {
      * <p>直接把结果映射成 {@link DishDetailView.CommentView}，省一个中间 DTO。
      */
     @Select("""
-            SELECT c.user_id                                            AS userId,
+            SELECT c.id                                                 AS id,
+                   c.user_id                                            AS userId,
                    u.nickname                                           AS nickname,
                    c.content                                            AS content,
                    c.rating                                             AS rating,
+                   c.report_count                                       AS reportCount,
                    DATE_FORMAT(c.create_time, '%Y-%m-%d %H:%i')         AS createTime
             FROM t_dish_comment c
                      LEFT JOIN t_user u ON u.id = c.user_id

@@ -129,3 +129,6 @@ docs/thesis/*
 
 # slidep 工具的会话缓存
 .slidep/
+
+# 词库导入脚本生成的 SQL（3 MB 级中间产物，按需重新生成）
+sql/.generated/

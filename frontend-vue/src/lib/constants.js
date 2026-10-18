@@ -30,6 +30,51 @@ export const NUTRITION_SOURCE_TEXT = {
 /** 食材候选的审核状态（对应 IngredientCandidate 常量） */
 export const CANDIDATE_STATUS_TEXT = { 0: '待审核', 1: '已转正', 2: '已驳回' }
 
+/* ============================================================
+   评论治理（对应 t_sensitive_word / t_comment_report）
+   ------------------------------------------------------------
+   类别用字符串 code 而不是数字：后端新增一类时前端只需在这里补一行，
+   不会出现「数字 4 到底是色情还是违法」这种要去翻建表语句的问题。
+   ============================================================ */
+
+/** 违规词类别 */
+export const WORD_CATEGORY_TEXT = {
+  AD: '广告导流',
+  PORN: '色情低俗',
+  VIOLENCE: '暴恐',
+  ILLEGAL: '违法违规',
+  ABUSE: '辱骂攻击',
+  OTHER: '其他'
+}
+
+/** 类别胶囊的配色（浅底深字，与全站观感一致） */
+export const WORD_CATEGORY_TONE = {
+  AD: 'warn',
+  PORN: 'danger',
+  VIOLENCE: 'danger',
+  ILLEGAL: 'danger',
+  ABUSE: 'warn',
+  OTHER: ''
+}
+
+/** 处置级别：1 只替换命中的词，评论照常发；2 整条进待审，不对外展示 */
+export const WORD_LEVEL_TEXT = { 1: '替换为星号', 2: '整条拦截待审' }
+
+/** 举报理由（对应 CommentReport.REASON_*） */
+export const REPORT_REASON_TEXT = {
+  0: '其他',
+  1: '广告导流',
+  2: '辱骂攻击',
+  3: '色情低俗',
+  4: '违法违规'
+}
+
+/** 举报处理状态 */
+export const REPORT_STATUS_TEXT = { 0: '待处理', 1: '已受理', 2: '已驳回' }
+
+/** 评论状态 */
+export const COMMENT_STATUS_TEXT = { 0: '待审核', 1: '正常', 2: '已隐藏' }
+
 /** 把毫秒数说成人话：12.3 秒 / 1 分 05 秒 */
 export function humanDuration(ms) {
   if (!ms && ms !== 0) return ''

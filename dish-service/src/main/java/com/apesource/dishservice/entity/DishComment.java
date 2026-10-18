@@ -37,6 +37,20 @@ public class DishComment {
     /** 状态：0-待审核，1-正常，2-已隐藏 */
     private Integer status;
 
+    /**
+     * 命中的违规词，逗号分隔（只有管理员看得到）。
+     *
+     * <p>{@code content} 存的是<b>脱敏后</b>的文本，所以「为什么这条被屏蔽」
+     * 必须靠这一列解释 —— 用户看到的是星号，管理员看到的是"命中了哪几个词"。
+     */
+    private String hitWords;
+
+    /** 被举报次数。达到阈值自动转待审核，把人力集中在争议内容上 */
+    private Integer reportCount;
+
+    /** 管理员处置说明（下架/放行的依据）。被下架的内容不删行，靠它留下处置理由 */
+    private String auditRemark;
+
     @TableLogic
     private Integer deleted;
 

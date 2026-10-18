@@ -273,6 +273,39 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 - 当前权重是 COCO 80 类预训练，**没有中式食材类**；89 类食材数据集训出 best.pt 后
   放到 `yolo_model/weights/` 即生效，这是 Phase 3 剩下的主要工作
 
+### 8. 评论治理：词库拦得住、举报有人管
+
+评论是全站唯一「用户自由输入 + 直接展示给所有人」的入口。只做长度校验等于什么都不做 ——
+广告导流和辱骂会在几分钟内铺满详情页。所以做了四层：
+
+```
+发布评论
+  → ① 字典树匹配（内存，不查库）
+        · level 1（广告/辱骂）→ 命中的词就地替换成等长星号，评论照常发布
+        · level 2（色情/涉枪涉爆/违法网址）→ 落库但 status=0，不进详情页
+        · 插空格「加 微 信」、插符号「加*微*信」照样命中
+  → ② 详情页只查 status=1；被替换的评论带 masked 标记，前端提示「部分内容已屏蔽」
+  → ③ 其他用户可举报（一人一条一次），累计 3 次自动转 status=0 待审
+  → ④ 管理员在 /admin 处理：举报「下架/驳回」、待审评论「放行/隐藏」
+```
+
+**几个刻意的取舍：**
+
+| 决策 | 选择 | 放弃了什么 | 理由 |
+|---|---|---|---|
+| 匹配算法 | 字典树（Trie），最长匹配 | `contains` 逐个词库循环 | 词库 1.5 万条时 `contains` 是 O(N·L)；Trie 单次扫描 O(L·最大词长)，与词库大小基本无关。实测 **15668 词构建 38 ms、内存 +15 MB、单条评论 5–44 μs** |
+| 轻度违规 | 只替换命中的词 | 整条拒绝 | 用户写了 200 字经验，为一个词整段丢掉，体验比屏蔽那个词差得多 |
+| 重度违规 | 整条进待审 | 也只替换成星号 | 违法内容不该只变成星号后继续展示 |
+| 存库内容 | **脱敏后**文本 + `hit_words` | 存原文、展示时再脱敏 | 详情页查 `status=1`，存原文等于脱敏白做；命中词单独记，管理员仍能解释「为什么被屏蔽」 |
+| 举报阈值 | 3 次转待审，**不自动下架** | 够 N 次直接隐藏 | 否则任意 3 个账号就能让别人的内容消失，攻击成本为零 |
+| 词库来源 | 开源词库批量导入，但过三道闸 | 整包倒入 | 开源词库掺了大量正常词（「网络」「招聘」「淘宝」「刺激」「写真」），全量导入会把正常评论刷成星号 |
+| 删除词条 | 优先「停用」 | 直接物理删 | 历史评论的 `hit_words` 还记着这个词，删了之后「当初为什么屏蔽」就查不到 |
+
+**词库怎么维护**：`sql/migration-09-comment-moderation.sql` 建表 + 16 条语义无歧义的核心种子词；
+`sql/import-sensitive-lexicon.py` 从开源词库批量导入（支持 `--dry-run` 先看统计，
+按 `source` 可整批停用误伤）。管理页 `/admin` 提供检索、增删改、启停、
+以及**文本试跑** —— 改完词库拿真实语句跑一遍，比盯着词表猜会不会误伤靠谱得多。
+
 ---
 
 ## 关键设计决策与取舍
@@ -339,6 +372,9 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 | `project0914` | `t_vision_label` | 识别 label → 食材映射（COCO 英文名显式配，如 `tomato` → 番茄；自训中文名走 `resolveId()`） |
 | `project0914` | `t_vision_detect_log` | 识别流水（requestId / 图 / 检出项 / 用户最终勾选），用于归因与后续统计 |
 | `project0914` | `t_user_ingredient_pref` | 用户食材偏好（已建表，待启用） |
+| `project0914` | `t_sensitive_word` | **违规词库**（词 / 类别 / 级别 1-替换 2-拦截 / 启用 / 来源 / 命中数）；服务启动时全量载入内存字典树，增删改后整体重建 |
+| `project0914` | `t_comment_report` | **评论举报**（评论 / 举报人 / 理由 / 状态 0-待处理 1-已受理 2-已驳回 / 处理人 / 处理说明） |
+| `project0914` | `t_dish_comment` | 菜品评论；`status` 0-待审 1-正常 2-已隐藏，另有 `hit_words`（命中词，仅管理员可见）、`report_count`（达 3 次自动转待审）、`audit_remark`（处置说明） |
 
 **通用约定**：主键统一 `IdType.ASSIGN_ID`（雪花）、`@TableLogic` 逻辑删除、
 时间字段 `@TableField(fill)` + `MetaObjectHandler` 自动填充。
@@ -405,9 +441,31 @@ ON DUPLICATE KEY UPDATE deleted = 0, create_time = NOW();
 |---|---|---|
 | `POST` / `DELETE` | `/api/dish/ai/dish/{dishId}/collect` | 收藏 / 取消收藏 |
 | `POST` | `/api/dish/ai/dish/{dishId}/rating` | 评分（一人一票） |
-| `POST` | `/api/dish/ai/dish/{dishId}/comment` | 评论 |
+| `POST` | `/api/dish/ai/dish/{dishId}/comment` | 评论（命中 level 1 词就地脱敏；命中 level 2 词转待审） |
+| `POST` | `/api/dish/ai/comment/{commentId}/report` | 举报评论（一人一条一次；累计 3 次自动转待审） |
 | `GET` | `/api/dish/ai/my/dishes` | 我的菜品 |
 | `GET` | `/api/dish/ai/my/collects` | 我的收藏 |
+
+</details>
+
+<details>
+<summary><b>评论治理</b>（dish-service；🔒 = 管理员）</summary>
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | 🔒 `/api/dish/ai/admin/sensitive-words` | 词库检索（keyword / category / level / enabled + 分页） |
+| `GET` | 🔒 `/api/dish/ai/admin/sensitive-words/overview` | 词库概览（总量 / 启用数 / 拦截级 / 类别分布） |
+| `POST` | 🔒 `/api/dish/ai/admin/sensitive-words` | 新增词条 |
+| `PUT` | 🔒 `/api/dish/ai/admin/sensitive-words/{id}` | 修改词条 |
+| `POST` | 🔒 `/api/dish/ai/admin/sensitive-words/{id}/enabled?enabled=` | 停用 / 启用（优于删除：历史命中记录还指着它） |
+| `DELETE` | 🔒 `/api/dish/ai/admin/sensitive-words/{id}` | 删除词条 |
+| `POST` | 🔒 `/api/dish/ai/admin/sensitive-words/test` | **文本试跑**：用当前内存词库扫一段文字，返回替换结果 + 命中明细 |
+| `POST` | 🔒 `/api/dish/ai/admin/sensitive-words/disable-source?source=` | 按来源批量停用（批量导入混进误伤时一次收掉） |
+| `POST` | 🔒 `/api/dish/ai/admin/sensitive-words/reload` | 手动重建内存词库 |
+| `GET` | 🔒 `/api/dish/ai/admin/comment-reports?status=` | 举报列表（0-待处理 1-已受理 2-已驳回） |
+| `POST` | 🔒 `/api/dish/ai/admin/comment-reports/{id}/handle` | 处理举报：`action=remove`（下架评论 + 连带关闭同评论其余举报）/ `reject` |
+| `GET` | 🔒 `/api/dish/ai/admin/comments/pending` | 待审评论（命中拦截词 + 被举报超阈值） |
+| `POST` | 🔒 `/api/dish/ai/admin/comments/{id}/review` | 处置待审评论：`action=approve`（放行）/ `hide` |
 
 </details>
 
@@ -571,7 +629,8 @@ java -Dfile.encoding=UTF-8 -jar dish-service/target/dish-service-0.0.1-SNAPSHOT.
 | 检索 / 生成协同 | `es/eval/run-synergy-experiment.py` | `results-synergy.{md,json}` | 仍需调模型的比例 **93.2%**（严格口径）/ 80.2%（宽松）；检索 P50 45.5ms vs 生成 P50 144.8s，**约 3183 倍** |
 | 生成质量（按生成记录统计） | `es/eval/run-generation-experiment.py` | `results-generation.{md,json}` | 小样本：格式通过 0.667、约束通过 1.0、一次通过 0.5；失败那条是**格式**问题不是约束问题 |
 | 系统负载（顺序 vs 并发） | `es/eval/run-load-experiment.py` | `results-load.{md,json}`（另存 `results-load-timeout240.*` 作证据） | 队列不是瓶颈（排队 ≤239ms）；并发组墙钟 391s < 耗时之和 651s（比值 1.66，**存在重叠**） |
-| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **91** 项（2026-10-17 通过，含识菜 7 项、提示词分段与失败分档 4 项、烹饪知识库 9 项、依据校验 7 项、RAGAS 另三项 11 项、用量三级依据 8 项）；dish-service **136** 项 | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 营养本地计算对照 | `ai-service/tests/test_nutrition.py`（原 `dish-service/verify-p2-nutrition.py` 已删除） | pytest 单测，ai-service 共 **91** 项（2026-10-17 通过，含识菜 7 项、提示词分段与失败分档 4 项、烹饪知识库 9 项、依据校验 7 项、RAGAS 另三项 11 项、用量三级依据 8 项）；dish-service **149** 项（含违规词字典树 13 项） | 历史结论：小模型营养估算平均偏差 **181.79%**、最大 825.93% → 所以本地按成分表算，并把 AI 估算标成「估算」 |
+| 违规词匹配 | `dish-service/src/test/java/com/apesource/dishservice/moderation/SensitiveWordTrieTest.java` | 13 项，纯内存单测（不起 Spring） | 覆盖最长匹配、不重叠替换、插空格/插符号绕过、英文大小写、命中拦截级、空输入、空词库。漏一个词没人发现，误伤一个正常词会被投诉 —— 边界必须逐个钉死 |
 | 依据校验（RAGAS 四项） | `ai-service/tests/test_grounding.py` + `tests/test_ragas_metrics.py` + `t_ai_generation_record.{faith,answer_relevance,ctx_precision,ctx_recall}` | 每条生成记录的四项指标 | faithfulness 口径：用量落在库内参考 **0.5~2 倍**算有据；另三项为词面/集合代理（无标注数据，本地小模型自评不可信），可用于横向 A/B，不可与论文绝对值比。四项都可为 **NULL = 判不了**（没参考/参考没用量），**不是 0 分**，统计时必须过滤 |
 | 用量上限三级依据 | `ai-service/tests/test_validator_amount_stats.py` + `dish-service` 的 `AmountStatsServiceTest` | 单品分位 34 组 / 类别分位 8 组 / 固定档兜底；统计表缺失时自动降级 | 单品级 → 类别级 → 固定档。番茄 1-2 人份 p90 = 200g/份，类别上限（蔬菜 300g/人）拦不住"两人吃一斤番茄"，单品上限才拦得住；另设 80g/人 地板保护香菜这类点缀食材 |
 | 手写菜谱重名拦截 | `dish-service` 的 `ManualDishWriterTest`（原 `verify-manual-dish.py` 已删除） | 12 个单元测试通过 | 同一创作者的第二道同名菜在**落库前**被拦下并给人话（不再是「服务器开小差了」） |
@@ -657,6 +716,7 @@ python es/eval/fill-arm-b.py 5
 | [es/dish-search.md](es/dish-search.md) | Elasticsearch 检索方案详解 |
 | [docs/ai-service-split.md](docs/ai-service-split.md) | 推理拆分到 Python ai-service 的设计与接口契约 |
 | [docs/yolo-vision-design.md](docs/yolo-vision-design.md) | 视觉识别（YOLO）设计，**v2：代码已落地**（Python vision.py + Java VisionClient/Service + 前端识菜页；v1 的 4 个待确认点已拍板，见 §12） |
+| [docs/comment-moderation.md](docs/comment-moderation.md) | 评论违规词拦截与举报审核：字典树匹配、两级处置、举报状态机、词库运营与误伤控制 |
 
 ---
 

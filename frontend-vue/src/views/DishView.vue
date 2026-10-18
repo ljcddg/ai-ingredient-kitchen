@@ -228,16 +228,44 @@
               <li v-if="!comments.length" class="rating-none" id="commentEmpty">
                 还没有评论。第一个说点什么的人，往往最有用。
               </li>
-              <li v-for="(c, idx) in comments" :key="idx" class="comment">
+              <li v-for="(c, idx) in comments" :key="c.id || ('c' + idx)" class="comment">
                 <div class="comment-head">
                   <span class="comment-who">{{ c.nickname || '匿名用户' }}</span>
-                  <span class="comment-time">{{ c.createTime || '' }}</span>
+                  <span class="comment-meta">
+                    <span class="comment-time">{{ c.createTime || '' }}</span>
+                    <!-- 自己的评论不显示举报：举报自己除了制造无效工单没有任何意义 -->
+                    <button v-if="canReport(c)" class="ghost-btn comment-report-btn" type="button"
+                            @click="openReport(c)">举报</button>
+                  </span>
                 </div>
                 <!-- 星级用和评分控件同一套 SVG，不用 ★ 字符（字体差异大，且落在 emoji 检测区间） -->
                 <div v-if="c.rating" class="comment-stars" role="img" :aria-label="c.rating + ' 星'">
                   <span v-for="n in c.rating" :key="n" v-html="STAR_SVG"></span>
                 </div>
                 <p class="comment-body">{{ c.content }}</p>
+
+                <!-- 举报面板：就地展开，不弹模态框（模态框会盖住被举报的内容） -->
+                <div v-if="reportTarget && reportTarget.id === c.id" class="report-panel">
+                  <p class="report-panel-title">举报这条评论</p>
+                  <select class="input" v-model.number="reportReason">
+                    <option v-for="(label, code) in REPORT_REASON_TEXT" :key="code" :value="Number(code)">
+                      {{ label }}
+                    </option>
+                  </select>
+                  <input class="input" type="text" maxlength="100" v-model="reportText"
+                         placeholder="补充说明（可空），例如：引导加微信卖课">
+                  <div class="report-panel-actions">
+                    <button class="primary-btn" type="button" :disabled="reportBusy" @click="submitReport">
+                      {{ reportBusy ? '提交中…' : '提交举报' }}
+                    </button>
+                    <button class="ghost-btn" type="button" :disabled="reportBusy" @click="cancelReport">
+                      取消
+                    </button>
+                  </div>
+                  <p class="report-panel-note">
+                    管理员会人工核对。举报不会让评论立刻消失，也不会通知对方是谁举报的。
+                  </p>
+                </div>
               </li>
             </ul>
           </section>
@@ -263,7 +291,7 @@ import FxBg from '../components/FxBg.vue'
 import TopBar from '../components/TopBar.vue'
 import { DishApi } from '../api.js'
 import { authState } from '../store/auth.js'
-import { DIFFICULTY_TEXT, SPICY_TEXT, SOURCE_TEXT, NUTRITION_SOURCE_TEXT } from '../lib/constants.js'
+import { DIFFICULTY_TEXT, SPICY_TEXT, SOURCE_TEXT, NUTRITION_SOURCE_TEXT, REPORT_REASON_TEXT } from '../lib/constants.js'
 import { toastSuccess, toastError, toastInfo } from '../store/toast.js'
 
 const STAR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true">'
@@ -291,6 +319,13 @@ const commentBusy = ref(false)
 
 const comments = ref([])
 const commentText = ref('')
+
+/* ---------------- 举报 ---------------- */
+/** 正在举报的那条评论（null 表示面板关闭）。存整条对象，面板要显示它的内容 */
+const reportTarget = ref(null)
+const reportReason = ref(1)
+const reportText = ref('')
+const reportBusy = ref(false)
 
 /** 菜品 ID 一律保持字符串（见 readDishId 注释） */
 const dishId = computed(() => {
@@ -506,14 +541,60 @@ async function submitComment() {
   commentBusy.value = true
   try {
     const created = await DishApi.comment(dishId.value, content, myScore.value)
+    commentText.value = ''
+
+    // 命中「整条拦截」级违规词时后端把评论置为待审：它不该出现在列表里。
+    // 插进去就等于把未审核内容当场展示给所有人，等于没拦。
+    if (created && created.pending) {
+      toastInfo('评论已提交，管理员审核通过后才会展示')
+      return
+    }
+
     // 本地插入新评论，不重拉整个详情：省一次请求，也不会打断用户
     comments.value.unshift(created)
-    commentText.value = ''
-    toastSuccess('评论已发表')
+    toastSuccess(created && created.masked ? '评论已发表（部分内容已屏蔽）' : '评论已发表')
   } catch (e) {
     toastError(e.message)
   } finally {
     commentBusy.value = false
+  }
+}
+
+/* ---------------- 举报 ---------------- */
+
+/** 自己的评论不给举报按钮；没有 id 的老数据也点不了（举报要靠 id 定位） */
+function canReport(c) {
+  if (!authState.userId || !c || c.id == null) return false
+  if (c.userId == null) return true
+  return String(c.userId) !== String(authState.userId)
+}
+
+function openReport(c) {
+  reportTarget.value = c
+  // 默认选「广告导流」：评论区的举报绝大多数是它，默认值选对的能少一次点击
+  reportReason.value = 1
+  reportText.value = ''
+}
+
+function cancelReport() {
+  reportTarget.value = null
+  reportText.value = ''
+}
+
+async function submitReport() {
+  if (!reportTarget.value || reportBusy.value) return
+  reportBusy.value = true
+  try {
+    const result = await DishApi.reportComment(reportTarget.value.id, reportReason.value, reportText.value)
+    toastSuccess('举报已提交，管理员会尽快处理')
+    if (result && result.pending) {
+      toastInfo('这条评论已被多人举报，已转入人工审核')
+    }
+    cancelReport()
+  } catch (e) {
+    toastError(e.message)
+  } finally {
+    reportBusy.value = false
   }
 }
 

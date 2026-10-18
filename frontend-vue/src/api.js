@@ -363,6 +363,22 @@ export const DishApi = {
     })
   },
 
+  /**
+   * 举报一条评论。
+   *
+   * 同一个人对同一条评论只能举报一次（后端会拒绝重复举报），
+   * 所以这里不需要前端做去重 —— 前端记住「我举报过」只在当前页面有效，
+   * 刷新就丢了，靠它防重等于没防。
+   */
+  reportComment(commentId, reasonType, reason) {
+    return request('/ai/comment/' + commentId + '/report', {
+      method: 'POST',
+      body: { reasonType, reason: reason || null },
+      auth: true,
+      service: 'dish'
+    })
+  },
+
   // ================================================================ 我的
 
   /** 我创建的菜品（含草稿） */
@@ -519,5 +535,98 @@ export const AdminApi = {
   forceUnpublish(dishId) {
     return request('/ai/admin/dish/' + dishId + '/unpublish',
       { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  // ---------------- 违规词库 ----------------
+
+  /** 词库概览：总量 / 启用数 / 拦截级数量 / 各类别分布 */
+  sensitiveWordOverview() {
+    return request('/ai/admin/sensitive-words/overview', { auth: true, service: 'dish' })
+  },
+
+  /**
+   * 检索词库。
+   * @param {{keyword?: string, category?: string, level?: number, enabled?: number,
+   *          page?: number, size?: number}} query
+   */
+  sensitiveWords(query) {
+    const q = query || {}
+    const qs = []
+    if (q.keyword) qs.push('keyword=' + encodeURIComponent(q.keyword))
+    if (q.category && q.category !== 'ALL') qs.push('category=' + encodeURIComponent(q.category))
+    if (q.level !== undefined && q.level !== null && q.level !== '') qs.push('level=' + q.level)
+    if (q.enabled !== undefined && q.enabled !== null && q.enabled !== '') qs.push('enabled=' + q.enabled)
+    qs.push('page=' + (q.page || 1))
+    qs.push('size=' + (q.size || 20))
+    return request('/ai/admin/sensitive-words?' + qs.join('&'), { auth: true, service: 'dish' })
+  },
+
+  /** 新增违规词 */
+  createSensitiveWord(payload) {
+    return request('/ai/admin/sensitive-words',
+      { method: 'POST', body: payload, auth: true, service: 'dish' })
+  },
+
+  /** 修改违规词 */
+  updateSensitiveWord(id, payload) {
+    return request('/ai/admin/sensitive-words/' + id,
+      { method: 'PUT', body: payload, auth: true, service: 'dish' })
+  },
+
+  /** 停用 / 启用。停用优于删除：历史评论的 hit_words 还指着这个词 */
+  setSensitiveWordEnabled(id, enabled) {
+    return request('/ai/admin/sensitive-words/' + id + '/enabled?enabled=' + (enabled ? 'true' : 'false'),
+      { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  deleteSensitiveWord(id) {
+    return request('/ai/admin/sensitive-words/' + id,
+      { method: 'DELETE', auth: true, service: 'dish' })
+  },
+
+  /**
+   * 文本试跑：拿当前内存词库扫一段文字。
+   * 返回 { original, masked, blocked, hitCount, hits:[{word,category,level}] }
+   */
+  testSensitiveWords(text) {
+    return request('/ai/admin/sensitive-words/test',
+      { method: 'POST', body: { text }, auth: true, service: 'dish' })
+  },
+
+  /** 按来源批量停用（批量导入混进误伤时，一次收掉整批） */
+  disableWordsBySource(source) {
+    return request('/ai/admin/sensitive-words/disable-source?source=' + encodeURIComponent(source),
+      { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  /** 手动重建内存词库 */
+  reloadSensitiveWords() {
+    return request('/ai/admin/sensitive-words/reload', { method: 'POST', auth: true, service: 'dish' })
+  },
+
+  // ---------------- 举报审核 ----------------
+
+  /** 举报列表。status：0-待处理，1-已受理，2-已驳回 */
+  commentReports(status, page, size) {
+    return request('/ai/admin/comment-reports?status=' + (status == null ? 0 : status)
+      + '&page=' + (page || 1) + '&size=' + (size || 20), { auth: true, service: 'dish' })
+  },
+
+  /** 处理举报。action：remove=受理并下架评论，reject=驳回举报 */
+  handleReport(reportId, action, remark) {
+    return request('/ai/admin/comment-reports/' + reportId + '/handle',
+      { method: 'POST', body: { action, remark: remark || null }, auth: true, service: 'dish' })
+  },
+
+  /** 待审评论（命中拦截级违规词的 + 被举报超阈值的） */
+  pendingComments(page, size) {
+    return request('/ai/admin/comments/pending?page=' + (page || 1) + '&size=' + (size || 20),
+      { auth: true, service: 'dish' })
+  },
+
+  /** 处置待审评论。action：approve=放行，hide=隐藏 */
+  reviewComment(commentId, action, remark) {
+    return request('/ai/admin/comments/' + commentId + '/review',
+      { method: 'POST', body: { action, remark: remark || null }, auth: true, service: 'dish' })
   }
 }

@@ -12,6 +12,7 @@ import com.apesource.dishservice.mapper.DishCollectMapper;
 import com.apesource.dishservice.mapper.DishCommentMapper;
 import com.apesource.dishservice.mapper.DishMapper;
 import com.apesource.dishservice.mapper.DishRatingMapper;
+import com.apesource.dishservice.moderation.ModerationResult;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,9 @@ public class DishInteractionService {
     private final DishCollectMapper collectMapper;
     private final DishRatingMapper ratingMapper;
     private final DishCommentMapper commentMapper;
+
+    /** 违规词过滤。评论是本服务里唯一「自由文本 + 公开展示」的入口 */
+    private final SensitiveWordService sensitiveWordService;
 
     // ================================================================== 收藏
 
@@ -238,6 +242,19 @@ public class DishInteractionService {
      *
      * <p>评论里可以顺带带一个分数（展示用），但<b>计分只认 {@code t_dish_rating}</b> ——
      * 否则评论表就成了第二套计分来源，两个数对不上时没人说得清哪个是真的。
+     *
+     * <p><b>违规词在这里处理，分两种处置：</b>
+     * <ul>
+     *   <li>命中 level=1 的词 → 就地替换成等长星号，评论照常发布（
+     *       用户写了 200 字经验，不该因为一个词整段丢掉）；</li>
+     *   <li>命中 level=2 的词 → 评论落库但 {@code status=0} 待审核，
+     *       不进详情页（违法类内容不该只变成星号）。</li>
+     * </ul>
+     *
+     * <p><b>存的是脱敏后的文本，不是原文。</b> 详情页查询只按
+     * {@code status=1} 取，若存原文，替换就白做了。原本命中的词记在
+     * {@code hit_words} 里，管理员据此判断「为什么这条被屏蔽」；
+     * 至于被屏蔽的那几个字本身，管理员也不需要看 —— 上下文完整就够了。
      */
     public DishDetailView.CommentView comment(long userId, long dishId, String content, Integer rating) {
         requireVisibleDish(dishId, userId);
@@ -250,22 +267,34 @@ public class DishInteractionService {
             throw new BusinessException("评论最多 " + MAX_CONTENT_LENGTH + " 字");
         }
 
+        // 过滤发生在长度校验之后：先保证原文没超长，再谈替换
+        ModerationResult moderation = sensitiveWordService.filter(text);
+        boolean blocked = moderation.blocked();
+
         DishComment entity = new DishComment();
         entity.setDishId(dishId);
         entity.setUserId(userId);
-        entity.setContent(text);
+        entity.setContent(moderation.text());
+        entity.setHitWords(moderation.hits().isEmpty() ? null : String.join(",", moderation.hits()));
         // 越界的分数直接丢弃而不是报错：用户主要目的是发评论，不该因为一个附属字段失败
         entity.setRating(rating != null && rating >= 1 && rating <= 5 ? rating : null);
         entity.setLikeCount(0);
-        entity.setStatus(1);
+        entity.setReportCount(0);
+        entity.setStatus(blocked ? 0 : 1);
         commentMapper.insert(entity);
 
+        // 命中计数是运营指标，失败不影响发布（recordHits 内部吞异常）
+        sensitiveWordService.recordHits(moderation.hits());
+
         DishDetailView.CommentView view = new DishDetailView.CommentView();
+        view.setId(entity.getId());
         view.setUserId(userId);
         view.setNickname(commentMapper.selectNickname(userId));
-        view.setContent(text);
+        view.setContent(moderation.text());
         view.setRating(entity.getRating());
         view.setCreateTime(LocalDateTime.now().format(TIME_FMT));
+        view.setMasked(moderation.masked());
+        view.setPending(blocked);
         return view;
     }
 

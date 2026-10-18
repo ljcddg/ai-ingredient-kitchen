@@ -126,10 +126,28 @@ public class DishDetailView {
 
     @Data
     public static class CommentView {
+
+        /** 评论 ID。举报要按它定位，没有 ID 前端就没法给举报按钮挂参数 */
+        private Long id;
+
         private Long userId;
+
         private String nickname;
+
+        /** 展示用文本。命中的违规词已经替换成等长星号 */
         private String content;
+
         private Integer rating;
+
         private String createTime;
+
+        /** 这条评论是否有词被替换过 —— 前端据此提示「部分内容已屏蔽」 */
+        private Boolean masked;
+
+        /** 是否因命中「整条拦截」级违规词而进入待审核（此时不会出现在详情页） */
+        private Boolean pending;
+
+        /** 被举报次数（只有管理员视角有意义，详情页恒为 null） */
+        private Integer reportCount;
     }
 }

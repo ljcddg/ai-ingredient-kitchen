@@ -410,3 +410,54 @@
     fill: var(--star);
     stroke: none;
 }
+
+/* ---------------- 评论举报 ----------------
+   举报面板就地展开，不用模态框：模态框会把被举报的内容盖住，
+   而判断「该不该举报」恰恰需要看着原文。 */
+.page-dish .comment-meta{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+}
+
+.page-dish .comment-report-btn{
+    font-size: 12px;
+    padding: 2px 8px;
+    color: var(--ink-2);
+}
+
+.page-dish .report-panel{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.page-dish .report-panel-title{
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.page-dish .report-panel .input{
+    width: 100%;
+}
+
+.page-dish .report-panel-actions{
+    display: flex;
+    gap: 8px;
+}
+
+.page-dish .report-panel-note{
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+    /* 只承载辅助说明，用第三级灰；正文不这么用 */
+    color: var(--ink-3);
+}

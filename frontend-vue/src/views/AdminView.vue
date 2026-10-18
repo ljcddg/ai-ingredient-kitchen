@@ -195,6 +195,245 @@
           下架只改状态（回到草稿）并把它从索引里摘掉，菜本身不删 —— 误操作可以再发布回来。
         </p>
       </section>
+
+      <!-- ==================== 违规词库 ==================== -->
+      <section v-show="tab === 'words'" class="card">
+        <div class="card-title-row">
+          <h2 class="card-title">违规词库</h2>
+          <span class="task-hint">命中 level 1 只把词换成星号；level 2 整条进待审</span>
+        </div>
+
+        <div class="dish-stats">
+          <div><span class="stat-value">{{ wordOverview.total || 0 }}</span><span class="stat-label">词条总数</span></div>
+          <div><span class="stat-value">{{ wordOverview.enabled || 0 }}</span><span class="stat-label">已启用</span></div>
+          <div><span class="stat-value">{{ wordOverview.loaded || 0 }}</span><span class="stat-label">内存已载入</span></div>
+          <div><span class="stat-value">{{ wordOverview.blocking || 0 }}</span><span class="stat-label">拦截级</span></div>
+        </div>
+
+        <!-- 试跑：改完词库先拿真实语句验一遍，比看词表靠谱 -->
+        <div class="field" style="margin-top:14px">
+          <label class="field-hint" for="wordTest">试跑检测（用当前生效的词库扫一段文字）</label>
+          <div class="free-ing-row">
+            <input class="input" id="wordTest" type="text" maxlength="200"
+                   placeholder="例如：这道菜真不错，想学的加微信 abc123"
+                   v-model="testText" @keydown.enter="runWordTest">
+            <button class="secondary-btn" type="button" :disabled="!testText || busy" @click="runWordTest">
+              检测
+            </button>
+          </div>
+        </div>
+
+        <div v-if="testResult" class="word-test-result">
+          <p class="cand-sub" style="margin:0">
+            命中 <b>{{ testResult.hitCount }}</b> 个词
+            <span v-if="testResult.blocked" class="tag danger" style="margin-left:6px">整条拦截待审</span>
+            <span v-else-if="testResult.hitCount" class="tag warn" style="margin-left:6px">替换后照常发布</span>
+            <span v-else class="tag" style="margin-left:6px">不会拦截</span>
+          </p>
+          <p class="word-test-line"><span class="word-test-label">替换后</span>{{ testResult.masked }}</p>
+          <p v-if="testResult.hits && testResult.hits.length" class="word-test-hits">
+            <span v-for="h in testResult.hits" :key="h.word" class="tag"
+                  :class="WORD_CATEGORY_TONE[h.category] || ''" style="margin-right:6px">
+              {{ h.word }} · {{ WORD_CATEGORY_TEXT[h.category] || h.category }} · L{{ h.level }}
+            </span>
+          </p>
+        </div>
+
+        <!-- 新增 -->
+        <div class="word-form">
+          <input class="input" type="text" maxlength="64" placeholder="违规词" v-model="newWord.word">
+          <select class="input" v-model="newWord.category">
+            <option v-for="(label, code) in WORD_CATEGORY_TEXT" :key="code" :value="code">{{ label }}</option>
+          </select>
+          <select class="input" v-model.number="newWord.level">
+            <option :value="1">替换为星号</option>
+            <option :value="2">整条拦截</option>
+          </select>
+          <input class="input" type="text" maxlength="100" placeholder="备注（为什么收录，可空）" v-model="newWord.remark">
+          <button class="primary-btn" type="button" :disabled="!newWord.word || busy" @click="addWord">加入词库</button>
+        </div>
+
+        <!-- 检索 -->
+        <div class="word-form" style="margin-top:10px">
+          <input class="input" type="text" maxlength="64" placeholder="按词模糊检索" v-model="wordQuery.keyword"
+                 @keydown.enter="loadWords(1)">
+          <select class="input" v-model="wordQuery.category">
+            <option value="ALL">全部类别</option>
+            <option v-for="(label, code) in WORD_CATEGORY_TEXT" :key="code" :value="code">{{ label }}</option>
+          </select>
+          <select class="input" v-model="wordQuery.level">
+            <option value="">全部级别</option>
+            <option :value="1">替换为星号</option>
+            <option :value="2">整条拦截</option>
+          </select>
+          <select class="input" v-model="wordQuery.enabled">
+            <option value="">全部状态</option>
+            <option :value="1">已启用</option>
+            <option :value="0">已停用</option>
+          </select>
+          <button class="secondary-btn" type="button" :disabled="busy" @click="loadWords(1)">检索</button>
+        </div>
+
+        <div v-if="!words.length" class="empty">
+          <p class="empty-title">这个条件下没有词条</p>
+          <p class="empty-text">换个关键词或放宽筛选；还没导入词库的话，先跑一遍 sql/import-sensitive-lexicon.py。</p>
+        </div>
+
+        <ul v-else class="cand-list">
+          <li v-for="w in words" :key="w.id" class="cand">
+            <div style="flex:1">
+              <div class="cand-name">
+                {{ w.word }}
+                <span class="tag" :class="WORD_CATEGORY_TONE[w.category] || ''" style="margin-left:8px">
+                  {{ WORD_CATEGORY_TEXT[w.category] || w.category }}
+                </span>
+                <span class="tag" :class="{ danger: w.level === 2 }" style="margin-left:6px">
+                  {{ WORD_LEVEL_TEXT[w.level] }}
+                </span>
+                <span v-if="w.enabled === 0" class="tag warn" style="margin-left:6px">已停用</span>
+              </div>
+              <div class="cand-sub">
+                命中 {{ w.hitCount || 0 }} 次 · {{ w.source || 'manual' }}
+                <template v-if="w.remark"> · {{ w.remark }}</template>
+              </div>
+            </div>
+            <div class="cand-right" style="gap:8px;display:flex">
+              <button class="ghost-btn" type="button" :disabled="busy" @click="toggleWord(w)">
+                {{ w.enabled === 1 ? '停用' : '启用' }}
+              </button>
+              <button class="ghost-btn" type="button" :disabled="busy" @click="removeWord(w)">删除</button>
+            </div>
+          </li>
+        </ul>
+
+        <div v-if="wordPage.total > wordPage.size" class="alt-action">
+          <p>共 {{ wordPage.total }} 条，第 {{ wordPage.page }} / {{ Math.ceil(wordPage.total / wordPage.size) }} 页</p>
+          <button class="secondary-btn" type="button" :disabled="wordPage.page <= 1 || busy"
+                  @click="loadWords(wordPage.page - 1)">上一页</button>
+          <button class="secondary-btn" type="button"
+                  :disabled="wordPage.page * wordPage.size >= wordPage.total || busy"
+                  @click="loadWords(wordPage.page + 1)">下一页</button>
+        </div>
+
+        <p v-if="lastAction" class="cand-sub">{{ lastAction }}</p>
+        <p class="cand-sub">
+          停用优于删除：历史评论的 hit_words 里还记着这个词，删掉词条之后「当初为什么屏蔽」就查不到了。
+        </p>
+      </section>
+
+      <!-- ==================== 举报审核 ==================== -->
+      <section v-show="tab === 'reports'" class="card">
+        <div class="card-title-row">
+          <h2 class="card-title">内容审核</h2>
+          <span class="task-hint">举报只把内容推进队列，下架与否由人决定</span>
+        </div>
+
+        <div class="rank-seg" role="tablist" aria-label="审核类型">
+          <button v-for="m in REVIEW_MODES" :key="m.key" class="rank-seg-btn" type="button"
+                  :aria-selected="String(reviewMode === m.key)"
+                  @click="reviewMode = m.key; refreshReview()">{{ m.label }}</button>
+        </div>
+
+        <!-- ---- 举报 ---- -->
+        <template v-if="reviewMode === 'reports'">
+          <div class="rank-seg" style="margin-top:10px" role="tablist" aria-label="举报状态">
+            <button v-for="f in REPORT_FILTERS" :key="'r' + f.value" class="rank-seg-btn" type="button"
+                    :aria-selected="String(reportStatus === f.value)"
+                    @click="reportStatus = f.value; loadReports(1)">{{ f.label }}</button>
+          </div>
+
+          <div v-if="!reports.length" class="empty">
+            <p class="empty-title">这个状态下没有举报</p>
+            <p class="empty-text">评论区的「举报」入口提交后会出现在这里；待处理为 0 说明队列清空了。</p>
+          </div>
+
+          <ul v-else class="report-list">
+            <li v-for="r in reports" :key="r.id" class="report-item">
+              <div class="report-head">
+                <span class="tag danger">{{ REPORT_REASON_TEXT[r.reasonType] || '其他' }}</span>
+                <span class="comment-time">举报人 {{ r.reporterName || ('用户' + r.reporterId) }} · {{ r.createTime }}</span>
+                <span v-if="r.reportCount > 1" class="tag warn">该评论共被举报 {{ r.reportCount }} 次</span>
+              </div>
+              <p class="report-content">{{ r.commentContent }}</p>
+              <p v-if="r.reason" class="cand-sub">补充说明：{{ r.reason }}</p>
+              <p class="cand-sub">
+                评论作者 {{ r.commentAuthor || '—' }} · 菜品「{{ r.dishName || r.dishId }}」 ·
+                评论状态 {{ COMMENT_STATUS_TEXT[r.commentStatus] || r.commentStatus }}
+                <template v-if="r.hitWords"> · 命中词：{{ r.hitWords }}</template>
+              </p>
+              <div v-if="r.status === 0" class="alt-action" style="margin-top:8px">
+                <input class="input" type="text" maxlength="100" placeholder="处理说明（建议写依据）"
+                       v-model="handleRemark[r.id]">
+                <button class="primary-btn" type="button" :disabled="busy" @click="handleReport(r, 'remove')">
+                  下架评论
+                </button>
+                <button class="secondary-btn" type="button" :disabled="busy" @click="handleReport(r, 'reject')">
+                  驳回举报
+                </button>
+              </div>
+              <p v-else class="cand-sub">
+                {{ REPORT_STATUS_TEXT[r.status] }}
+                <template v-if="r.handleRemark"> · {{ r.handleRemark }}</template>
+                <template v-if="r.handleTime"> · {{ r.handleTime }}</template>
+              </p>
+            </li>
+          </ul>
+
+          <div v-if="reportPage.total > reportPage.size" class="alt-action">
+            <p>共 {{ reportPage.total }} 条，第 {{ reportPage.page }} / {{ Math.ceil(reportPage.total / reportPage.size) }} 页</p>
+            <button class="secondary-btn" type="button" :disabled="reportPage.page <= 1 || busy"
+                    @click="loadReports(reportPage.page - 1)">上一页</button>
+            <button class="secondary-btn" type="button"
+                    :disabled="reportPage.page * reportPage.size >= reportPage.total || busy"
+                    @click="loadReports(reportPage.page + 1)">下一页</button>
+          </div>
+        </template>
+
+        <!-- ---- 待审评论 ---- -->
+        <template v-else>
+          <div v-if="!pendingComments.length" class="empty">
+            <p class="empty-title">没有待审评论</p>
+            <p class="empty-text">
+              两类内容会进这里：命中「整条拦截」级违规词的，以及被举报达到 3 次的。
+              它们都不会出现在详情页，等你决定放行还是隐藏。
+            </p>
+          </div>
+
+          <ul v-else class="report-list">
+            <li v-for="c in pendingComments" :key="c.id" class="report-item">
+              <div class="report-head">
+                <span class="tag danger">待审核</span>
+                <span class="comment-time">{{ c.nickname || ('用户' + c.userId) }} · {{ c.createTime }}</span>
+                <span v-if="c.hitWords" class="tag warn">命中：{{ c.hitWords }}</span>
+                <span v-if="c.reportCount" class="tag warn">被举报 {{ c.reportCount }} 次</span>
+              </div>
+              <p class="report-content">{{ c.content }}</p>
+              <p class="cand-sub">菜品「{{ c.dishName || c.dishId }}」</p>
+              <div class="alt-action" style="margin-top:8px">
+                <input class="input" type="text" maxlength="100" placeholder="处置说明（可空）"
+                       v-model="handleRemark[c.id]">
+                <button class="primary-btn" type="button" :disabled="busy" @click="reviewComment(c, 'approve')">
+                  放行
+                </button>
+                <button class="secondary-btn" type="button" :disabled="busy" @click="reviewComment(c, 'hide')">
+                  隐藏
+                </button>
+              </div>
+            </li>
+          </ul>
+
+          <div v-if="pendingPage.total > pendingPage.size" class="alt-action">
+            <p>共 {{ pendingPage.total }} 条，第 {{ pendingPage.page }} / {{ Math.ceil(pendingPage.total / pendingPage.size) }} 页</p>
+            <button class="secondary-btn" type="button" :disabled="pendingPage.page <= 1 || busy"
+                    @click="loadPending(pendingPage.page - 1)">上一页</button>
+            <button class="secondary-btn" type="button"
+                    :disabled="pendingPage.page * pendingPage.size >= pendingPage.total || busy"
+                    @click="loadPending(pendingPage.page + 1)">下一页</button>
+          </div>
+        </template>
+
+        <p v-if="lastAction" class="cand-sub" style="margin-top:10px">{{ lastAction }}</p>
+      </section>
     </main>
   </div>
 </template>
@@ -213,18 +452,39 @@
    不是管理员直接 403。所以这一页拿不到数据时，第一反应应该是"账号没角色"，
    而不是"接口坏了"—— 下面的错误提示把这种情况单独说了出来。
    ============================================================ */
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import FxBg from '../components/FxBg.vue'
 import TopBar from '../components/TopBar.vue'
 import { AdminApi } from '../api.js'
-import { CANDIDATE_STATUS_TEXT } from '../lib/constants.js'
+import {
+  CANDIDATE_STATUS_TEXT,
+  WORD_CATEGORY_TEXT,
+  WORD_CATEGORY_TONE,
+  WORD_LEVEL_TEXT,
+  REPORT_REASON_TEXT,
+  REPORT_STATUS_TEXT,
+  COMMENT_STATUS_TEXT
+} from '../lib/constants.js'
 import { toastSuccess } from '../store/toast.js'
 
 const TABS = [
   { key: 'candidates', label: '食材候选' },
+  { key: 'words', label: '违规词库' },
+  { key: 'reports', label: '举报审核' },
   { key: 'sync', label: '索引同步' },
   { key: 'nutrition', label: '营养重算' },
   { key: 'ops', label: '下架处置' }
+]
+
+const REVIEW_MODES = [
+  { key: 'reports', label: '举报' },
+  { key: 'pending', label: '待审评论' }
+]
+
+const REPORT_FILTERS = [
+  { value: 0, label: '待处理' },
+  { value: 1, label: '已受理' },
+  { value: 2, label: '已驳回' }
 ]
 
 const SYNC_LABEL = {
@@ -261,6 +521,25 @@ const syncFilter = ref('')
 
 const nutritionReport = ref(null)
 const unpublishId = ref('')
+
+/* ---------------- 违规词库 ---------------- */
+const wordOverview = ref({})
+const words = ref([])
+const wordPage = ref({ page: 1, size: 20, total: 0 })
+const wordQuery = reactive({ keyword: '', category: 'ALL', level: '', enabled: '' })
+const newWord = reactive({ word: '', category: 'AD', level: 1, remark: '' })
+const testText = ref('')
+const testResult = ref(null)
+
+/* ---------------- 举报审核 ---------------- */
+const reviewMode = ref('reports')
+const reportStatus = ref(0)
+const reports = ref([])
+const reportPage = ref({ page: 1, size: 20, total: 0 })
+const pendingComments = ref([])
+const pendingPage = ref({ page: 1, size: 20, total: 0 })
+/** 处理说明按「举报ID / 评论ID」分开存，否则同一页多条会互相串味 */
+const handleRemark = reactive({})
 
 const subtitle = computed(() => {
   const t = TABS.find(x => x.key === tab.value)
@@ -303,13 +582,209 @@ async function loadSync() {
   syncTasks.value = (await AdminApi.esSyncTasks(status, 30)) || []
 }
 
+/* ---------------- 违规词库 ---------------- */
+
+async function loadWordOverview() {
+  wordOverview.value = (await AdminApi.sensitiveWordOverview()) || {}
+}
+
+async function loadWords(page) {
+  errorMessage.value = ''
+  try {
+    const result = await AdminApi.sensitiveWords({
+      keyword: wordQuery.keyword,
+      category: wordQuery.category,
+      level: wordQuery.level,
+      enabled: wordQuery.enabled,
+      page: page || 1,
+      size: 20
+    })
+    words.value = (result && result.records) || []
+    wordPage.value = {
+      page: (result && result.page) || 1,
+      size: (result && result.size) || 20,
+      total: (result && result.total) || 0
+    }
+  } catch (e) {
+    handleError(e)
+  }
+}
+
+async function runWordTest() {
+  if (!testText.value) return
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    testResult.value = await AdminApi.testSensitiveWords(testText.value)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function addWord() {
+  if (!newWord.word || !newWord.word.trim()) {
+    errorMessage.value = '先填一个词'
+    return
+  }
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    await AdminApi.createSensitiveWord({
+      word: newWord.word.trim(),
+      category: newWord.category,
+      level: newWord.level,
+      remark: newWord.remark || null
+    })
+    toastSuccess('已加入词库，下一次评论立刻生效')
+    lastAction.value = '已加入「' + newWord.word.trim() + '」，内存词库已重建'
+    newWord.word = ''
+    newWord.remark = ''
+    await loadWordOverview()
+    await loadWords(1)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function toggleWord(word) {
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    const next = word.enabled !== 1
+    await AdminApi.setSensitiveWordEnabled(word.id, next)
+    toastSuccess(next ? '已启用' : '已停用')
+    await loadWordOverview()
+    await loadWords(wordPage.value.page)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function removeWord(word) {
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    await AdminApi.deleteSensitiveWord(word.id)
+    toastSuccess('已删除')
+    lastAction.value = '已删除「' + word.word + '」。注意：历史评论里的命中记录不会再显示这个词'
+    await loadWordOverview()
+    await loadWords(wordPage.value.page)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+/* ---------------- 举报审核 ---------------- */
+
+async function loadReports(page) {
+  errorMessage.value = ''
+  try {
+    const result = await AdminApi.commentReports(reportStatus.value, page || 1, 20)
+    reports.value = (result && result.records) || []
+    reportPage.value = {
+      page: (result && result.page) || 1,
+      size: (result && result.size) || 20,
+      total: (result && result.total) || 0
+    }
+  } catch (e) {
+    handleError(e)
+  }
+}
+
+async function loadPending(page) {
+  errorMessage.value = ''
+  try {
+    const result = await AdminApi.pendingComments(page || 1, 20)
+    pendingComments.value = (result && result.records) || []
+    pendingPage.value = {
+      page: (result && result.page) || 1,
+      size: (result && result.size) || 20,
+      total: (result && result.total) || 0
+    }
+  } catch (e) {
+    handleError(e)
+  }
+}
+
+async function refreshReview() {
+  lastAction.value = ''
+  if (reviewMode.value === 'reports') {
+    await loadReports(reportPage.value.page)
+  } else {
+    await loadPending(pendingPage.value.page)
+  }
+}
+
+async function handleReport(row, action) {
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    const result = await AdminApi.handleReport(row.id, action, handleRemark[row.id])
+    if (action === 'remove') {
+      toastSuccess('已下架该评论')
+      lastAction.value = '已下架评论；同一条评论的其他待处理举报一并关闭 '
+        + ((result && result.closedOthers) || 0) + ' 条'
+    } else {
+      toastSuccess('已驳回举报')
+      lastAction.value = '已驳回这条举报，评论保持原样'
+    }
+    handleRemark[row.id] = ''
+    await loadReports(reportPage.value.page)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function reviewComment(row, action) {
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    const result = await AdminApi.reviewComment(row.id, action, handleRemark[row.id])
+    toastSuccess(action === 'approve' ? '已放行' : '已隐藏')
+    lastAction.value = action === 'approve'
+      ? '已放行；连带驳回待处理举报 ' + ((result && result.closedReports) || 0) + ' 条'
+      : '已隐藏，详情页不再展示'
+    handleRemark[row.id] = ''
+    await loadPending(pendingPage.value.page)
+  } catch (e) {
+    handleError(e)
+  } finally {
+    busy.value = false
+  }
+}
+
+/**
+ * 按当前 tab 拉对应的数据。
+ *
+ * 原来这里不分三七二十一把候选、同步都拉一遍 —— 管理台有 6 个 tab 之后，
+ * 每切一次都要发三个请求，而且其中两个的数据当前页面根本不显示。
+ * 按需加载的代价只是每个分支各写一行。
+ */
 async function refresh() {
   loading.value = true
   errorMessage.value = ''
   try {
-    await loadCandidates()
-    await loadReviewed()
-    await loadSync()
+    if (tab.value === 'candidates') {
+      await loadCandidates()
+      await loadReviewed()
+    } else if (tab.value === 'sync' || tab.value === 'nutrition') {
+      await loadSync()
+    } else if (tab.value === 'words') {
+      await loadWordOverview()
+      await loadWords(wordPage.value.page)
+    } else if (tab.value === 'reports') {
+      await refreshReview()
+    }
   } catch (e) {
     handleError(e)
   } finally {
@@ -432,5 +907,145 @@ onMounted(refresh)
   display: flex;
   flex-wrap: wrap;
   gap: 18px;
+}
+
+/* 分段控件：样式原本只写在 .page-rank 下，管理台这套按钮一直是裸的。
+   顺手按同一套视觉补上，并允许换行 —— 六个 tab 在窄屏必须能折成两排。 */
+.page-admin .rank-seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.page-admin .rank-seg-btn {
+  flex: 1 1 auto;
+  min-width: 74px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+
+.page-admin .rank-seg-btn:hover {
+  color: var(--ink);
+}
+
+.page-admin .rank-seg-btn[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(34, 32, 30, .08);
+}
+
+/* 违规词：新增 / 检索共用一行式表单，窄屏自动换行 */
+.word-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.word-form .input {
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.word-form .primary-btn,
+.word-form .secondary-btn {
+  flex: 0 0 auto;
+}
+
+/* 试跑结果：用等宽字体展示「替换后」，星号的位置才对得齐 */
+.word-test-result {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f7f9fc;
+  border: 1px solid #d6dce5;
+  border-radius: 8px;
+}
+
+.word-test-line {
+  margin: 6px 0 0;
+  font-family: Consolas, monospace;
+  font-size: 15px;
+  color: #1a2230;
+  word-break: break-all;
+}
+
+.word-test-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #e8eff8;
+  color: #1e4fa8;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.word-test-hits {
+  margin: 6px 0 0;
+}
+
+/* 举报 / 待审：一张卡片一条，卡片内部按「标签行 → 正文 → 元信息 → 操作」排 */
+.report-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-item {
+  padding: 12px 14px;
+  border: 1px solid #e2e7ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+/* 评论原文可能很长，限高滚动而不是把整页撑开 */
+.report-content {
+  margin: 0;
+  padding: 8px 10px;
+  background: #f7f9fc;
+  border-left: 3px solid #d9534f;
+  border-radius: 4px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #1a2230;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.report-item .alt-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-item .alt-action .input {
+  flex: 1 1 200px;
 }
 </style>
